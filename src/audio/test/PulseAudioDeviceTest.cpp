@@ -665,6 +665,45 @@ bool aRecordingDeviceNamedAfterASpeakerReportsTheRefusal()
     return true;
 }
 
+// A playback device whose sink isn't there is refused too, rather than being
+// left playing somewhere else: PipeWire's PulseAudio emulator puts such a
+// stream on the default device unless it's told not to.
+bool aPlaybackDeviceWithNoSinkReportsTheRefusal()
+{
+    if (!soundServerReachable())
+    {
+        std::cout << "[no sound server to try this with] ";
+        return true;
+    }
+    useUsualSoundServer();
+
+    const char* name = "FreeDVTestNoSuchSink";
+    std::string refusedAtOnce = std::string("Could not connect PulseAudio stream to ") + name;
+    std::string refusedAfterwards = std::string("Lost connection to ") + name;
+
+    std::string inputsBefore = runPactl("list sink-inputs short");
+    ErrorLog heard;
+    auto device = PulseAudioDeviceTestAccess::create(name, IAudioEngine::AUDIO_ENGINE_OUT, 48000, 2);
+    device->setOnAudioError(&logDeviceError, &heard);
+    device->start();
+    bool refused = waitUntilReported(heard, refusedAtOnce, 1500) ||
+        waitUntilReported(heard, refusedAfterwards, 1500);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    bool playing = newlyAddedSinkInputId(inputsBefore, runPactl("list sink-inputs short")) >= 0;
+    device->stop();
+    useNoSoundServer();
+
+    if (!refused || playing)
+    {
+        std::cout << "[" << name << ": ";
+        heard.print();
+        std::cout << (playing ? "still playing somewhere; " : "")
+                  << "expected \"" << refusedAtOnce << "\" or \"" << refusedAfterwards << "\"] ";
+        return false;
+    }
+    return true;
+}
+
 // A device that never got a stream says it is 0 microseconds behind, both
 // with no sound server to have tried at all and with one that refused the
 // stream it asked for.
@@ -1000,6 +1039,7 @@ int main()
     executeTestCase("overrunningWorkIsNotWaitedAfter", overrunningWorkIsNotWaitedAfter);
     executeTestCase("workHeldUpForSecondsIsNotWaitedAfter", workHeldUpForSecondsIsNotWaitedAfter);
     executeTestCase("aRecordingDeviceNamedAfterASpeakerReportsTheRefusal", aRecordingDeviceNamedAfterASpeakerReportsTheRefusal);
+    executeTestCase("aPlaybackDeviceWithNoSinkReportsTheRefusal", aPlaybackDeviceWithNoSinkReportsTheRefusal);
     executeTestCase("latencyOfAStreamlessDeviceIsZero", latencyOfAStreamlessDeviceIsZero);
     executeTestCase("aRecordingDeviceWithNoDataHandlerIgnoresWhatItHears", aRecordingDeviceWithNoDataHandlerIgnoresWhatItHears);
     executeTestCase("aSinkRemovedUnderADeviceLeavesItStopable", aSinkRemovedUnderADeviceLeavesItStopable);
