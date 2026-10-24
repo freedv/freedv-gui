@@ -122,11 +122,13 @@ def test_tuning():
                         previous = now
                     check_equal(previous, limit, "Furthest that the %s's wheel goes" % tab)
 
-                # The arrow keys stop at either end as well.
-                for key, x, limit in [("Up", 0.95, HIGHEST), ("Down", 0.12, LOWEST)]:
+                # The arrow keys stop at either end as well. (Again not too
+                # near the left edge: on macOS the Spectrum's labels take up
+                # more than its first 12%.)
+                for key, x, limit in [("Up", 0.95, HIGHEST), ("Down", 0.25, LOWEST)]:
                     app.mouse(plot, "left_dclick", x=x, y=0.5)
                     previous = None
-                    for press in range(60):
+                    for press in range(200):
                         app.key(plot, key)
                         now = tuned_to(app)
                         if now == previous:
@@ -245,10 +247,10 @@ def test_waterfall_colours():
                     check_equal(app.state()["running"], True, "Running while drawing in colour scheme %d" % scheme)
 
                     # The arrow keys stop at either end.
-                    for key, x, limit in [("Up", 0.95, HIGHEST), ("Down", 0.12, LOWEST)]:
+                    for key, x, limit in [("Up", 0.95, HIGHEST), ("Down", 0.25, LOWEST)]:
                         app.mouse(plot, "left_dclick", x=x, y=0.5)
                         previous = None
-                        for press in range(60):
+                        for press in range(200):
                             app.key(plot, key)
                             now = tuned_to(app)
                             if now == previous:
