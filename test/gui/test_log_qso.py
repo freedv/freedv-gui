@@ -304,12 +304,58 @@ def test_callsign_list():
                     app.click("main.btnCallSignReset")
                     check_equal(app.get(CALLSIGN_LIST)["items"], [], "Callsigns listed after clearing")
                     check_equal(app.get("main.cboLastReportedCallsigns")["value"], "", "Callsign chosen")
+                    # Choosing nobody from the emptied list, the way the mouse
+                    # would: opening it, moving over it and clicking in it.
+                    app.combo_popup("main.cboLastReportedCallsigns", open=True)
+                    app.wait_until(lambda: app.get(CALLSIGN_LIST)["shown"], description="the empty list to open")
+                    app.mouse(CALLSIGN_LIST, "motion", x=0.1, y=0.9)
+                    app.mouse(CALLSIGN_LIST, "left_up", x=0.1, y=0.9)
+                    app.mouse(CALLSIGN_LIST, "right_up", x=0.1, y=0.9)
+                    app.wait_until(lambda: not app.get(CALLSIGN_LIST)["shown"], description="the list to close")
+                    check_equal(app.get(CALLSIGN_LIST)["selection"], -1, "Nobody chosen from the empty list")
                     open_log_entry(app)
                     check_equal(log_entry(app)["dxCall"], "", "DX call after clearing the list")
                     app.click("logEntry.btnCancel")
                     app.wait_for_window_closed("logEntry")
 
                     quit_and_check_log(app)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def test_no_udp():
+    """Logging a contact when no logging program is listening: the window
+    just closes, and nothing is sent anywhere. Off the air, the Log QSO
+    button comes from the list of callsigns heard; while on the air
+    there's no logging program to send a contact to."""
+    folder = tempfile.mkdtemp(prefix="freedvtest-files-")
+    try:
+        csv_log = os.path.join(folder, "heard.csv")
+        with open(csv_log, "w") as f:
+            f.write("date,time,callsign,mode,frequency_hz,snr_db\n")
+            f.write("2026-03-04,05:06:07,K1ABC/P,RADEV1,14236000,7\n")
+        with audio_devices():
+            with freedvtest.start(settings=settings(
+                    Reporting__Enable=True, Reporting__Callsign=CALLSIGN, Reporting__GridSquare=GRID_SQUARE,
+                    Reporting__Frequency=FREQUENCY, Reporting__ManualFrequencyReporting=True,
+                    Reporting__CSV__LogFilePath=csv_log,
+                    Reporting__UDP__Enable=False)) as app:
+                app.wait_for_window("main")
+                start_modem(app)
+                check_equal(app.get("main.btnLogQSO")["enabled"], False,
+                            "Log QSO enabled while on the air without a logging program")
+                stop_modem(app)
+                check_equal(app.get("main.btnLogQSO")["enabled"], True,
+                            "Log QSO enabled off the air, from the callsigns heard")
+
+                open_log_entry(app)
+                fill_in(app, dxCall="VK5DGR", dxLocator="OF79", frequency="14.2360")
+                confirm(app)
+                check_equal(app.message_boxes(clear=True), [], "Messages displayed when logging without UDP")
+                check_equal([window["name"] for window in app.windows() if window["name"] == "logEntry"], [],
+                            "Log entry windows left behind")
+
+                quit_and_check_log(app)
     finally:
         shutil.rmtree(folder, ignore_errors=True)
 
@@ -369,6 +415,23 @@ def test_reporter():
             app.activate("reporter")
             app.select_row("reporter.listSpots", (0, "K1ABC"))
 
+            # With the chosen one filtered out of the list, logging falls
+            # back to the frequency being reported.
+            app.set_value("reporter.cbBandFilter", "20 m")
+            app.wait_until(lambda: all(row[0] != "K1ABC" for row in app.rows("reporter.listSpots")),
+                           timeout=5, description="K1ABC to be filtered out")
+            open_log_entry(app)
+            entry = log_entry(app)
+            check_equal((entry["dxCall"], entry["dxLocator"], entry["frequency"]),
+                        ("", "", "14.2360"), "Who's being logged with nobody chosen")
+            app.click("logEntry.btnCancel")
+            app.wait_for_window_closed("logEntry")
+            check_nothing_logged(logger, "Contacts logged with nobody chosen")
+            app.set_value("reporter.cbBandFilter", "All")
+            app.wait_until(lambda: "K1ABC" in [row[0] for row in app.rows("reporter.listSpots")],
+                           timeout=5, description="K1ABC to be listed again")
+            app.select_row("reporter.listSpots", (0, "K1ABC"))
+
             # They're also who a recording started now is named after.
             app.click("main.btnRecord")
             app.wait_for_window("beginRecording")
@@ -381,11 +444,43 @@ def test_reporter():
     shutil.rmtree(folder, ignore_errors=True)
 
 
+def test_selected_khz():
+    """Logging someone chosen from the list of callsigns heard when
+    frequencies are shown in kHz, with no FreeDV Reporter around to fill in
+    their grid."""
+    folder = tempfile.mkdtemp(prefix="freedvtest-files-")
+    try:
+        csv_log = os.path.join(folder, "heard.csv")
+        write_csv_log(csv_log, [("2026-03-04 05:06:07", "K1ABC", 7177000, 4),
+                                ("2026-03-04 21:43:02", "VK5DGR", 14236000, 11)])
+        with WsjtxListener() as logger, audio_devices():
+            extra = dict(Reporting__CSV__LogFilePath=csv_log, Reporting__FrequencyAsKHz=True,
+                         Reporting__FreeDV__Hostname="")
+            with freedvtest.start(settings=logging_settings(logger, **extra)) as app:
+                app.wait_for_window("main")
+                choose_callsign(app, 0)
+                open_log_entry(app)
+                entry = log_entry(app)
+                check_equal((entry["dxCall"], entry["dxLocator"], number(entry["frequency"])),
+                            ("VK5DGR", "", "14236.0"), "Who's being logged")
+                confirm(app)
+                status, decodes, contact = logged(logger)
+                check_equal((contact["dx_call"], contact["dx_grid"], contact["frequency"]),
+                            ("VK5DGR", "", 14236000), "Contact logged")
+                check_equal(logger.messages(WsjtxListener.QSO_LOGGED, clear=True), [], "Extra contacts logged")
+                quit_and_check_log(app)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+
 SCENARIOS = {
     "manual": test_manual,
     "frequency_in_khz": test_frequency_in_khz,
     "callsign_list": test_callsign_list,
     "reporter": test_reporter,
+    "selected_khz": test_selected_khz,
+    "no_udp": test_no_udp,
 }
 
 

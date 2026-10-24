@@ -343,6 +343,36 @@ static void LogLockFunction_(bool lock, void *)
     }
 }
 
+// wxWidgets' default log target collects log messages into a modal message
+// dialog, which blocks the main loop while it's open -- including at exit,
+// where a message queued while windows are being torn down can keep that
+// dialog (and thus the process) up forever. FreeDV surfaces log messages in
+// its own log instead, so send wxWidgets' log messages there as well.
+class UlogLogTarget : public wxLog
+{
+    void DoLogRecord(wxLogLevel level, const wxString& msg, const wxLogRecordInfo& /* info */) override
+    {
+        auto utf8 = msg.ToUTF8();
+        const char* text = utf8.data();
+        switch (level)
+        {
+            case wxLOG_Error:
+                log_error("%s", text);
+                break;
+            case wxLOG_Warning:
+                log_warn("%s", text);
+                break;
+            case wxLOG_Info:
+            case wxLOG_Message:
+                log_info("%s", text);
+                break;
+            default:
+                log_debug("%s", text);
+                break;
+        }
+    }
+};
+
 template<int soundCardId, bool isOut>
 void MainFrame::handleAudioDeviceChange_(std::string const& newDeviceName)
 {
@@ -919,6 +949,10 @@ bool MainApp::OnInit()
     // Suppress spurious GTK logging.
     GTKSuppressDiagnostics();
 #endif // wxCHECK_VERSION(3,1,6) && defined(__WXGTK__)
+
+    // Route wxWidgets' own log messages (and any that GTK queues on its
+    // behalf) through ulog rather than wxLogGui's message dialogs.
+    wxLog::SetActiveTarget(new UlogLogTarget());
 
     // Initialize locale. Note that wxWidgets takes ownership of the wxTranslations
     // object, but clang-analyzer can't see that and reports a leak further down.

@@ -266,6 +266,42 @@ def test_errors():
                 unkey(app)
                 stop_modem(app)
                 quit_and_check_log(app)
+
+            # No input port chosen is the same as not using one: FreeDV
+            # doesn't complain and its own port keys the radio as usual.
+            radio = ports.add()
+            extra = dict(Rig__UseSerialPTTInput=True, Rig__PttInPort="", Rig__CTSPolarity=True)
+            with freedvtest.start(settings=serial_ptt(radio, **extra), env=ports.env) as app:
+                app.wait_for_window("main")
+                start_modem(app)
+                check_equal(app.message_boxes(), [], "Messages displayed")
+                key(app)
+                wait_for_lines(app, radio, {"rts": True, "dtr": False}, "Radio's lines while transmitting")
+                unkey(app)
+                stop_modem(app)
+                quit_and_check_log(app)
+
+            # An input port that looks usable (not under /dev/, so FreeDV
+            # doesn't check it up front) but can't actually be opened:
+            # FreeDV says so once and carries on keying its own port.
+            radio = ports.add()
+            phantom = "freedv-test-no-such-port"
+            extra = dict(Rig__UseSerialPTTInput=True, Rig__PttInPort=phantom, Rig__CTSPolarity=True)
+            with freedvtest.start(settings=serial_ptt(radio, **extra), env=ports.env) as app:
+                app.wait_for_window("main")
+                app.click("main.btnOnOff")
+                app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="FreeDV to start")
+                app.wait_until(lambda: app.message_boxes(), timeout=10, description="a message to be displayed")
+                boxes = app.message_boxes(clear=True)
+                check(len(boxes) == 1 and boxes[0]["message"].startswith(
+                    "Couldn't open PTT input port: Could not open serial port %s" % phantom),
+                    "Messages displayed are %r" % boxes)
+                check_equal(app.state()["running"], True, "Running without the PTT input port")
+                key(app)
+                wait_for_lines(app, radio, {"rts": True, "dtr": False}, "Radio's lines while transmitting")
+                unkey(app)
+                stop_modem(app)
+                check_equal(app.quit(), 0, "FreeDV's exit code")
     finally:
         shutil.rmtree(folder, ignore_errors=True)
 

@@ -146,6 +146,18 @@ bool sortedFrequencyIndex()
            ReportingConfiguration::SortedFrequencyIndex(StringList {}, 7.0) == 0;
 }
 
+// Entries that aren't a positive frequency (a cleared field, a stray zero,
+// something negative or blank) store as zero rather than as a garbage
+// frequency.
+bool nonPositiveEntriesStoreAsZero()
+{
+    ReportingConfiguration config;
+    config.reportingFrequencyAsKhz = false;
+    config.reportingFrequencyList = StringList { "0", "-1.5", "", "0.0000" };
+    return listIs(config.reportingFrequencyList.getWithoutProcessing(),
+                  { "0.000000", "0.000000", "0.000000", "0.000000" });
+}
+
 }
 
 int main()
@@ -166,5 +178,6 @@ int main()
     executeTestCase("savedThenLoadedIsUnchanged (MHz)", []() { return savedThenLoadedIsUnchanged(false); });
     executeTestCase("savedThenLoadedIsUnchanged (kHz)", []() { return savedThenLoadedIsUnchanged(true); });
     executeTestCase("sortedFrequencyIndex", sortedFrequencyIndex);
+    executeTestCase("nonPositiveEntriesStoreAsZero", nonPositiveEntriesStoreAsZero);
     return testResult();
 }

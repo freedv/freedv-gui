@@ -238,6 +238,21 @@ def test_ptt_key():
             app.key("main.notebook", "Space")
             wait_for_transmit(app)
             check_equal(app.get("main.btnPTT")["value"], True, "PTT button pressed")
+
+            # A key held down and repeating does nothing more until it's let
+            # go and pressed again for real.
+            app.key("main.notebook", "Space", hold=True)
+            wait_for_transmit(app, False)
+            check_equal(app.get("main.btnPTT")["value"], False, "PTT button pressed after the key pressed again")
+            app.key("main.notebook", "Space", hold=True)  # as a held key repeats
+            time.sleep(0.5)
+            check_equal(transmitting(app), False, "Transmitting after the held PTT key repeated")
+            app.key("main.notebook", "Space", release=True)
+            time.sleep(0.5)
+            check_equal(transmitting(app), False, "Transmitting after letting go of the held key")
+            app.key("main.notebook", "Space")
+            wait_for_transmit(app)
+            check_equal(app.get("main.btnPTT")["value"], True, "PTT button pressed again")
             # Any other key is just a key.
             app.key("main.notebook", "F5")
             time.sleep(0.5)
@@ -555,6 +570,26 @@ def test_analog():
             stop_modem(app)
             quit_and_check_log(app)
 
+        # The FreeDV Reporter visibility button, including while in analog
+        # mode, and resetting the statistics before anything is running.
+        reporting = dict(Reporting__Enable=True, Reporting__Callsign=CALLSIGN, Reporting__GridSquare="DM12",
+                         Reporting__FreeDV__Enable=True)
+        with freedvtest.start(settings=settings(Debug__showDecodeStats=True, **reporting)) as app:
+            app.wait_for_window("main")
+            app.click("main.btnBerReset")
+            start_modem(app)
+            before = label(app, "main.btnReporterHidden")
+            app.click("main.btnReporterHidden")
+            after = label(app, "main.btnReporterHidden")
+            check(before != after, "The Reporter visibility button's label didn't change (%r then %r)" % (before, after))
+            app.click("main.btnAnalog")
+            app.click("main.btnReporterHidden")
+            check(label(app, "main.btnReporterHidden") != after,
+                  "The Reporter visibility button's label didn't change in analog mode")
+            app.click("main.btnAnalog")
+            stop_modem(app)
+            quit_and_check_log(app)
+
 
 def test_play_file():
     """Tools > Play File - From Radio, which stands a file in for the radio."""
@@ -596,6 +631,13 @@ def test_play_file():
                 app.menu(start_item)
                 check_equal(app.get("main")["status"], "Playing file %s as radio input" % tone, "Status while playing")
                 check_audible(SPEAKER_MONITOR, "The file isn't being played")
+
+                # Starting a transmission cuts the file short.
+                app.click("main.btnPTT")
+                wait_for_transmit(app)
+                check_equal(app.get("main")["status"], "", "Status after a transmission cut the file short")
+                app.click("main.btnPTT")
+                wait_for_transmit(app, False)
 
                 # ...which stops by itself when it runs out,
                 app.wait_until(lambda: app.get("main")["status"] == "", timeout=15, description="the file to finish")
@@ -843,6 +885,18 @@ def test_voice_keyer_files():
                 check_equal(label(app, "main.btnVoiceKeyer"), "Start Voice Keyer\nlow_rate",
                             "Voice keyer button's label")
 
+                # An empty sound file: it can't be opened at all.
+                broken = os.path.join(folder, "broken.wav")
+                open(broken, "wb").close()
+                app.choose_next_path(broken)
+                app.context_menu("main.btnVoiceKeyer", choose="Use another voice keyer file...")
+                app.click("main.btnVoiceKeyer")
+                boxes = app.message_boxes(clear=True)
+                check(len(boxes) == 1 and boxes[0]["caption"].startswith("Couldn't open:"),
+                      "Message for a file that isn't sound: %r" % [b["caption"] for b in boxes])
+                check_equal(transmitting(app), False, "Transmitting a file that isn't sound")
+                check_equal(app.get("main.btnVoiceKeyer")["value"], False, "Voice keyer button pressed")
+
                 # Another that it can't use, chosen from its menu this time.
                 app.choose_next_path(stereo)
                 app.context_menu("main.btnVoiceKeyer", choose="Use another voice keyer file...")
@@ -902,6 +956,31 @@ def test_voice_keyer_files():
                 check(recorded_level > AUDIBLE and recorded_seconds > 1,
                       "The recording is %.1f s at level %d" % (recorded_seconds, recorded_level))
 
+                # Recording it can't: the file can't be created, and it
+                # says so.
+                app.choose_next_path(os.path.join(folder, "nowhere", "x.wav"))
+                app.context_menu("main.btnVoiceKeyer", choose="Record new voice keyer file...")
+                check_equal([box["caption"] for box in app.message_boxes(clear=True)], ["Couldn't open sound file"],
+                            "Message displayed for an unwritable recording file")
+                check_equal(app.get("main.btnVoiceKeyer")["value"], False, "Voice keyer button pressed")
+
+                # A name without .wav gets the extension added.
+                odd = os.path.join(folder, "recorded2.wave")
+                app.choose_next_path(odd)
+                with Tone(MICROPHONE):
+                    app.context_menu("main.btnVoiceKeyer", choose="Record new voice keyer file...")
+                    time.sleep(1)
+                    app.click("main.btnVoiceKeyer")
+                check(os.path.exists(odd + ".wav"), "recorded2.wave wasn't saved as recorded2.wave.wav")
+
+                # Changing its mind about recording leaves everything as it was.
+                app.choose_next_path(None)
+                app.context_menu("main.btnVoiceKeyer", choose="Record new voice keyer file...")
+                check_equal(app.get("main.btnVoiceKeyer")["value"], False, "Voice keyer button pressed")
+                check(not os.path.exists(os.path.join(folder, "abandoned.wav")), "Abandoned recording file exists")
+                app.choose_next_path(recorded)
+                app.context_menu("main.btnVoiceKeyer", choose="Use another voice keyer file...")
+
                 # ...and is then what's transmitted.
                 app.click("main.btnAnalog")
                 app.click("main.btnVoiceKeyer")
@@ -915,6 +994,29 @@ def test_voice_keyer_files():
                 saved = freedvtest.read_config(app.config_path)
                 check_equal((saved.get("/VoiceKeyer/WaveFilePath"), saved.get("/VoiceKeyer/WaveFile")),
                             (folder, "recorded.wav"), "Saved voice keyer file")
+
+            # The configured file has gone missing: the keyer asks for
+            # another, and refuses to do anything without one.
+            with freedvtest.start(settings=settings(**dict(VoiceKeyer__WaveFilePath=folder,
+                                                           VoiceKeyer__WaveFile="gone.wav"))) as app:
+                app.wait_for_window("main")
+                start_modem(app)
+                app.click("main.btnVoiceKeyer")
+                check_equal(app.path_dialogs(clear=True), ["Select Voice Keyer File"],
+                            "Chooser for the missing configured file")
+                check_equal(app.get("main.btnVoiceKeyer")["value"], False,
+                            "Voice keyer started without a replacement")
+                check_equal(transmitting(app), False, "Transmitting after refusing to choose a file")
+
+                # Given a replacement when asked, it plays that.
+                app.choose_next_path(good)
+                app.click("main.btnVoiceKeyer")
+                wait_for_transmit(app)
+                check_audible(RADIO_TX_MONITOR, "The replacement file isn't being sent to the radio")
+                app.click("main.btnVoiceKeyer")
+                wait_for_transmit(app, False)
+                stop_modem(app)
+                quit_and_check_log(app)
     finally:
         shutil.rmtree(folder, ignore_errors=True)
 
@@ -988,6 +1090,25 @@ def test_recording():
                       "Recordings are %r and %r" % (raw, decoded))
                 check_equal(app.get("main.btnRecord")["value"], False, "Record button pressed after stopping")
 
+                # Transmitting while recording takes the recording along.
+                time.sleep(1.1)
+                recordings_before = recordings()
+                app.click("main.btnRecord")
+                app.wait_for_window("beginRecording")
+                app.click("beginRecording.rawRecording")
+                app.click("beginRecording.btnStart")
+                app.wait_for_window_closed("beginRecording")
+                time.sleep(1)
+                app.click("main.btnPTT")
+                wait_for_transmit(app)
+                time.sleep(1)
+                app.click("main.btnPTT")
+                wait_for_transmit(app, False)
+                time.sleep(1)
+                app.click("main.btnRecord")
+                check_equal(app.get("main.btnRecord")["value"], False, "Record button pressed after stopping")
+                check(len(recordings()[0]) > len(recordings_before[0]), "Nothing was recorded while transmitting")
+
                 # Started while transmitting, what's recorded is what's sent.
                 time.sleep(1.1)
                 app.click("main.btnPTT")
@@ -1002,7 +1123,7 @@ def test_recording():
                 app.click("main.btnRecord")
                 app.click("main.btnPTT")
                 wait_for_transmit(app, False)
-                check_equal(len(recordings()[0]), 3, "Off air recordings after recording while transmitting")
+                check_equal(len(recordings()[0]), 4, "Off air recordings after recording while transmitting")
 
                 # Recording stops with FreeDV.
                 app.click("main.btnRecord")
@@ -1035,6 +1156,9 @@ def test_recording_options():
         csv_log = os.path.join(folder, "heard.csv")
         with open(csv_log, "w") as f:
             f.write("date,time,callsign,mode,frequency_hz,snr_db\n")
+            # The last one written is the one on top: FreeDV puts each
+            # heard station at the top of the list.
+            f.write("2026-03-03,04:05:06,vk5dgr/p,RADEV1,14236000,6\n")
             f.write("2026-03-04,05:06:07,K1ABC/P,RADEV1,14236000,7\n")
 
         extra = dict(QuickRecord__SavePath=raw_folder, QuickRecord__SaveDecodedPath=decoded_folder,
@@ -1086,6 +1210,23 @@ def test_recording_options():
                 check_equal(app.get("main")["status"], "", "Status after stopping")
                 check(os.path.getsize(os.path.join(decoded_folder, decoded[0])) >= 0, "The recording has gone")
 
+                # Someone heard with a name that's already partly lowercase
+                # keeps those letters; only what a file name can't have is
+                # replaced.
+                app.combo_popup("main.cboLastReportedCallsigns", open=True)
+                app.wait_until(lambda: app.get("main.listLastReportedCallsigns")["shown"],
+                               description="the list of callsigns to open")
+                app.click("main.listLastReportedCallsigns", item=1)
+                app.wait_until(lambda: not app.get("main.listLastReportedCallsigns")["shown"],
+                               description="the list of callsigns to close")
+                check_equal(app.get("main.cboLastReportedCallsigns")["value"], "vk5dgr/p", "Lowercase callsign chosen")
+                app.click("main.btnRecord")
+                app.wait_for_window("beginRecording")
+                check_equal(app.get("beginRecording.recordingSuffix")["value"], "vk5dgr_p",
+                            "Recording suffix for a lowercase callsign")
+                app.click("beginRecording.btnCancel")
+                app.wait_for_window_closed("beginRecording")
+
                 # Whatever ends up in the suffix, the recording stays where
                 # recordings go.
                 time.sleep(1.1)  # for a different time in the file's name
@@ -1110,7 +1251,7 @@ def test_recording_options():
                           "Typing %r changed the recording suffix from %r to %r" % (typed, before, after))
                     replaced += len(after) - len(before)
                 check(replaced >= 2, "Only %d of the characters typed were replaced" % replaced)
-                for typed in ["K", "5", "_", "Backspace", "Left"]:
+                for typed in ["K", "5", "_", "Backspace", "Delete", "Left"]:
                     before = app.get(suffix)["value"]
                     app.key(suffix, typed)
                     time.sleep(0.2)
@@ -1127,6 +1268,18 @@ def test_recording_options():
                       "Off air recordings are %r" % raw)
                 check_equal(sorted(os.listdir(folder)), ["decoded", "heard.csv", "raw"], "What's been created")
                 app.click("main.btnRecord")
+
+                # A recording started after clearing the list of heard
+                # stations is named for nobody, even though someone had been
+                # chosen from it.
+                app.click("main.btnCallSignReset")
+                time.sleep(1.1)  # for a different time in the file's name
+                app.click("main.btnRecord")
+                app.wait_for_window("beginRecording")
+                check_equal(app.get("beginRecording.recordingSuffix")["value"], "", "Recording suffix after clearing")
+                app.click("beginRecording.btnCancel")
+                app.wait_for_window_closed("beginRecording")
+                check_equal(recordings(), (raw, decoded), "Recordings after cancelling")
 
                 stop_modem(app)
                 quit_and_check_log(app)
@@ -1369,6 +1522,17 @@ def test_mouse_controls():
                 check(tx_level(app) != "0.0dB", "The wheel didn't change Tune's attenuation")
                 app.mouse("main.textTxLevel", "wheel", rotation=1)
                 check_equal(tx_level(app), "0.0dB", "Tune attenuation")
+                # The +/- buttons follow Tune too, not just the wheel.
+                app.click("main.btnTxLevelDecr")
+                check(tx_level(app) != "0.0dB", "Decrementing while tuning didn't change Tune's attenuation")
+                app.click("main.btnTxLevelIncr")
+                check_equal(tx_level(app), "0.0dB", "Tune attenuation after incrementing while tuning")
+                app.click("main.btnTxLevelIncrBig")
+                check_equal(tx_level(app), "0.0dB", "Tune attenuation after a big increment at the top")
+                app.click("main.btnTxLevelDecrBig")
+                check(tx_level(app) != "0.0dB", "Big decrement while tuning didn't change Tune's attenuation")
+                app.click("main.btnTxLevelIncrBig")
+                check_equal(tx_level(app), "0.0dB", "Tune attenuation back to the top")
                 app.click("main.btnTune")
                 check_equal(tx_level(app), start, "TX attenuation after tuning")
 
@@ -1588,6 +1752,12 @@ def test_band_names():
             except freedvtest.CommandError as e:
                 check("no popup menu appeared" in str(e), "Right-clicking TX attenuation failed: %s" % e)
 
+            # Tune's menu still exists outside the bands, it just has
+            # nothing band-specific in it.
+            items = app.context_menu("main.btnTune")
+            check_equal([item["label"] for item in items], ["Set tune output to minimum (-30 dB)"],
+                        "Tune button's menu outside the bands")
+
             stop_modem(app)
             quit_and_check_log(app)
             saved = freedvtest.read_config(app.config_path)
@@ -1744,6 +1914,53 @@ def test_default_config():
     finally:
         shutil.rmtree(home, ignore_errors=True)
 
+def test_config_migration_failure():
+    """When FreeDV can't move an older configuration file into the newer
+    place, it says so in its log and carries on without migrating."""
+    if not sys.platform.startswith("linux"):
+        # Only Linux has an older place for it to move from.
+        raise freedvtest.audio.Unavailable("configuration files are only migrated on Linux")
+    quiet = {"/Reporting/FreeDV/Hostname": NOWHERE, "/Reporting/FreeDV/UseTls": False}
+
+    def old_file(home):
+        return os.path.join(home, ".freedv")
+
+    def migrated(home):
+        return os.path.join(home, ".config", "freedv", "freedv.conf")
+
+    # The folder it wants to copy into can't be created: the one above it
+    # isn't writable.
+    home = tempfile.mkdtemp(prefix="freedvtest-home-")
+    try:
+        freedvtest.write_config(old_file(home), dict(quiet, **{"/Reporting/Callsign": "K1ABC"}))
+        os.mkdir(os.path.join(home, ".config"))
+        os.chmod(os.path.join(home, ".config"), 0o500)
+        with freedvtest.start(home=home, default_config=True) as app:
+            app.wait_for_window("main")
+            check("Could not create folder" in open(app.log_path, errors="replace").read(),
+                  "FreeDV's output when its new settings folder can't be created")
+            check_equal(app.quit(), 0, "FreeDV's exit code (unreadable folder)")
+        check(not os.path.exists(migrated(home)), "Migrated configuration file exists (unreadable folder)")
+    finally:
+        os.chmod(os.path.join(home, ".config"), 0o700)
+        shutil.rmtree(home, ignore_errors=True)
+
+    # The folder is there, but the copy itself is refused.
+    home = tempfile.mkdtemp(prefix="freedvtest-home-")
+    try:
+        freedvtest.write_config(old_file(home), dict(quiet, **{"/Reporting/Callsign": "K1ABC"}))
+        os.makedirs(os.path.join(home, ".config", "freedv"))
+        os.chmod(os.path.join(home, ".config", "freedv"), 0o500)
+        with freedvtest.start(home=home, default_config=True) as app:
+            app.wait_for_window("main")
+            check("Could not copy" in open(app.log_path, errors="replace").read(),
+                  "FreeDV's output when the configuration copy is refused")
+            check_equal(app.quit(), 0, "FreeDV's exit code (unwritable folder)")
+        check(not os.path.exists(migrated(home)), "Migrated configuration file exists (unwritable folder)")
+    finally:
+        os.chmod(os.path.join(home, ".config", "freedv"), 0o700)
+        shutil.rmtree(home, ignore_errors=True)
+
 
 def test_appearance_change():
     """The desktop switching between light and dark while FreeDV is running."""
@@ -1824,6 +2041,21 @@ def test_time_out_timer():
             stop_modem(app)
             quit_and_check_log(app)
 
+        # The PTT key while the warning window has the focus ends the
+        # transmission in latch mode.
+        with freedvtest.start(settings=settings(Rig__TotTimerSecs=18)) as app:
+            app.wait_for_window("main")
+            app.activate("main")
+            start_modem(app)
+            app.click("main.btnPTT")
+            wait_for_transmit(app)
+            app.wait_for_window("totWarning", timeout=10)
+            app.key("main.notebook", "Space")
+            wait_for_transmit(app, False)
+            check(not app.window_exists("totWarning"), "The time-out warning is still there")
+            stop_modem(app)
+            quit_and_check_log(app)
+
         # It can be turned off.
         with freedvtest.start(settings=settings(Rig__TotTimerSecs=5, Rig__TotTimerEnabled=False)) as app:
             app.wait_for_window("main")
@@ -1833,6 +2065,20 @@ def test_time_out_timer():
             time.sleep(8)
             check_equal(transmitting(app), True, "Transmitting past a time-out that's turned off")
             check(not app.window_exists("totWarning"), "The time-out warning appeared with the timer turned off")
+            app.click("main.btnPTT")
+            wait_for_transmit(app, False)
+            stop_modem(app)
+            quit_and_check_log(app)
+
+        # With no length given, there's no time-out to arm.
+        with freedvtest.start(settings=settings(Rig__TotTimerEnabled=True, Rig__TotTimerSecs=0)) as app:
+            app.wait_for_window("main")
+            start_modem(app)
+            app.click("main.btnPTT")
+            wait_for_transmit(app)
+            time.sleep(4)
+            check_equal(transmitting(app), True, "Transmitting past a time-out of no length")
+            check(not app.window_exists("totWarning"), "The time-out warning appeared with no length to count down")
             app.click("main.btnPTT")
             wait_for_transmit(app, False)
             stop_modem(app)
@@ -1903,6 +2149,18 @@ def test_ptt_key_time_out():
             stop_modem(app)
             quit_and_check_log(app)
 
+        # Clicking the PTT button, with the key in momentary mode, still
+        # runs the time-out out to the end.
+        with freedvtest.start(settings=settings(Rig__PttMomentaryMode=True, Rig__TotTimerSecs=8)) as app:
+            app.wait_for_window("main")
+            start_modem(app)
+            app.click("main.btnPTT")
+            wait_for_transmit(app)
+            wait_for_transmit(app, False, timeout=25)
+            check_equal(app.get("main.btnPTT")["value"], False, "PTT button pressed after timing out")
+            stop_modem(app)
+            quit_and_check_log(app)
+
         # Letting go of the key while TX is still starting must not leave the
         # rig keyed. A delay before TX begins makes that window easy to hit.
         with freedvtest.start(settings=settings(Rig__PttMomentaryMode=True, Rig__PttKeyCode=WXK_F5,
@@ -1937,7 +2195,8 @@ def test_menus():
         exported = os.path.join(folder, "exported.conf")
         other = os.path.join(folder, "other.conf")
         empty = os.path.join(folder, "empty.conf")
-        freedvtest.write_config(other, {"/Reporting/Callsign": "K1ABC", "/Reporting/GridSquare": "FN42"})
+        freedvtest.write_config(other, {"/Reporting/Callsign": "K1ABC", "/Reporting/GridSquare": "FN42",
+                                        "/Reporting/FreeDV/Hostname": NOWHERE, "/Reporting/FreeDV/UseTls": False})
         open(empty, "w").close()
 
         start = {"/Reporting/Callsign": CALLSIGN, "/Reporting/GridSquare": "DM12",
@@ -1990,6 +2249,41 @@ def test_menus():
             check_equal(app.message_boxes(), [], "Messages displayed")
             check_equal(callsign(), "K1ABC", "Callsign after using another configuration")
             check("(other.conf)" in app.get("main")["label"], "Window title is %r" % app.get("main")["label"])
+            # (Restoring defaults below deletes the file that's in use, so
+            # this checks here that using one left the original alone.)
+            check_equal(freedvtest.read_config(other).get("/Reporting/Callsign"), "K1ABC",
+                        "Callsign in the file that was used")
+
+            # Settings > Restore defaults, which also closes the reporter
+            # window that startup set up.
+            app.answer_next_message_box("yes")
+            app.menu("Tools/Restore defaults")
+            app.wait_until(lambda: callsign() == "", timeout=10,
+                           description="the configuration to be reset")
+            app.wait_until(lambda: any("successfully deleted" in b["message"] for b in app.message_boxes()),
+                           timeout=10, description="FreeDV to say the restore is done")
+            app.message_boxes(clear=True)
+            # The PTT key with no reporter window around at all.
+            app.key("main.notebook", "Space")
+            time.sleep(0.5)
+
+            # Restoring defaults again, with no reporter window to close.
+            app.answer_next_message_box("yes")
+            app.menu("Tools/Restore defaults")
+            app.wait_until(lambda: any("successfully deleted" in b["message"] for b in app.message_boxes()),
+                           timeout=10, description="FreeDV to say the second restore is done")
+            app.message_boxes(clear=True)
+            # Restoring defaults deleted the configuration file that was in
+            # use, so getting the reporter window back needs a new one.
+            another = os.path.join(folder, "another.conf")
+            freedvtest.write_config(another, {"/Reporting/Callsign": "K1ABC", "/Reporting/GridSquare": "FN42",
+                                              "/Reporting/FreeDV/Hostname": NOWHERE, "/Reporting/FreeDV/UseTls": False})
+            app.choose_next_path(another)
+            app.menu("Settings/Use Configuration...")
+            app.wait_until(lambda: callsign() == "K1ABC", timeout=10, description="the new configuration to be used")
+            app.menu("Tools/FreeDV Reporter")
+            app.wait_for_window("reporter")
+            check_equal(app.message_boxes(), [], "Messages displayed with the reporter window made afresh")
 
             # Settings > Load Default Configuration, which asks first.
             app.answer_next_message_box("no")
@@ -2011,7 +2305,7 @@ def test_menus():
             check_equal(app.quit(), 0, "FreeDV's exit code")
 
         # What was in use before is left as it was.
-        check_equal(freedvtest.read_config(other).get("/Reporting/Callsign"), "K1ABC", "Callsign in other.conf")
+        check_equal(freedvtest.read_config(another).get("/Reporting/Callsign"), "K1ABC", "Callsign in another.conf")
     finally:
         shutil.rmtree(folder, ignore_errors=True)
 
@@ -2141,6 +2435,12 @@ def test_receive_reports():
         listener.bind(("127.0.0.1", 0))
         listener.settimeout(20)
         csv_log = os.path.join(folder, "heard.csv")
+        # The log already holds the very callsign and frequency about to be
+        # heard, so the report takes the place of that entry from the log
+        # instead of merely being added to the front of the list.
+        with open(csv_log, "w") as f:
+            f.write("date,time,callsign,mode,frequency_hz,snr_db\n")
+            f.write("2026-10-23,12:00:00,%s,RADEV1,14236000,10\n" % CALLSIGN)
         extra = dict(Rig__HalfDuplex=False, Reporting__Enable=True, Reporting__Callsign=CALLSIGN,
                      Reporting__GridSquare="DM12", Reporting__Frequency=14236000, Reporting__FrequencyAsKHz=True,
                      Reporting__ManualFrequencyReporting=True, Reporting__FreeDV__Enable=False,
@@ -2154,7 +2454,7 @@ def test_receive_reports():
                 app.click("main.btnPTT")
                 wait_for_transmit(app)
                 app.wait_until(lambda: app.state()["sync"] == 1, timeout=20, description="FreeDV to sync")
-                time.sleep(3)
+                time.sleep(8)
                 app.click("main.btnPTT")
                 wait_for_transmit(app, False)
                 app.wait_until(lambda: app.get("main.cboLastReportedCallsigns")["value"] == CALLSIGN, timeout=15,
@@ -2163,7 +2463,7 @@ def test_receive_reports():
                 # The list of stations heard, in kHz and UTC as asked.
                 items = app.get("main.listLastReportedCallsigns")["items"]
                 check_equal([(item["columns"][0], item["columns"][1].replace(",", "")) for item in items],
-                            [(CALLSIGN, "14236.0")], "Stations heard")
+                            [(CALLSIGN, "14236.0")] * 2, "Stations heard")
                 when = re.match(r"^(\d{4}-\d\d-\d\d)\D(\d\d:\d\d:\d\d)$", items[0]["columns"][2])
                 check(when, "Time heard is %r" % items[0]["columns"][2])
                 heard_at = datetime.datetime.strptime(" ".join(when.groups()), "%Y-%m-%d %H:%M:%S")
@@ -2191,8 +2491,8 @@ def test_receive_reports():
                 with freedvtest.start(config=app.config_path) as again:
                     again.wait_for_window("main")
                     items = again.get("main.listLastReportedCallsigns")["items"]
-                    check_equal([(item["columns"][0], item["columns"][1].replace(",", "")) for item in items],
-                                [(CALLSIGN, "14236.0")], "Stations heard the next time")
+                    check([(item["columns"][0], item["columns"][1].replace(",", "")) for item in items][:2]
+                          == [(CALLSIGN, "14236.0")] * 2, "Stations heard the next time: %r" % items)
                     check_equal(again.quit(), 0, "FreeDV's exit code the next time")
     finally:
         listener.close()
@@ -2369,6 +2669,7 @@ SCENARIOS = {
     "reporting_without_callsign": test_reporting_without_callsign,
     "band_names": test_band_names,
     "frequency_units": test_frequency_units,
+    "config_migration_failure": test_config_migration_failure,
     "default_config": test_default_config,
     "appearance_change": test_appearance_change,
     "time_out_timer": test_time_out_timer,

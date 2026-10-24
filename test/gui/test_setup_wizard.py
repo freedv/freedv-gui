@@ -324,6 +324,16 @@ def test_receive_only():
             finish_wizard(app)
             check_audio_config(app, receive_only)
 
+            # Finishing with "none" chosen for the devices saves no rates.
+            reopen_wizard(app)
+            app.set_value("wizard.cbRadioIn", data="none")
+            app.set_value("wizard.cbSpeakerOut", data="none")
+            finish_wizard(app)
+            audio = app.state()["config"]["audio"]
+            for key in ["soundCard1In", "soundCard1Out", "soundCard2In", "soundCard2Out"]:
+                check_equal(audio[key]["deviceName"], "none", key + " device")
+            check_equal(audio["soundCard1In"]["sampleRate"], 48000, "soundCard1In sample rate")
+
             quit_and_check_log(app)
 
 
@@ -350,7 +360,7 @@ def test_odd_starting_points():
         check_audio_config(app, TWO_SOUND_CARDS)
 
     gone = "FreeDVGuiTest_Gone"
-    with VirtualAudioDevices(RADIO_RX, RADIO_TX, MICROPHONE, SPEAKER):
+    with VirtualAudioDevices(RADIO_RX, RADIO_TX, MICROPHONE, SPEAKER) as devices:
         # Every device has gone. Finishing without choosing others leaves
         # nothing that's there to be chosen in their place.
         with freedvtest.start(settings=audio(gone + ".monitor", gone, gone + "2.monitor", gone + "2")) as app:
@@ -388,6 +398,40 @@ def test_odd_starting_points():
             check_equal(app.get("wizard.cbRadioOut")["data"], RADIO_TX, "Radio output")
             choose_everything_and_finish(app)
             start_and_stop_modem(app)
+            quit_and_check_log(app)
+
+        # The radio output is "none" while the rest of transmitting is set up.
+        with freedvtest.start(settings=audio(RADIO_RX_IN, "none", MICROPHONE_IN, SPEAKER)) as app:
+            app.wait_for_window("main")
+            reopen_wizard(app)
+            check_equal(app.get("wizard.cbRadioOut")["data"], "none", "Radio output")
+            go_to_page(app, 1)
+            check_values(app, {"ckReceiveOnly": False})
+            choose_everything_and_finish(app)
+            start_and_stop_modem(app)
+            quit_and_check_log(app)
+
+        # ...or saved as nothing at all.
+        with freedvtest.start(settings=audio(RADIO_RX_IN, "", MICROPHONE_IN, SPEAKER)) as app:
+            app.wait_for_window("main")
+            reopen_wizard(app)
+            go_to_page(app, 1)
+            check_values(app, {"ckReceiveOnly": False})
+            choose_everything_and_finish(app)
+            quit_and_check_log(app)
+
+        # A radio output unplugged while the wizard is open keeps its selection.
+        with freedvtest.start(settings=audio(RADIO_RX_IN, RADIO_TX, MICROPHONE_IN, SPEAKER)) as app:
+            app.wait_for_window("main")
+            reopen_wizard(app)
+            go_to_page(app, 1)
+            app.set_value("wizard.cbRadioOut", data=RADIO_TX)
+            devices.remove(RADIO_TX)
+            finish_wizard(app)
+            check_equal(app.state()["config"]["audio"]["soundCard1Out"]["deviceName"], RADIO_TX,
+                        "soundCard1Out device")
+            check_equal(app.state()["config"]["audio"]["soundCard1Out"]["sampleRate"], 48000,
+                        "soundCard1Out sample rate")
             quit_and_check_log(app)
 
 
@@ -428,7 +472,8 @@ def test_cancel():
             check("FreeDVGuiTest" not in saved, "Cancelled choices were saved to %s" % app.config_path)
 
     with VirtualAudioDevices(RADIO_RX, RADIO_TX, MICROPHONE, SPEAKER):
-        with freedvtest.start() as app:
+        # The settings home is set but empty, so the default one is used instead.
+        with freedvtest.start(env={"XDG_CONFIG_HOME": ""}) as app:
             app.wait_for_window("wizard")
 
             # No other programs' settings exist, so there's nothing to import.
@@ -498,15 +543,29 @@ def test_auto_select():
     dax_iq = "FreeDVGuiTest_Dax_Iq"
     dax_rx2 = "FreeDVGuiTest_Dax_Second"
     dax_rx1 = "FreeDVGuiTest_Dax_First"
+    # A receive channel without a number, and a device that isn't a receiver.
+    dax_left = "FreeDVGuiTest_Dax_Left"
+    dax_side = "FreeDVGuiTest_Dax_Side"
     dax_tx = "FreeDVGuiTest_Dax_Transmit"
     with VirtualAudioDevices(
-            inputs={dax_iq: "DAX IQ RX 1", dax_rx2: "DAX Audio RX 2", dax_rx1: "DAX Audio RX 1"},
+            inputs={dax_iq: "DAX IQ RX 1", dax_rx2: "DAX Audio RX 2", dax_rx1: "DAX Audio RX 1",
+                    dax_left: "DAX Audio RX Left", dax_side: "DAX Side"},
             outputs={dax_tx: "DAX Audio TX (FlexRadio Systems DAX TX)"}):
         with freedvtest.start() as app:
             app.wait_for_window("wizard")
             check_equal(app.get("wizard.cbRadioIn")["data"], dax_rx1, "Radio input")
             check_equal(app.get("wizard.cbRadioOut")["data"], dax_tx, "Radio output")
             check_values(app, {"ckReceiveOnly": False})
+            app.click("wizard.btnCancel")
+            app.wait_for_window_closed("wizard")
+            quit_and_check_log(app)
+
+    # A known radio input with no matching output leaves nothing chosen.
+    codec_alone = "FreeDVGuiTest_Codec_Alone"
+    with VirtualAudioDevices(inputs={codec_alone: "USB Audio CODEC"}):
+        with freedvtest.start() as app:
+            app.wait_for_window("wizard")
+            check_equal(app.get("wizard.cbRadioIn")["data"], "none", "Radio input")
             app.click("wizard.btnCancel")
             app.wait_for_window_closed("wizard")
             quit_and_check_log(app)
@@ -556,6 +615,25 @@ def test_radio_control():
         app.set_value("wizard.cbRigName", other_rig)
         check("19200" in rates(), "%s cannot use 19200 baud" % other_rig)
         check_values(app, {"cbSerialRate": "19200"})
+        app.set_value("wizard.cbRigName", rig)
+        check_values(app, {"cbSerialRate": "19200"})
+
+        # A rate the new rig can't use falls back to the default.
+        app.set_value("wizard.cbSerialRate", "12345")
+        app.set_value("wizard.cbRigName", other_rig)
+        check_values(app, {"cbSerialRate": "default"})
+        app.set_value("wizard.cbSerialRate", "19200")
+        app.set_value("wizard.cbRigName", rig)
+        check_values(app, {"cbSerialRate": "19200"})
+
+        # Rates outside the rig's range, slow or fast, aren't offered either.
+        low_rig = find_rig(app, "Yaesu FT-817")
+        app.set_value("wizard.cbRigName", low_rig)
+        low_rates = rates()
+        check("19200" in low_rates, "19200 not offered for %s" % low_rig)
+        check("38400" in low_rates, "38400 not offered for %s" % low_rig)
+        check("115200" not in low_rates, "Too fast rate offered for %s" % low_rig)
+        check("2400" not in low_rates, "Too slow rate offered for %s" % low_rig)
         app.set_value("wizard.cbRigName", rig)
         check_values(app, {"cbSerialRate": "19200"})
 
@@ -645,6 +723,17 @@ def test_radio_control():
 
         reopen_wizard(app)
         check_values(app, serial_values)
+
+        go_to_page(app, 2)
+        # Turning either way of keying the radio off disables its controls again.
+        app.set_value("wizard.ckHamlib", True)
+        check_values(app, {"ckHamlib": True, "ckSerialPTT": False})
+        app.set_value("wizard.ckHamlib", False)
+        check_enabled(app, HAMLIB_CONTROLS + ["cbPttSerialPort", "ckUseAnalogModes"], False)
+        app.set_value("wizard.ckSerialPTT", True)
+        check_enabled(app, SERIAL_PTT_CONTROLS, True)
+        app.set_value("wizard.ckSerialPTT", False)
+        check_enabled(app, SERIAL_PTT_CONTROLS, False)
         app.click("wizard.btnCancel")
         app.wait_for_window_closed("wizard")
 
@@ -949,6 +1038,14 @@ def test_import_more():
             import_wsjtx(Rig=rig, CATSerialPort="/dev/ttyFreeDVTest0", PTTMethod="PTT_method_VOX", PTTport="CAT")
             check_values(app, {"ckHamlib": True, "cbPttMethod": "None", "cbPttSerialPort": ""})
 
+            # A network rig with an address of its own.
+            network_rig = find_rig(app, "Hamlib NET rigctl")
+            check_equal(import_wsjtx(Rig=network_rig, CATNetworkPort="192.168.1.5:4532"),
+                        "Imported: Hamlib rig control (%s). Review each page before clicking Finish." % network_rig,
+                        "Import result")
+            check_values(app, {"cbRigName": network_rig, "cbSerialPort": "192.168.1.5:4532",
+                               "cbSerialRate": "default"})
+
             # A radio that plugs straight into USB has a setting of its own
             # for where it is.
             usb_rigs = [name for name in rigs if "FUNcube Dongle" in name or "Si570 AVR-USB" in name]
@@ -981,6 +1078,17 @@ def test_import_more():
                         "Import result")
             check_equal(import_wsjtx(MyGrid="AA00"),
                         "Imported: grid square. Review each page before clicking Finish.", "Import result")
+
+            # A name quoted at one end only isn't taken as quoted.
+            check_equal(import_wsjtx(SoundInName='"FreeDVGuiTest Radio'),
+                        "No usable settings were found in WSJT-X. Not imported: radio audio devices (not "
+                        "currently connected). Review each page before clicking Finish.", "Import result")
+
+            # The transmit device on its own is worth importing.
+            check_equal(import_wsjtx(SoundOutName=RADIO_TX),
+                        "Imported: radio audio devices. Review each page before clicking Finish.",
+                        "Import result")
+            check_equal(app.get("wizard.cbRadioOut")["data"], RADIO_TX, "Radio output")
 
             app.click("wizard.btnCancel")
             app.wait_for_window_closed("wizard")

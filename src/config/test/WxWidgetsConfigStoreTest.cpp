@@ -383,6 +383,28 @@ bool unsignedIntLoadsFromOlderFormats()
         check("non-numeric value", loadFrom<unsigned int>("abc", 7u), 7u);
 }
 
+
+// A map whose name has no parent path (stored straight under the root, as
+// FreeDV's own configuration elements are) still saves, cleans out stale
+// entries and loads back.
+bool mapWithoutAParentPathRoundTrips()
+{
+    TestStore store;
+    auto config = makeConfig();
+
+    ConfigurationDataElement<IntMap> element("FrequencyBandMap", {});
+    element.setWithoutProcessing({ { "20m", 5 }, { "40m", 12 } });
+    store.save_(config.get(), element);
+
+    element.setWithoutProcessing({ { "40m", 13 } });
+    store.save_(config.get(), element);
+
+    auto reloaded = reload(*config);
+    ConfigurationDataElement<IntMap> loaded("FrequencyBandMap", { { "stale", 1 } });
+    store.load_(reloaded.get(), loaded);
+    return check("map", loaded.getWithoutProcessing(), IntMap { { "40m", 13 } });
+}
+
 }
 
 int main()
@@ -410,6 +432,7 @@ int main()
     executeTestCase("savingEmptyMapRemovesAllEntries", savingEmptyMapRemovesAllEntries);
     executeTestCase("mapsDoNotDisturbNeighbours", mapsDoNotDisturbNeighbours);
     executeTestCase("mapSkipsNonNumericEntries", mapSkipsNonNumericEntries);
+    executeTestCase("mapWithoutAParentPathRoundTrips", mapWithoutAParentPathRoundTrips);
     executeTestCase("unsignedIntLoadsFromOlderFormats", unsignedIntLoadsFromOlderFormats);
     return testResult();
 }

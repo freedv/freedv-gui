@@ -473,6 +473,42 @@ def test_noise_suppression():
             quit_and_check_log(app)
 
 
+def test_default_config():
+    """The Filter window when FreeDV is using its own default configuration
+    rather than a named file: the window title says so, by not saying it."""
+    home = tempfile.mkdtemp(prefix="freedvtest-home-")
+    try:
+        freedvtest.write_config(freedvtest.default_config_path(home),
+                                {"/Reporting/FreeDV/Hostname": "127.0.0.1:9", "/Reporting/FreeDV/UseTls": False})
+        with freedvtest.start(home=home, default_config=True) as app:
+            app.wait_for_window("main")
+            dialog = open_filter(app)
+            check_equal(dialog["label"], "Filter", "Window title")
+            close_filter(app)
+            check_equal(app.quit(), 0, "FreeDV's exit code")
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+def test_microphone_filters_are_not_built_with_one_sound_card():
+    """Microphone volume and equaliser are left unbuilt when there is no
+    second sound card: FreeDV only receives, so the mic chain is skipped
+    even though its settings are set and kept."""
+    one_pair = settings(Audio__soundCard2InDeviceName="none", Audio__soundCard2OutDeviceName="none")
+    with audio_devices():
+        with freedvtest.start(settings=one_pair) as app:
+            app.wait_for_window("main")
+            check_equal(app.state()["numSoundCards"], 1, "Number of sound cards")
+            start_modem(app)
+            open_filter(app)
+            app.set_value(MIC + "volGain", gain_slider(-6))
+            app.set_value(MIC + "ckboxEnable", True)
+            close_filter(app)
+            stop_modem(app)
+            check_close(filter_config(app)["micIn"]["volInDB"], -6.0,
+                        "Microphone volume kept without a second sound card")
+            check_equal(filter_config(app)["micIn"]["eqEnable"], True, "Microphone equaliser setting kept")
+            quit_and_check_log(app)
+
 SCENARIOS = {
     "out_of_range": test_out_of_range,
     "controls": test_controls,
@@ -480,6 +516,8 @@ SCENARIOS = {
     "equalizer": test_equalizer,
     "equalizer_receive_only": test_equalizer_receive_only,
     "noise_suppression": test_noise_suppression,
+    "default_config": test_default_config,
+    "one_sound_card": test_microphone_filters_are_not_built_with_one_sound_card,
 }
 
 

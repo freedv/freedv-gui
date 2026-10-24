@@ -841,6 +841,11 @@ endmacro()
 
 DefineAudioTest(RADEV1)
 
+# The -txfile/-txoutfile and -rxfile/-rxoutfile unit-test options.
+add_test(NAME ut_file_recording
+         COMMAND sh -c "${CMAKE_CURRENT_SOURCE_DIR}/test/test_ut_recording.sh")
+freedv_set_test_pass_criteria(ut_file_recording "PASS: file input and output")
+
 if(NOT ENABLE_RTSAN)
 # Note: loading/saving feature files is currently not RT-safe
 add_test(NAME rade_loss
@@ -876,14 +881,14 @@ endforeach(scenario)
 # These also need a window manager to be running and, other than live_view
 # (which is skipped if the public FreeDV Reporter server can't be reached), the
 # Python packages listed in test/gui/freedvtest/reporter.py.
-foreach(scenario live_view stations sorting sorted_updates display_options damaged_layout sort_every_column band_filter column_filters numeric_filters idle_filter columns status_message status_message_flags text_filters saved_filters selection qsy qsy_with_radio row_actions turn_off off_at_start new_callsign window connection_burst)
+foreach(scenario live_view stations sorting sorted_updates updates_while_sorted display_options damaged_layout sort_every_column band_filter column_filters numeric_filters idle_filter columns status_message status_message_flags text_filters saved_filters selection qsy qsy_with_radio row_actions turn_off off_at_start new_callsign window connection_burst frequency_in_khz)
     add_test(NAME gui_reporter_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_reporter.py ${scenario})
     set_tests_properties(gui_reporter_${scenario} PROPERTIES LABELS gui SKIP_RETURN_CODE 77)
     freedv_set_test_pass_criteria(gui_reporter_${scenario})
 endforeach(scenario)
 
-foreach(scenario buttons audio audio_tests radio ptt_test rig_control frequency_list reporting voice_keyer display modem_and_debugging ptt_key_names auto_start while_running)
+foreach(scenario buttons audio audio_tests radio ptt_test rig_control frequency_list frequency_list_from_main_window reporting voice_keyer display modem_and_debugging ptt_key_names auto_start while_running)
     add_test(NAME gui_settings_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_settings.py ${scenario})
     set_tests_properties(gui_settings_${scenario} PROPERTIES LABELS gui SKIP_RETURN_CODE 77)
@@ -892,7 +897,7 @@ endforeach(scenario)
 
 # These measure what FreeDV plays and records, so they're kept from running
 # alongside anything else.
-foreach(scenario transmit ptt_key ptt_key_elsewhere tx_level receive analog play_file play_file_loop voice_keyer voice_keyer_reply voice_keyer_files recording recording_options unwritable_files monitor_volume mouse_controls tune_level_per_band frequency_units time_out_timer voice_keyer_time_out ptt_key_time_out menus help_and_restore default_config exit_menu reporting_without_callsign band_names appearance_change tab_layout heard_list window_geometry receive_reports test_tone exit_while_tuning old_settings bad_command_line)
+foreach(scenario transmit ptt_key ptt_key_elsewhere tx_level receive analog play_file play_file_loop voice_keyer voice_keyer_reply voice_keyer_files recording recording_options unwritable_files monitor_volume mouse_controls tune_level_per_band frequency_units time_out_timer voice_keyer_time_out ptt_key_time_out menus help_and_restore default_config config_migration_failure exit_menu reporting_without_callsign band_names appearance_change tab_layout heard_list window_geometry receive_reports test_tone exit_while_tuning old_settings bad_command_line)
     add_test(NAME gui_main_window_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_main_window.py ${scenario})
     set_tests_properties(gui_main_window_${scenario} PROPERTIES LABELS gui RUN_SERIAL TRUE SKIP_RETURN_CODE 77)
@@ -900,14 +905,14 @@ foreach(scenario transmit ptt_key ptt_key_elsewhere tx_level receive analog play
 endforeach(scenario)
 
 # The reporter scenario needs what the FreeDV Reporter tests do.
-foreach(scenario manual frequency_in_khz callsign_list reporter)
+foreach(scenario manual frequency_in_khz callsign_list reporter selected_khz no_udp)
     add_test(NAME gui_log_qso_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_log_qso.py ${scenario})
     set_tests_properties(gui_log_qso_${scenario} PROPERTIES LABELS gui SKIP_RETURN_CODE 77)
     freedv_set_test_pass_criteria(gui_log_qso_${scenario})
 endforeach(scenario)
 
-foreach(scenario controls out_of_range volume equalizer equalizer_receive_only noise_suppression)
+foreach(scenario controls out_of_range volume equalizer equalizer_receive_only noise_suppression default_config one_sound_card)
     add_test(NAME gui_filter_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_filter.py ${scenario})
     set_tests_properties(gui_filter_${scenario} PROPERTIES LABELS gui RUN_SERIAL TRUE SKIP_RETURN_CODE 77)
@@ -934,7 +939,7 @@ foreach(scenario missing_device low_sample_rate no_devices partly_configured rec
     freedv_set_test_pass_criteria(gui_audio_errors_${scenario})
 endforeach(scenario)
 
-foreach(scenario tuning tuned_away drawing waterfall_colours)
+foreach(scenario tuning tuned_away drawing waterfall_colours spectrum_averaging sized_plots translated_layout)
     add_test(NAME gui_plots_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_plots.py ${scenario})
     set_tests_properties(gui_plots_${scenario} PROPERTIES LABELS gui RUN_SERIAL TRUE SKIP_RETURN_CODE 77)
@@ -942,7 +947,7 @@ foreach(scenario tuning tuned_away drawing waterfall_colours)
 endforeach(scenario)
 
 # These use Hamlib's rigctld as the radio, and are skipped without it.
-foreach(scenario control frequency_only mode_display analog_sideband editing_frequency unreachable lost)
+foreach(scenario control frequency_only mode_display analog_sideband editing_frequency unreachable serial_ptt missing_port lost)
     add_test(NAME gui_rig_control_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_rig_control.py ${scenario})
     set_tests_properties(gui_rig_control_${scenario} PROPERTIES LABELS gui SKIP_RETURN_CODE 77)

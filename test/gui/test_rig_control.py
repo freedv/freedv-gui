@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import freedvtest
 import freedvtest.audio
 from freedvtest.rigctld import Rigctld, find_rigctld
+from freedvtest.serial import SerialPorts
 from test_main_window import (CALLSIGN, audio_devices, check, check_equal, settings, start_modem, stop_modem,
                               transmitting, wait_for_transmit)
 
@@ -312,6 +313,16 @@ def test_editing_frequency():
             wait_for(lambda: radio.frequency() == 21313000,
                      lambda: "The radio is on %d Hz, not 21313000" % radio.frequency())
             wait_for_frequency(app, "21.3130", "Frequency displayed after typing one in")
+
+            # Clearing it doesn't send anywhere near zero to the radio; the
+            # frequency it's actually on goes back into the box.
+            app.focus("main.cboReportFrequency")
+            app.set_value("main.cboReportFrequency", "")
+            app.focus("main.cboReportFrequency", lost=True)
+            time.sleep(2)
+            check_equal(radio.frequency(), 21313000, "Radio's frequency after clearing the box")
+            wait_for_frequency(app, "21.3130", "Frequency displayed after clearing the box")
+            check_equal(errors(app), [], "Errors displayed after clearing the box")
             check_equal(errors(app), [], "Errors displayed")
             stop_modem(app)
             quit_and_check_log(app)
@@ -337,6 +348,14 @@ def test_unreachable():
             wait_for_transmit(app)
             app.click("main.btnPTT")
             wait_for_transmit(app, False)
+
+            # Tuning without the radio there still sends a tuning tone, and
+            # there's nothing to key.
+            app.click("main.btnTune")
+            app.wait_until(lambda: app.get("main.btnTune")["value"], timeout=10, description="tuning to start")
+            app.click("main.btnTune")
+            app.wait_until(lambda: not app.get("main.btnTune")["value"] and app.get("main.btnOnOff")["enabled"],
+                           timeout=15, description="tuning to stop")
             stop_modem(app)
             app.message_boxes(clear=True)
 
@@ -360,6 +379,76 @@ def test_unreachable():
             check_equal(app.state()["running"], True, "Running without a radio")
             stop_modem(app)
             check_equal(app.quit(), 0, "FreeDV's exit code")
+
+def test_missing_port():
+    """Starting with the radio's serial port (or the one for keying) not
+    there: FreeDV says so and carries on without radio control."""
+    # FreeDV only checks for names of ports that could be there: COM ones on
+    # Windows, ones in /dev elsewhere.
+    NO_SUCH_PORT = "COM250" if sys.platform == "win32" else "/dev/ttyFreeDVNoSuchPort"
+    with Rigctld() as radio, audio_devices():
+        # The port itself isn't there.
+        with freedvtest.start(settings=rig_settings(NO_SUCH_PORT)) as app:
+            app.wait_for_window("main")
+            app.click("main.btnOnOff")
+            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="FreeDV to start")
+            app.wait_until(lambda: errors(app), timeout=10, description="FreeDV to say that the port isn't there")
+            messages = errors(app)
+            check(all(message.startswith("Could not open serial port %s." % NO_SUCH_PORT)
+                      for message in messages),
+                  "Messages displayed are %r" % messages)
+            app.message_boxes(clear=True)
+            check_equal(app.state()["running"], True, "Running without the radio's port")
+            stop_modem(app)
+            check_equal(app.quit(), 0, "FreeDV's exit code")
+
+        # The radio's port is there, but the one named for keying isn't.
+        with freedvtest.start(settings=rig_settings(
+                radio.address, Hamlib__PttType=1, Hamlib__PttSerialPort=NO_SUCH_PORT)) as app:
+            app.wait_for_window("main")
+            app.click("main.btnOnOff")
+            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="FreeDV to start")
+            app.wait_until(lambda: errors(app), timeout=10,
+                           description="FreeDV to say that the keying port isn't there")
+            messages = errors(app)
+            check(all(message.startswith("Could not open serial port %s." % NO_SUCH_PORT)
+                      for message in messages),
+                  "Messages displayed are %r" % messages)
+            app.message_boxes(clear=True)
+            check_equal(app.state()["running"], True, "Running without the keying port")
+            stop_modem(app)
+            check_equal(app.quit(), 0, "FreeDV's exit code")
+
+
+def test_serial_ptt():
+    """Hamlib control of the radio with a serial port named for keying:
+    its RTS or DTR line, or no PTT line at all."""
+    with Rigctld() as radio, audio_devices():
+        radio.set_frequency(14236000)
+        for ptt_type in (1, 2, 3):
+            with SerialPorts() as ports:
+                ptt = ports.add()
+                with freedvtest.start(settings=rig_settings(
+                        radio.address, Hamlib__PttType=ptt_type, Hamlib__PttSerialPort=ptt.name),
+                        env=ports.env) as app:
+                    app.wait_for_window("main")
+                    start_modem(app)
+                    wait_for_frequency(app, "14.2360", "Frequency displayed once connected")
+
+                    # FreeDV opens the keying port it was given and keys the
+                    # radio through the connection it has.
+                    app.click("main.btnPTT")
+                    wait_for_transmit(app)
+                    if ptt_type == 3:
+                        # With no PTT line, nothing is sent to key the radio.
+                        check_equal(radio.transmitting(), False, "Radio keyed with the PTT line set to None")
+                    else:
+                        wait_for(radio.transmitting, "The radio wasn't keyed")
+                    check_equal(errors(app), [], "Errors displayed with PTT type %d" % ptt_type)
+                    app.click("main.btnPTT")
+                    wait_for_transmit(app, False)
+                    stop_modem(app)
+                    quit_and_check_log(app)
 
 
 def test_lost():
@@ -415,6 +504,8 @@ SCENARIOS = {
     "analog_sideband": test_analog_sideband,
     "editing_frequency": test_editing_frequency,
     "unreachable": test_unreachable,
+    "serial_ptt": test_serial_ptt,
+    "missing_port": test_missing_port,
     "lost": test_lost,
 }
 

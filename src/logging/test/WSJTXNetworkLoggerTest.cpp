@@ -528,6 +528,36 @@ bool sendsLogTimeAsQtDateTime()
     return result;
 }
 
+bool logTimeRoundsUpIntoTheNextJulianDay()
+{
+    Fixture f;
+    if (!f.skipHeartbeat()) return false;
+
+    // One microsecond short of midnight (2025-12-12 23:59:59.999999):
+    // rounded to the nearest millisecond it belongs to the next day, and
+    // has to be sent that way rather than cut off at the old one.
+    Contact contact;
+    contact.logTime = std::chrono::time_point<std::chrono::system_clock>(
+        std::chrono::duration_cast<std::chrono::system_clock::duration>(
+            std::chrono::milliseconds(1765583999999LL) + std::chrono::microseconds(999)));
+    contact.logTo(f.logger);
+
+    uint32_t decodeTime = 0;
+    WireDateTime timeOff;
+    if (!checkStatus(f.receiver, contact) ||
+        !checkDecode(f.receiver, contact, &decodeTime) ||
+        !checkQsoLogged(f.receiver, contact, &timeOff))
+    {
+        return false;
+    }
+
+    bool result = true;
+    result &= check("Julian day rounded up", timeOff.julianDay, (int64_t)2461023);
+    result &= check("milliseconds since midnight", timeOff.msSinceMidnight, (uint32_t)0);
+    result &= check("decode time", decodeTime, timeOff.msSinceMidnight);
+    return result;
+}
+
 bool eachContactIsSentSeparately()
 {
     Fixture f;
@@ -709,6 +739,7 @@ int main()
     executeTestCase("sendsFrequenciesAbove4GHz", sendsFrequenciesAbove4GHz);
     executeTestCase("sendsLongAndNonAsciiText", sendsLongAndNonAsciiText);
     executeTestCase("sendsLogTimeAsQtDateTime", sendsLogTimeAsQtDateTime);
+    executeTestCase("logTimeRoundsUpIntoTheNextJulianDay", logTimeRoundsUpIntoTheNextJulianDay);
     executeTestCase("eachContactIsSentSeparately", eachContactIsSentSeparately);
     executeTestCase("heartbeatDefaultsToEveryFifteenSeconds", heartbeatDefaultsToEveryFifteenSeconds);
     executeTestCase("sendsHeartbeatsPeriodically", sendsHeartbeatsPeriodically);

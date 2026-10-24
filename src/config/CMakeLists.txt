@@ -18,8 +18,6 @@ if(BOOTSTRAP_WXWIDGETS)
 endif(BOOTSTRAP_WXWIDGETS)
 
 if(UNITTEST)
-DefineFreeDVUnitTest(config ConfigurationDataElementTest)
-
 # Tests that need wxWidgets (but not a display).
 macro(DefineConfigUnitTest utName)
     DefineFreeDVUnitTest(config ${utName} fdv_config ${FREEDV_LINK_LIBS})
@@ -27,6 +25,7 @@ macro(DefineConfigUnitTest utName)
     FreeDVUnitTestUsesWxWidgets(${utName})
 endmacro()
 
+DefineConfigUnitTest(ConfigurationDataElementTest)
 DefineConfigUnitTest(ConfigMigrationTest)
 DefineConfigUnitTest(ReportingFrequencyListTest)
 DefineConfigUnitTest(WxWidgetsConfigStoreTest)

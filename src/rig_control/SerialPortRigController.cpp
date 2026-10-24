@@ -273,7 +273,7 @@ error:
     {
         struct termios t;
 
-        if((serialPortHandle_=open(serialPort_.c_str(), O_NONBLOCK|O_RDWR))== COM_HANDLE_INVALID)
+        if((serialPortHandle_=open(serialPort_.c_str(), O_NONBLOCK|O_RDWR|O_NOCTTY))== COM_HANDLE_INVALID)
         {
             std::string errMsg = "Could not open serial port " + serialPort_;
             onRigError(this, errMsg);

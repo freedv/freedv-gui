@@ -59,11 +59,16 @@ wxString MsgListPopup::GetStringValue() const
 {
     // The combo takes this whenever the list closes. Without hoverPicks,
     // only an item actually clicked counts, not one just passed over.
+    // This also runs from ~wxComboCtrlBase() if the list is open when the
+    // combo is destroyed, by which point GetComboCtrl()'s cast to
+    // wxComboCtrl asserts, so use the base class pointer instead.
     if (!options_.hoverPicks && !picked_)
-        return GetComboCtrl()->GetValue();
+        return m_combo->GetValue();
 
+    // With nothing highlighted, keep what's already in the box rather than
+    // emptying it.
     int sel = GetSelection();
-    return sel != wxNOT_FOUND ? GetString(sel) : wxString();
+    return sel != wxNOT_FOUND ? GetString(sel) : m_combo->GetValue();
 }
 
 void MsgListPopup::OnPopup()
@@ -182,32 +187,39 @@ void MsgListPopup::OnKeyDown(wxKeyEvent& event)
     // than to the native list box, so moving the highlight is done here.
     int count = (int)GetCount();
     int page = std::max(1, GetClientSize().GetHeight() / (GetCharHeight() + 8) - 1);
-    int next = wxNOT_FOUND;
+    bool moves = false;
+    int next = 0;
     switch (key)
     {
         case WXK_UP:
         case WXK_NUMPAD_UP:
             next = item == wxNOT_FOUND ? count - 1 : item - 1;
+            moves = true;
             break;
         case WXK_DOWN:
         case WXK_NUMPAD_DOWN:
             next = item == wxNOT_FOUND ? 0 : item + 1;
+            moves = true;
             break;
         case WXK_PAGEUP:
         case WXK_NUMPAD_PAGEUP:
             next = item == wxNOT_FOUND ? 0 : item - page;
+            moves = true;
             break;
         case WXK_PAGEDOWN:
         case WXK_NUMPAD_PAGEDOWN:
             next = item == wxNOT_FOUND ? count - 1 : item + page;
+            moves = true;
             break;
         case WXK_HOME:
         case WXK_NUMPAD_HOME:
             next = 0;
+            moves = true;
             break;
         case WXK_END:
         case WXK_NUMPAD_END:
             next = count - 1;
+            moves = true;
             break;
         case WXK_RETURN:
         case WXK_NUMPAD_ENTER:
@@ -223,7 +235,7 @@ void MsgListPopup::OnKeyDown(wxKeyEvent& event)
         default:
             break;
     }
-    if (next != wxNOT_FOUND && count > 0)
+    if (moves && count > 0)
     {
         next = std::clamp(next, 0, count - 1);
         SetSelection(next);

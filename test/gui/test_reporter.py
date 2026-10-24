@@ -467,75 +467,164 @@ def test_band_filter():
 
 def test_column_filters():
     """Right-clicking a column's heading filters the list by that column."""
-    with ReporterServer() as server:
-        for callsign, grid_square, frequency in [("K1ABC", "FN42", 14236000), ("VK5DGR", "PF95", 7177000),
-                                                 ("W6XYZ", "DM13", 28330000)]:
-            server.station(callsign, grid_square).set_frequency(frequency)
-        everyone = ["VK5DGR", "K1ABC", "W6XYZ"]
+    config_dir = tempfile.mkdtemp(prefix="freedvtest-config-")
+    try:
+        config = os.path.join(config_dir, "freedv.conf")
+        with ReporterServer() as server:
+            for callsign, grid_square, frequency in [("K1ABC", "FN42", 14236000), ("VK5DGR", "PF95", 7177000),
+                                                     ("W6XYZ", "DM13", 28330000)]:
+                server.station(callsign, grid_square).set_frequency(frequency)
+            everyone = ["VK5DGR", "K1ABC", "W6XYZ"]
 
-        def set_filter(app, column, operator, value, existing=""):
-            app.column_context_menu(LIST, column, choose=operator)
-            app.wait_for_window("@Set Column Filter")
-            check_equal(app.get("@Set Column Filter/wxTextCtrl")["value"], existing, "Existing filter value")
-            app.set_value("@Set Column Filter/wxTextCtrl", value)
-            app.click("@Set Column Filter/OK")
-            app.wait_for_window_closed("@Set Column Filter")
-            app.activate("reporter")
+            def set_filter(app, column, operator, value, existing=""):
+                app.column_context_menu(LIST, column, choose=operator)
+                app.wait_for_window("@Set Column Filter")
+                check_equal(app.get("@Set Column Filter/wxTextCtrl")["value"], existing, "Existing filter value")
+                app.set_value("@Set Column Filter/wxTextCtrl", value)
+                app.click("@Set Column Filter/OK")
+                app.wait_for_window_closed("@Set Column Filter")
+                app.activate("reporter")
 
-        with freedvtest.start(settings=reporter_settings(server.hostname)) as app:
-            open_reporter(app)
-            wait_for_callsigns(app, everyone)
+            freedvtest.write_config(config, reporter_settings(server.hostname))
+            with freedvtest.start(config=config) as app:
+                open_reporter(app)
+                wait_for_callsigns(app, everyone)
 
-            # Nothing's filtered to begin with.
-            items = app.column_context_menu(LIST, DISTANCE)
-            check_equal([item["label"] for item in items],
-                        [">= (Greater or equal to)", ">  (Greater than)", "=  (Equal to)", "!= (Not equal to)",
-                         "<  (Less than)", "<= (Less or equal to)", "Clear Column Filter"], "Filter menu")
-            check_equal([item["label"] for item in items if item["checked"]], [], "Filters in use")
-            check_equal(items[-1]["enabled"], False, "Clear Column Filter enabled")
+                # The menu offers the comparisons; nothing is ticked, and
+                # there's no filter to clear, at first.
+                items = app.column_context_menu(LIST, CALLSIGN)
+                check_equal([entry["label"] for entry in items],
+                            [">= (Greater or equal to)", ">  (Greater than)", "=  (Equal to)", "!= (Not equal to)",
+                             "<  (Less than)", "<= (Less or equal to)", "Clear Column Filter"], "Filter menu")
+                check_equal([entry["label"] for entry in items if entry["checked"]], [], "Filters in use")
+                check_equal(items[-1]["enabled"], False, "Clear Column Filter enabled")
 
-            # A column of numbers.
-            set_filter(app, DISTANCE, ">= (Greater or equal to)", "4000")
-            wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
-            check("km *" in column_titles(app), "The filtered column isn't marked: %r" % column_titles(app))
+                # Filtering by callsign leaves only the matching ones.
+                set_filter(app, CALLSIGN, "=  (Equal to)", "K1ABC")
+                wait_for_callsigns(app, ["K1ABC"])
+                check("Callsign *" in column_titles(app), "The filtered column isn't marked: %r" % column_titles(app))
+                items = app.column_context_menu(LIST, CALLSIGN)
+                check_equal([entry["label"] for entry in items if entry["checked"]], ["=  (Equal to)"],
+                            "Filters in use")
+                check_equal(items[-1]["enabled"], True, "Clear Column Filter enabled")
 
-            items = app.column_context_menu(LIST, DISTANCE)
-            check_equal([item["label"] for item in items if item["checked"]], [">= (Greater or equal to)"],
-                        "Filters in use")
-            check_equal(items[-1]["enabled"], True, "Clear Column Filter enabled")
+                # The filter value can be changed from the menu.
+                set_filter(app, CALLSIGN, "=  (Equal to)", "VK5DGR", existing="K1ABC")
+                wait_for_callsigns(app, ["VK5DGR"])
 
-            set_filter(app, DISTANCE, "<  (Less than)", "10000", existing="4000")
-            wait_for_callsigns(app, ["K1ABC", "W6XYZ"])
+                # Not equal to leaves the others.
+                set_filter(app, CALLSIGN, "!= (Not equal to)", "W6XYZ", existing="VK5DGR")
+                wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
 
-            # A column of text, at the same time.
-            set_filter(app, CALLSIGN, "!= (Not equal to)", "W6XYZ")
-            wait_for_callsigns(app, ["K1ABC"])
-            check("Callsign *" in column_titles(app), "The filtered column isn't marked: %r" % column_titles(app))
+                app.column_context_menu(LIST, CALLSIGN, choose="Clear Column Filter")
+                wait_for_callsigns(app, everyone)
 
-            # Cancelling leaves things as they were.
-            app.column_context_menu(LIST, CALLSIGN, choose="=  (Equal to)")
-            app.wait_for_window("@Set Column Filter")
-            app.set_value("@Set Column Filter/wxTextCtrl", "VK5DGR")
-            app.click("@Set Column Filter/Cancel")
-            app.wait_for_window_closed("@Set Column Filter")
-            app.activate("reporter")
-            wait_for_callsigns(app, ["K1ABC"])
+                # Text comparisons on the status and message columns.
+                set_filter(app, STATUS, "!= (Not equal to)", "TX")
+                wait_for_callsigns(app, everyone)
+                set_filter(app, STATUS, "=  (Equal to)", "TX", existing="TX")
+                wait_for_callsigns(app, [])
+                app.column_context_menu(LIST, STATUS, choose="Clear Column Filter")
+                wait_for_callsigns(app, everyone)
 
-            # Filters survive the window being closed and reopened...
-            app.click("reporter.btnClose")
-            app.wait_for_window_closed("reporter")
-            open_reporter(app)
-            wait_for_callsigns(app, ["K1ABC"])
+                set_filter(app, MESSAGE, "=  (Equal to)", "73")
+                wait_for_callsigns(app, [])
+                app.column_context_menu(LIST, MESSAGE, choose="Clear Column Filter")
+                wait_for_callsigns(app, everyone)
 
-            # ...until they're cleared.
-            app.column_context_menu(LIST, DISTANCE, choose="Clear Column Filter")
-            wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
-            app.column_context_menu(LIST, CALLSIGN, choose="Clear Column Filter")
-            wait_for_callsigns(app, everyone)
-            check("km" in column_titles(app) and "Callsign" in column_titles(app),
-                  "Columns are still marked as filtered: %r" % column_titles(app))
+                # Numbers can be filtered too.
+                set_filter(app, DISTANCE, ">= (Greater or equal to)", "4000", existing="")
+                wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
+                set_filter(app, DISTANCE, "<  (Less than)", "10000", existing="4000")
+                wait_for_callsigns(app, ["K1ABC", "W6XYZ"])
 
-            quit_and_check_log(app)
+                # A filter on another column at the same time narrows it
+                # further.
+                set_filter(app, CALLSIGN, "!= (Not equal to)", "W6XYZ")
+                wait_for_callsigns(app, ["K1ABC"])
+                check("km *" in column_titles(app) and "Callsign *" in column_titles(app),
+                      "The filtered columns aren't both marked: %r" % column_titles(app))
+
+                # Cancelling leaves things as they were.
+                app.column_context_menu(LIST, CALLSIGN, choose="=  (Equal to)")
+                app.wait_for_window("@Set Column Filter")
+                app.set_value("@Set Column Filter/wxTextCtrl", "VK5DGR")
+                app.click("@Set Column Filter/Cancel")
+                app.wait_for_window_closed("@Set Column Filter")
+                app.activate("reporter")
+                wait_for_callsigns(app, ["K1ABC"])
+                check_equal([entry["label"] for entry in app.column_context_menu(LIST, CALLSIGN) if entry["checked"]],
+                            ["!= (Not equal to)"], "Filters in use after cancelling")
+
+                # Clearing one leaves the other.
+                app.column_context_menu(LIST, DISTANCE, choose="Clear Column Filter")
+                wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
+                app.column_context_menu(LIST, CALLSIGN, choose="Clear Column Filter")
+                wait_for_callsigns(app, everyone)
+                check("km *" not in column_titles(app) and "Callsign *" not in column_titles(app),
+                      "Columns are still marked as filtered: %r" % column_titles(app))
+
+                # The filter survives closing and reopening the window.
+                set_filter(app, CALLSIGN, "=  (Equal to)", "K1ABC", existing="")
+                app.click("reporter.btnClose")
+                app.wait_for_window_closed("reporter")
+                open_reporter(app)
+                wait_for_callsigns(app, ["K1ABC"])
+
+                # And it can be cleared.
+                app.column_context_menu(LIST, CALLSIGN, choose="Clear Column Filter")
+                wait_for_callsigns(app, everyone)
+
+                # The numeric columns get their filter menu too.
+                for column in [DISTANCE, HEADING, FREQUENCY, SNR]:
+                    items = app.column_context_menu(LIST, column)
+                    check(any(entry["label"] == ">= (Greater or equal to)" for entry in items),
+                          "The numeric column menu offers comparisons: %r"
+                          % [entry["label"] for entry in items])
+
+                # A hidden column is skipped when filter markers update.
+                app.menu("Show/User Message", window="reporter")
+                set_filter(app, CALLSIGN, "!= (Not equal to)", "W6XYZ")
+                wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
+                check("Callsign *" in column_titles(app), "The filtered column isn't marked: %r" % column_titles(app))
+                check("Msg" not in column_titles(app), "The hidden column is still shown")
+                app.column_context_menu(LIST, CALLSIGN, choose="Clear Column Filter")
+                wait_for_callsigns(app, everyone)
+                app.menu("Show/User Message", window="reporter")
+                # Band filter with frequency tracking on but exact
+                # frequency off: rows follow the tracked band, and a station
+                # in that band stays listed even when the exact frequency
+                # being tracked is different.
+                app.set_value("reporter.ckTrackFrequency", True)
+                app.set_value("main.cboReportFrequency", "7.1770")
+                app.focus("main.cboReportFrequency", lost=True)
+                app.wait_until(lambda: callsigns(app) == ["VK5DGR"], timeout=15,
+                               description="only the 40 m station to be listed")
+                app.set_value("main.cboReportFrequency", "14.2360")
+                app.focus("main.cboReportFrequency", lost=True)
+                app.wait_until(lambda: callsigns(app) == ["K1ABC"], timeout=15,
+                               description="only the 20 m station to be listed")
+                app.set_value("reporter.ckTrackFrequency", False)
+                app.set_value("reporter.cbBandFilter", "All")
+                wait_for_callsigns(app, everyone)
+
+                # A filter left on when FreeDV quits comes back the next time.
+                set_filter(app, DISTANCE, ">= (Greater or equal to)", "4000", existing="")
+                wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
+                app.click("reporter.btnClose")
+                app.wait_for_window_closed("reporter")
+                quit_and_check_log(app)
+
+            with freedvtest.start(config=config) as app:
+                open_reporter(app)
+                wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
+                check("km *" in column_titles(app), "The saved filter isn't marked: %r" % column_titles(app))
+                app.column_context_menu(LIST, DISTANCE, choose="Clear Column Filter")
+                wait_for_callsigns(app, everyone)
+                check("km *" not in column_titles(app), "The filter marker stayed after clearing")
+                quit_and_check_log(app)
+    finally:
+        shutil.rmtree(config_dir, ignore_errors=True)
 
 
 def test_idle_filter():
@@ -549,7 +638,9 @@ def test_idle_filter():
                         "Idle filter '%s' checked" % item)
 
     with ReporterServer() as server:
-        server.station("K1ABC", "FN42").set_frequency(14236000)
+        k1abc = server.station("K1ABC", "FN42")
+        k1abc.set_frequency(14236000)
+        t0 = time.monotonic()  # from when K1ABC last said anything
 
         with freedvtest.start(settings=reporter_settings(server.hostname)) as app:
             open_reporter(app)
@@ -570,6 +661,14 @@ def test_idle_filter():
             check_equal(app.get("@Max Idle Time/wxSpinCtrl")["value"], 90, "Suggested idle time")
             app.set_value("@Max Idle Time/wxSpinCtrl", 45)
             app.click("@Max Idle Time/OK")
+            app.wait_for_window_closed("@Max Idle Time")
+            check_idle_setting(app, "Custom...", "Idle 45")
+
+            # Cancelling while the number is one the menu can't name keeps
+            # it as it was, with the custom item left ticked.
+            app.menu(idle_menu + "Custom...", window="reporter")
+            app.wait_for_window("@Max Idle Time")
+            app.click("@Max Idle Time/Cancel")
             app.wait_for_window_closed("@Max Idle Time")
             check_idle_setting(app, "Custom...", "Idle 45")
 
@@ -599,6 +698,34 @@ def test_idle_filter():
             app.click("@Max Idle Time/Cancel")
             app.wait_for_window_closed("@Max Idle Time")
             check_idle_setting(app, "Disabled", "Idle Off")
+
+            # Idle stations are hidden — and a selected one takes its
+            # selection with it. The list's own periodic sweep is what
+            # notices the time passing, rather than the menu change: set the
+            # threshold just after the moment K1ABC already goes quiet.
+            remaining = 52 - (time.monotonic() - t0)
+            if remaining > 0:
+                time.sleep(remaining)
+            app.activate("reporter")
+            app.select_row(LIST, (CALLSIGN, "K1ABC"))
+            check_equal([row[CALLSIGN] for row in app.rows(LIST) if row["selected"]], ["K1ABC"], "Selected station")
+            app.menu(idle_menu + "Custom...", window="reporter")
+            app.wait_for_window("@Max Idle Time")
+            app.set_value("@Max Idle Time/wxSpinCtrl", 1)
+            app.click("@Max Idle Time/OK")
+            app.wait_for_window_closed("@Max Idle Time")
+            check_idle_setting(app, "Custom...", "Idle 1")
+            app.wait_until(lambda: callsigns(app) == [], timeout=25, description="K1ABC to be hidden as idle")
+            check_equal([row[CALLSIGN] for row in app.rows(LIST) if row["selected"]], [],
+                        "Selected station after its row was hidden")
+            # A station that left while hidden by the idle filter stays
+            # gone when the filter goes away: it was deleted, not just
+            # out of sight.
+            k1abc.disconnect()
+            app.menu(idle_menu + "Disabled", window="reporter")
+            check_idle_setting(app, "Disabled", "Idle Off")
+            time.sleep(5)  # long enough for a refresh to have run
+            check_equal(callsigns(app), [], "Stations listed after leaving while hidden")
 
             quit_and_check_log(app)
 
@@ -674,6 +801,24 @@ def test_status_message():
             check_equal(app.get(message_box)["value"], "", "Status message")
             check_equal(saved(app), [], "Saved messages")
 
+            # Opening the saved list with text that hasn't been saved
+            # highlights nothing; closing it without a pick leaves that text
+            # alone.
+            # Right-clicking or pressing Delete on an empty list does nothing.
+            app.set_value(message_box, "Temporary note")
+            app.combo_popup(message_box, True)
+            check_equal(app.get(saved_list)["selection"], -1, "Highlight in the empty saved list")
+            try:
+                app.context_menu(saved_list, choose="Edit message")
+                check(False, "Right-clicking the empty saved list opened a menu")
+            except freedvtest.CommandError as e:
+                check("no popup menu appeared" in str(e), "Right-clicking the empty saved list: %s" % e)
+            app.key(saved_list, "Delete")
+            check_equal(saved(app), [], "Saved messages after Delete on the empty list")
+            app.combo_popup(message_box, False)
+            check_equal(app.get(message_box)["value"], "Temporary note", "Status message after closing the list")
+            app.set_value(message_box, "")
+
             # With nothing typed in, there's nothing to save.
             check_equal(popup(app, "reporter.btnSend"),
                         {"Send and save message": False, "Only save message": False}, "Send button's menu")
@@ -741,6 +886,8 @@ def test_status_message():
             app.activate("reporter")
             check_equal(saved(app), ["73", "Back in 5 minutes", "QRV 20 m"], "Saved messages after adding one")
 
+            # The one added moved the others down; editing goes by where
+            # they are now.
             saved_message_menu(1, "Edit message")
             app.wait_for_window("@Edit Message")
             check_equal(app.get("@Edit Message/wxTextCtrl")["value"], "Back in 5 minutes", "Message being edited")
@@ -800,11 +947,20 @@ def test_status_message():
                         "Clear button's menu")
             app.context_menu("reporter.btnClear", choose="Remove selected from list")
             check_equal(saved(app), ["Back in 10 minutes"], "Saved messages after removing the current one")
+            # Removing the box's message when it isn't in the list clears
+            # nothing.
+            app.context_menu("reporter.btnClear", choose="Remove selected from list")
+            check_equal(saved(app), ["Back in 10 minutes"],
+                        "Saved messages after removing a message that isn't there")
             app.set_value(message_box, "One more")
             app.context_menu("reporter.btnSend", choose="Only save message")
             check_equal(saved(app), ["Back in 10 minutes", "One more"], "Saved messages")
             app.context_menu("reporter.btnClear", choose="Clear all messages from list")
             check_equal(saved(app), [], "Saved messages after clearing them all")
+            # And when there's nothing typed at all.
+            app.set_value(message_box, "")
+            app.context_menu("reporter.btnClear", choose="Remove selected from list")
+            check_equal(saved(app), [], "Saved messages after removing an empty message")
 
             stop_modem(app)
             quit_and_check_log(app)
@@ -923,6 +1079,27 @@ def test_row_actions():
                 except freedvtest.CommandError as e:
                     check("no popup menu appeared" in str(e), "Right-clicking column %d failed: %s" % (column, e))
 
+            # Hovering the pointer over the Message column brings up a tip
+            # window holding the whole message: over a station's message,
+            # over the same row again (while a tip may still be open), and
+            # over a station that has no message to show, including after
+            # its message has been cleared.  The list itself never reacts
+            # to the pointer on its own: nothing is selected or asked for.
+            for callsign in ["K1ABC", "K1ABC", "VK5DGR"]:
+                app.activate("reporter")
+                app.hover_row(LIST, (CALLSIGN, callsign), MESSAGE)
+                time.sleep(0.5)
+            vk5dgr.set_message("")
+            app.wait_until(lambda: any(row[MESSAGE] == "" for row in app.rows(LIST)
+                                       if row[CALLSIGN] == "VK5DGR"),
+                           description="VK5DGR's message to be cleared")
+            app.activate("reporter")
+            app.hover_row(LIST, (CALLSIGN, "VK5DGR"), MESSAGE)
+            time.sleep(0.5)
+            check_equal([row[CALLSIGN] for row in app.rows(LIST) if row["selected"]], [],
+                        "Selected stations after hovering messages")
+            check_equal(app.message_boxes(), [], "Messages displayed by hovering")
+
             # The website button opens the server's own page.
             app.click("reporter.btnWebsite")
             check_equal(app.browser_urls(clear=True), ["https://%s/" % server.hostname], "Web pages opened")
@@ -953,6 +1130,47 @@ def test_row_actions():
             app.wait_until(lambda: app.get("main.cboReportFrequency")["value"] == "14.2400", timeout=15,
                            description="FreeDV's radio to be tuned to VK5DGR's frequency")
 
+            stop_modem(app)
+            quit_and_check_log(app)
+
+        # Following the radio settings: with mode changes turned off and
+        # frequency-only changes on, a double-click still tunes.
+        only_freq = dict(settings)
+        only_freq.update({"/Hamlib/EnableFreqModeChanges": False, "/Hamlib/EnableFreqChangesOnly": True})
+        with freedvtest.start(settings=only_freq) as app:
+            open_reporter(app)
+            wait_for_callsigns(app, ["K1ABC", "VK5DGR"])
+            start_modem(app)
+            app.wait_until(lambda: CALLSIGN_OF_FREEDV in callsigns(app), description="FreeDV to be listed")
+            app.wait_until(lambda: app.get("main.textModeStatus")["label"] != "unk",
+                           description="FreeDV to connect to the radio")
+            app.select_row(LIST, (CALLSIGN, "K1ABC"))
+            app.activate_row(LIST, (CALLSIGN, "K1ABC"))
+            app.wait_until(lambda: app.get("main.cboReportFrequency")["value"] == "7.1770", timeout=15,
+                           description="the radio to be tuned to K1ABC's frequency")
+            stop_modem(app)
+            quit_and_check_log(app)
+
+        # And with neither allowed, a double-click leaves the radio alone.
+        no_changes = dict(settings)
+        no_changes.update({"/Hamlib/EnableFreqModeChanges": False, "/Hamlib/EnableFreqChangesOnly": False})
+        with freedvtest.start(settings=no_changes) as app:
+            open_reporter(app)
+            wait_for_callsigns(app, ["K1ABC", "VK5DGR"])
+            start_modem(app)
+            app.wait_until(lambda: CALLSIGN_OF_FREEDV in callsigns(app), description="FreeDV to be listed")
+            app.wait_until(lambda: app.get("main.textModeStatus")["label"] != "unk",
+                           description="FreeDV to connect to the radio")
+            # Neither mode nor frequency changes are allowed, so the rig is
+            # never tuned from its own default. Take that in before and after
+            # the double-click to show that it stayed.
+            time.sleep(2)
+            before = app.get("main.cboReportFrequency")["value"]
+            check(before != "7.1770", "Radio not already on K1ABC's frequency")
+            app.select_row(LIST, (CALLSIGN, "K1ABC"))
+            app.activate_row(LIST, (CALLSIGN, "K1ABC"))
+            time.sleep(1)
+            check_equal(app.get("main.cboReportFrequency")["value"], before, "FreeDV's frequency")
             stop_modem(app)
             quit_and_check_log(app)
 
@@ -1370,6 +1588,248 @@ def test_sorted_updates():
             quit_and_check_log(app)
 
 
+def test_updates_while_sorted():
+    """Stations updating while the list is sorted by a column: changes to
+    what it's sorted by, changes to something else, changes that change
+    nothing at all, updates to stations hidden by the band filter, and two
+    stations identical apart from when they joined."""
+    with ReporterServer() as server:
+        k1abc = server.station("K1ABC", "FN42")
+        k1abc.set_frequency(14250000)
+        k1abc.set_message("Calling CQ on 20m")
+        vk5dgr = server.station("VK5DGR", "PF95", rx_only=True)
+        vk5dgr.set_frequency(7177000)
+        w6xyz = server.station("W6XYZ", "DM12")     # FreeDV's own square
+        w6xyz.set_frequency(28330000)
+        badgrd = server.station("BAD1G", "AA1A")   # not a locator
+        badgrd.set_frequency(21074000)
+        tie1 = server.station("T1E", "FN42")        # the same in every
+        tie1.set_frequency(14236000)                # sortable column as...
+        tie2 = server.station("T2E", "FN42")        # ...T1E, apart from timing
+        tie2.set_frequency(14236000)
+        everyone = ["K1ABC", "VK5DGR", "W6XYZ", "BAD1G", "T1E", "T2E"]
+
+        with freedvtest.start(settings=reporter_settings(server.hostname)) as app:
+            open_reporter(app)
+            app.wait_until(lambda: sorted(callsigns(app)) == sorted(everyone), timeout=20,
+                           description="all the stations to be listed")
+
+            def sort_by(column, ascending=True):
+                app.click_column(LIST, column)
+                check_equal(sort_order(app), (column, ascending), "Sort order")
+
+            def frequencies():
+                return [row[FREQUENCY] for row in app.rows(LIST)]
+
+            def selected():
+                return [row[CALLSIGN] for row in app.rows(LIST) if row["selected"]]
+
+            # Every station reports the same version, so sorting by it ties
+            # them all: the list orders the tied ones by when they joined,
+            # and the whole order reverses when descending.
+            sort_by(VERSION)
+            ascending = callsigns(app)
+            check_equal(sorted(ascending), sorted(everyone), "Stations listed by version")
+            sort_by(VERSION, ascending=False)
+            check_equal(callsigns(app), list(reversed(ascending)), "Tied stations descending")
+
+            # Sorted by frequency: the tied pair sits together in the middle.
+            sort_by(FREQUENCY)
+            check_equal(frequencies(), ["7.1770", "14.2360", "14.2360", "14.2500", "21.0740", "28.3300"],
+                        "Frequencies listed ascending")
+
+            # Who's transmitting: saying the same thing again changes nothing.
+            sort_by(STATUS)
+            k1abc.transmit("RADEV1", True)
+            wait_for_cell(app, "K1ABC", STATUS, "TX")
+            k1abc.transmit("RADEV1", True)  # the same as before
+            time.sleep(1)
+            check_equal(row_for(app, "K1ABC")[STATUS], "TX", "K1ABC's status after saying TX again")
+            k1abc.transmit("RADEV1", False)
+            wait_for_cell(app, "K1ABC", STATUS, "RX")
+            k1abc.transmit("8PSK", False)  # a new mode while still receiving
+            wait_for_cell(app, "K1ABC", TX_MODE, "8PSK")
+
+            # The mode last used: the same mode again changes nothing.
+            sort_by(TX_MODE)
+            k1abc.transmit("8PSK", False)  # 8PSK was already its last mode
+            time.sleep(1)
+            check_equal(row_for(app, "K1ABC")[TX_MODE], "8PSK", "K1ABC's mode after using it again")
+            k1abc.transmit("700D", True)
+            wait_for_cell(app, "K1ABC", TX_MODE, "700D")
+            k1abc.transmit("700D", False)
+            wait_for_cell(app, "K1ABC", STATUS, "RX")
+            k1abc.transmit("RADEV1", False)  # a new mode, status unchanged again
+            wait_for_cell(app, "K1ABC", TX_MODE, "RADEV1")
+
+            # When they last transmitted: rows with a time and rows without,
+            # sorted in both directions.
+            sort_by(LAST_TX)
+            k1abc.transmit("700D", True)
+            wait_for_cell(app, "K1ABC", STATUS, "TX")
+            w6xyz.transmit("RADEV1", True)
+            wait_for_cell(app, "W6XYZ", STATUS, "TX")
+            time.sleep(1.1)
+            k1abc.transmit("700D", False)
+            wait_for_cell(app, "K1ABC", STATUS, "RX")
+            ascending_tx = callsigns(app)
+            sort_by(LAST_TX, ascending=False)
+            check_equal(callsigns(app), list(reversed(ascending_tx)), "Last transmission descending")
+
+            # Who they last received, and how well: the same reception again
+            # changes nothing; receiving nothing clears both.
+            sort_by(RX_CALLSIGN)
+            k1abc.receive("ZL1ZZ", "RADEV1", 20)
+            wait_for_cell(app, "K1ABC", RX_CALLSIGN, "ZL1ZZ")
+            k1abc.receive("ZL1ZZ", "RADEV1", 20)  # the same as before
+            check_equal(row_for(app, "K1ABC")[RX_CALLSIGN], "ZL1ZZ", "K1ABC's RX callsign after hearing it again")
+            vk5dgr.receive("K1ABC", "RADEV1", 5)
+            wait_for_cell(app, "VK5DGR", RX_CALLSIGN, "K1ABC")
+            k1abc.receive("ZL1ZZ", "8PSK", 20)  # same callsign and SNR, new mode
+            time.sleep(1)
+            check_equal(row_for(app, "K1ABC")[RX_CALLSIGN], "ZL1ZZ",
+                        "K1ABC's RX callsign after a mode-only reception")
+            tie2.receive("K1ABC", "RADEV1", -2)  # T2E hearing someone for the first time
+            wait_for_cell(app, "T2E", RX_CALLSIGN, "K1ABC")
+
+            sort_by(SNR)
+            k1abc.receive("ZL1ZZ", "RADEV1", 20)  # the same SNR again
+            time.sleep(1)
+            check(row_for(app, "K1ABC")[SNR].strip() in ("20", "20.0"),
+                  "K1ABC's SNR after hearing it again: %r" % row_for(app, "K1ABC")[SNR])
+            k1abc.receive("ZL1ZZ", "RADEV1", 25)  # the same callsign, better SNR
+            wait_for_cell(app, "K1ABC", SNR, lambda text: text.strip() in ("25", "25.0"))
+            k1abc.receive("", "", 0)
+            wait_for_cell(app, "K1ABC", RX_CALLSIGN, lambda text: text.strip() != "ZL1ZZ")
+            k1abc.receive("", "", 0)  # with nothing left to clear
+
+            # Their messages: to something new, to the same thing, and to nothing.
+            sort_by(MESSAGE)
+            k1abc.set_message("CQ 20 m")
+            wait_for_cell(app, "K1ABC", MESSAGE, "CQ 20 m")
+            k1abc.set_message("CQ 20 m")  # the same as before
+            k1abc.set_message("")
+            wait_for_cell(app, "K1ABC", MESSAGE, "")
+            k1abc.set_message("")  # with nothing left to clear
+            time.sleep(1)
+            check_equal(sorted(callsigns(app)), sorted(everyone), "Stations listed after message changes")
+
+            # Their frequencies: a change to the same frequency moves nothing;
+            # a change to a different one moves the row.
+            sort_by(FREQUENCY)
+            before = frequencies()
+            k1abc.set_frequency(14250000)  # the frequency it already had
+            time.sleep(1)
+            check_equal(frequencies(), before, "Frequencies after changing to the same one")
+            k1abc.set_frequency(14074000)
+            moved = ["7.1770", "14.0740", "14.2360", "14.2360", "21.0740", "28.3300"]
+            try:
+                app.wait_until(lambda: frequencies() == moved, timeout=15)
+            except freedvtest.FreeDVError:
+                check_equal(frequencies(), moved, "Frequencies after moving K1ABC")
+
+            # When they last updated: even an update that changes nothing
+            # else moves the row to the end when the list is sorted by recency.
+            sort_by(LAST_UPDATE)
+            vk5dgr.receive("K1ABC", "RADEV1", 5)  # the same reception, freshly reported
+            app.wait_until(lambda: callsigns(app)[-1] == "VK5DGR", timeout=15,
+                           description="VK5DGR to be the most recently updated")
+
+            # Band filter changes redraw and re-sort the list, so a selection
+            # never survives one - whether the selected row stays listed or is
+            # filtered out itself.
+            app.select_row(LIST, (CALLSIGN, "T1E"))
+            check_equal(selected(), ["T1E"], "Selected station")
+            app.set_value("reporter.cbBandFilter", "20 m")
+            app.wait_until(lambda: sorted(callsigns(app)) == ["K1ABC", "T1E", "T2E"], timeout=15,
+                           description="only the 20 m stations to be listed")
+            check_equal(selected(), [], "Selection dropped by the filter redraw")
+            app.select_row(LIST, (CALLSIGN, "T1E"))
+            check_equal(selected(), ["T1E"], "Selection re-established")
+            app.set_value("reporter.cbBandFilter", "40 m")
+            wait_for_callsigns(app, ["VK5DGR"])
+            check_equal(selected(), [], "Selection dropped with the filtered-out row")
+            app.set_value("reporter.cbBandFilter", "All")
+            app.wait_until(lambda: sorted(callsigns(app)) == sorted(everyone), timeout=15,
+                           description="all the stations back after the filter")
+
+            # Updates to a hidden station appear when the filter lets it back.
+            k1abc.set_frequency(21074000)
+            k1abc.set_message("While hidden")
+            k1abc.transmit("RADEV1", True)
+            vk5dgr.receive("ZL1ZZ", "RADEV1", 10)
+            time.sleep(1)
+            app.set_value("reporter.cbBandFilter", "All")
+            app.wait_until(lambda: sorted(callsigns(app)) == sorted(everyone), timeout=15,
+                           description="all the stations back after the filter")
+            wait_for_cell(app, "K1ABC", FREQUENCY, "21.0740")
+            wait_for_cell(app, "K1ABC", MESSAGE, "While hidden")
+            wait_for_cell(app, "K1ABC", STATUS, "TX")
+            k1abc.transmit("RADEV1", False)
+            wait_for_cell(app, "K1ABC", STATUS, "RX")
+
+            # Stations leaving and rejoining in quick succession.
+            k1abc.hide()
+            k1abc.show()
+            tie1.hide()
+            tie1.show()
+            time.sleep(2)
+            app.wait_until(lambda: sorted(callsigns(app)) == sorted(everyone), timeout=15,
+                           description="the stations back after rejoining")
+
+            # Hovering over a message, a callsign and an RX callsign brings
+            # tooltips up; over an empty cell, nothing; and the list of an
+            # inactive window knows it's inactive.
+            app.activate("reporter")
+            app.hover_row(LIST, (CALLSIGN, "K1ABC"), MESSAGE)
+            time.sleep(0.5)
+            app.hover_row(LIST, (CALLSIGN, "W6XYZ"), MESSAGE)
+            time.sleep(0.5)
+            app.hover_row(LIST, (CALLSIGN, "K1ABC"), CALLSIGN)
+            time.sleep(0.5)
+            app.hover_row(LIST, (CALLSIGN, "VK5DGR"), RX_CALLSIGN)
+            time.sleep(0.5)
+            app.activate("main")
+            app.hover_row(LIST, (CALLSIGN, "K1ABC"), CALLSIGN)
+            time.sleep(0.5)
+            app.activate("reporter")
+
+            quit_and_check_log(app)
+
+        # With directions as compass points, a filter change that rebuilds
+        # every row keeps them as points rather than degrees.
+        with freedvtest.start(settings=reporter_settings(server.hostname, **{"/Reporting/DirectionAsCardinal": True})) as app:
+            open_reporter(app)
+            app.wait_until(lambda: sorted(callsigns(app)) == sorted(everyone), timeout=20,
+                           description="all the stations to be listed")
+            wait_for_cell(app, "T1E", HEADING, lambda text: text.strip() == "ENE")
+            app.set_value("reporter.cbBandFilter", "20 m")
+            app.wait_until(lambda: sorted(callsigns(app)) == ["T1E", "T2E"], timeout=15,
+                           description="only the 20 m stations to be listed")
+            app.set_value("reporter.cbBandFilter", "All")
+            app.wait_until(lambda: sorted(callsigns(app)) == sorted(everyone), timeout=15,
+                           description="all the stations back after the filter")
+            wait_for_cell(app, "T1E", HEADING, lambda text: text.strip() == "ENE")
+            check_equal(row_for(app, "W6XYZ")[HEADING].strip(), "", "Heading to a station in the same square")
+            quit_and_check_log(app)
+
+        # With FreeDV's own grid square unusable, no row gets a distance or
+        # heading, however the list is rebuilt.
+        with freedvtest.start(settings=reporter_settings(server.hostname, **{"/Reporting/GridSquare": "AA1A"})) as app:
+            open_reporter(app)
+            app.wait_until(lambda: sorted(callsigns(app)) == sorted(everyone), timeout=20,
+                           description="all the stations to be listed")
+            app.set_value("reporter.cbBandFilter", "20 m")
+            app.wait_until(lambda: sorted(callsigns(app)) == ["T1E", "T2E"], timeout=15,
+                           description="only the 20 m stations to be listed")
+            app.set_value("reporter.cbBandFilter", "All")
+            app.wait_until(lambda: sorted(callsigns(app)) == sorted(everyone), timeout=15,
+                           description="all the stations back after the filter")
+            check_equal(row_for(app, "K1ABC")[DISTANCE].strip(), "", "Distance with an unusable own square")
+            check_equal(row_for(app, "K1ABC")[HEADING].strip(), "", "Heading with an unusable own square")
+            quit_and_check_log(app)
+
+
 def test_numeric_filters():
     """Filtering by the columns that hold numbers, with each comparison."""
     with ReporterServer() as server:
@@ -1488,6 +1948,18 @@ def test_status_message_flags():
             # A plain black flag is a flag in its own right.
             app.set_value("reporter.cbStatusMessage", black_flag + " ahoy")
             check_equal(app.get("reporter.cbStatusMessage")["value"], black_flag + " ahoy", "Status message")
+            # A flag's start character followed by characters a flag should
+            # never have goes, along with any tags behind it.
+            app.set_value("reporter.cbStatusMessage",
+                          "Hi" + black_flag + "".join(chr(0xE0000 + ord(letter)) for letter in "gs") + chr(0xE007B) + "!")
+            check_equal(app.get("reporter.cbStatusMessage")["value"], "Hi!",
+                        "Status message after a start character with the wrong characters behind it")
+
+            # Characters in the tag range that flags never use stay put.
+            unusual = chr(0xE0080)
+            app.set_value("reporter.cbStatusMessage", "Hello" + unusual + " there")
+            check_equal(app.get("reporter.cbStatusMessage")["value"], "Hello" + unusual + " there",
+                        "Status message with a character outside the tag range flags use")
 
             quit_and_check_log(app)
 
@@ -1601,6 +2073,51 @@ def test_saved_filters():
             app.combo_popup("reporter.cbStatusMessage", True)
             app.wait_until(lambda: app.get("reporter.lbSavedMessages")["shown"],
                            description="the saved messages to be listed")
+            # Editing the saved message opens the editor as wide as it was
+            # left last time; pressing OK without changing anything changes
+            # nothing.
+            app.context_menu("reporter.lbSavedMessages", item=0, choose="Edit message")
+            dialog = app.wait_for_window("@Edit Message")
+            check(dialog["clientSize"][0] > 400, "Editor width from last time: %r" % (dialog["clientSize"],))
+            check_equal(app.get("@Edit Message/wxTextCtrl")["value"], "73", "Message being edited")
+            app.click("@Edit Message/OK")
+            app.wait_for_window_closed("@Edit Message")
+            time.sleep(1)
+            app.combo_popup("reporter.cbStatusMessage", True)
+            app.wait_until(lambda: app.get("reporter.lbSavedMessages")["shown"],
+                           description="the saved messages to be listed")
+
+            # Mouse behaviour of the list itself: moving the pointer over
+            # an item highlights it, but moving over the empty space below
+            # the items doesn't; a press and release there isn't a pick,
+            # and a press-and-release that moved a long way counts as
+            # scrolling rather than a pick, leaving the list open with
+            # nothing chosen either way.
+            saved_list = "reporter.lbSavedMessages"
+            before = app.get(saved_list)["selection"]
+            app.mouse(saved_list, "motion", x=0.5, y=0.95)
+            time.sleep(0.5)
+            check_equal(app.get(saved_list)["selection"], before,
+                        "Selection after moving over empty space")
+            app.mouse(saved_list, "motion", x=0.5, y=0.05)
+            time.sleep(0.5)
+            check_equal(app.get(saved_list)["selection"], 0, "Item highlighted by the pointer")
+            app.mouse(saved_list, "left_down", x=0.5, y=0.05)
+            app.mouse(saved_list, "left_up", x=0.5, y=0.95)
+            time.sleep(0.5)
+            check_equal(app.get(saved_list)["shown"], True, "List still open after dragging down")
+            check_equal(app.get(saved_list)["selection"], 0, "Selection after dragging down")
+            app.mouse(saved_list, "left_down", x=0.05, y=0.5)
+            app.mouse(saved_list, "left_up", x=0.95, y=0.5)
+            time.sleep(0.5)
+            check_equal(app.get(saved_list)["shown"], True, "List still open after dragging across")
+            check_equal(app.get(saved_list)["selection"], 0, "Selection after dragging across")
+            app.mouse(saved_list, "left_down", x=0.5, y=0.95)
+            app.mouse(saved_list, "left_up", x=0.5, y=0.95)
+            time.sleep(0.5)
+            check_equal(app.get(saved_list)["shown"], True, "List still open after clicking below the items")
+            check_equal(app.get(saved_list)["selection"], 0, "Selection after clicking below the items")
+
             app.context_menu("reporter.lbSavedMessages", item=0, choose="Add new message")
             dialog = app.wait_for_window("@Add Message")
             check_equal(dialog["label"], "Add Message", "Window title")
@@ -1613,13 +2130,16 @@ def test_saved_filters():
 
 def test_selection():
     """What unselects a station, other than selecting another."""
-    with audio_devices(), ReporterServer() as server:
+    from test_log_qso import WsjtxListener
+    with audio_devices(), ReporterServer() as server, WsjtxListener() as logger:
         k1abc = server.station("K1ABC", "FN42")
         k1abc.set_frequency(14240000)
         server.station("VK5DGR", "PF95").set_frequency(7177000)
 
         settings = reporter_settings(server.hostname)
         settings.update(audio_settings())
+        settings.update({"/Reporting/UDP/Enable": True, "/Reporting/UDP/Hostname": "127.0.0.1",
+                         "/Reporting/UDP/Port": logger.port})
         with freedvtest.start(settings=settings) as app:
             open_reporter(app)
             wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
@@ -1646,6 +2166,56 @@ def test_selection():
             app.wait_until(lambda: selected() == [], timeout=5, description="VK5DGR to be unselected")
             check_equal(app.get("reporter.btnSendQSY")["enabled"], False, "Request QSY enabled after sorting")
 
+            # FreeDV's own row isn't offered QSY to itself.
+            app.select_row(LIST, (CALLSIGN, CALLSIGN_OF_FREEDV))
+            check_equal(selected(), [CALLSIGN_OF_FREEDV], "Selected station")
+            check_equal(app.get("reporter.btnSendQSY")["enabled"], False,
+                        "Request QSY enabled for FreeDV's own row")
+
+            # The window following FreeDV's own frequency rather than a
+            # chosen band: the rows follow the frequency while the filter
+            # combo's own selection stays put.
+            app.activate("reporter")
+            app.set_value("reporter.ckTrackFrequency", True)
+            check_equal(app.get("reporter.cbBandFilter")["enabled"], False,
+                        "Band filter disabled while following the frequency")
+            check_equal(app.get("reporter.cbBandFilter")["value"], "All",
+                        "Band filter combo untouched while tracking")
+            app.wait_until(lambda: sorted(callsigns(app)) == ["AA1ZZZ", "K1ABC"], timeout=15,
+                           description="only the 20 m stations to be listed")
+
+            # A change of frequency within the same band changes nothing.
+            app.set_value("main.cboReportFrequency", "14.2400")
+            app.focus("main.cboReportFrequency", lost=True)
+            app.wait_until(lambda: sorted(callsigns(app)) == ["AA1ZZZ", "K1ABC"], timeout=15,
+                           description="still only the 20 m stations")
+            check_equal(app.get("reporter.cbBandFilter")["value"], "All",
+                        "Band filter combo after a change within the band")
+
+            # Following the exact frequency instead re-applies the filter on
+            # every change, even when the band stays the same.
+            app.set_value("reporter.rbTrackExactFreq", True)
+            time.sleep(1)
+            app.set_value("main.cboReportFrequency", "14.2360")
+            app.focus("main.cboReportFrequency", lost=True)
+            app.wait_until(lambda: sorted(callsigns(app)) == ["AA1ZZZ"], timeout=15,
+                           description="only the exact frequency to be listed")
+
+            # A change to a different band follows it.
+            app.set_value("main.cboReportFrequency", "7.1770")
+            app.focus("main.cboReportFrequency", lost=True)
+            app.wait_until(lambda: sorted(callsigns(app)) == ["AA1ZZZ", "VK5DGR"], timeout=15,
+                           description="only the 40 m stations to be listed")
+
+            # Not following it at all gives the band filter back.
+            app.activate("reporter")
+            app.set_value("reporter.ckTrackFrequency", False)
+            check_equal(app.get("reporter.cbBandFilter")["enabled"], True,
+                        "Band filter enabled without tracking")
+            app.set_value("reporter.cbBandFilter", "All")
+            app.wait_until(lambda: sorted(callsigns(app)) == ["AA1ZZZ", "K1ABC", "VK5DGR"], timeout=15,
+                           description="all the stations to be listed")
+
             # The station leaving. (What's selected afterwards depends on
             # the version of wxWidgets, but it isn't them.)
             select("K1ABC")
@@ -1653,7 +2223,27 @@ def test_selection():
             app.wait_until(lambda: "K1ABC" not in callsigns(app), timeout=15, description="K1ABC to go")
             check("K1ABC" not in selected(), "K1ABC is still selected after leaving")
 
+            # Logging and recording now, after the chosen station left:
+            # its details went with it, so the windows fall back to what
+            # the main window says.
+            app.click("main.btnLogQSO")
+            app.wait_for_window("logEntry")
+            app.click("logEntry.btnCancel")
+            app.wait_for_window_closed("logEntry")
+            app.click("main.btnRecord")
+            app.wait_for_window("beginRecording")
+            app.click("beginRecording.btnCancel")
+            app.wait_for_window_closed("beginRecording")
+
             stop_modem(app)
+
+            # With FreeDV off the air, nobody can be asked to QSY.
+            app.activate("reporter")
+            app.select_row(LIST, (CALLSIGN, "VK5DGR"))
+            check("VK5DGR" in selected(), "VK5DGR selected after stopping")
+            check_equal(app.get("reporter.btnSendQSY")["enabled"], False,
+                        "Request QSY enabled with FreeDV off the air")
+
             quit_and_check_log(app)
 
 
@@ -1889,11 +2479,51 @@ def test_connection_burst():
             quit_and_check_log(app)
 
 
+
+def test_frequency_in_khz():
+    """The list when frequencies are reported in kHz rather than MHz:
+    cells and filter comparisons both use the chosen unit."""
+    with ReporterServer() as server:
+        k1abc = server.station("K1ABC", "FN42")
+        k1abc.set_frequency(14236000)
+        vk5dgr = server.station("VK5DGR", "PF95")
+        vk5dgr.set_frequency(7177000)
+
+        with freedvtest.start(settings=reporter_settings(server.hostname,
+                                                         **{"/Reporting/FrequencyAsKHz": True})) as app:
+            open_reporter(app)
+            wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
+            # (Without the separators some regions put between thousands.)
+            wait_for_cell(app, "K1ABC", FREQUENCY, lambda text: text.replace(",", "") == "14236.0")
+
+            def set_filter(column, operator, value):
+                app.column_context_menu(LIST, column, choose=operator)
+                app.wait_for_window("@Set Column Filter")
+                app.set_value("@Set Column Filter/wxTextCtrl", value)
+                app.click("@Set Column Filter/OK")
+                app.wait_for_window_closed("@Set Column Filter")
+                app.activate("reporter")
+
+            # Filter values are given in the column's own units.
+            set_filter(FREQUENCY, ">= (Greater or equal to)", "10000")
+            wait_for_callsigns(app, ["K1ABC"])
+            set_filter(FREQUENCY, "<  (Less than)", "10000")
+            wait_for_callsigns(app, ["VK5DGR"])
+            app.column_context_menu(LIST, FREQUENCY, choose="Clear Column Filter")
+            wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
+
+            # Frequency changes come out in kHz too.
+            k1abc.set_frequency(3500000)
+            wait_for_cell(app, "K1ABC", FREQUENCY, lambda text: text.replace(",", "") == "3500.0")
+
+            quit_and_check_log(app)
+
 SCENARIOS = {
     "live_view": test_live_view,
     "stations": test_stations,
     "sorting": test_sorting,
     "sorted_updates": test_sorted_updates,
+    "updates_while_sorted": test_updates_while_sorted,
     "damaged_layout": test_damaged_layout,
     "display_options": test_display_options,
     "band_filter": test_band_filter,
@@ -1915,6 +2545,7 @@ SCENARIOS = {
     "selection": test_selection,
     "window": test_window,
     "connection_burst": test_connection_burst,
+    "frequency_in_khz": test_frequency_in_khz,
 }
 
 

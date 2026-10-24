@@ -2877,6 +2877,349 @@ public:
         return result;
     }
 
+
+    // Asked to record and play files that were never opened: nothing is
+    // recorded, nothing is played, and the real-time pass carries on.
+    static bool playAndRecordFileRequestsWithoutFilesAreIgnored()
+    {
+        resetGlobals();
+        g_half_duplex = true;
+        g_tx = false;                      // so the gate is opened by the record flags
+        g_recVoiceKeyerFile = true;        // g_sfRecMicFile stays NULL
+        g_playFileToMicIn = true;          // g_sfPlayFile stays NULL
+        g_recFileFromModulator = true;     // g_sfRecFileFromModulator stays NULL
+        FifoGuard fifos;
+        seedSine(g_rxUserdata->infifo2, TEST_SAMPLE_RATE);
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(true, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr,
+                          makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+
+        FakeRealtimeHelper helper;
+        thread.txProcessing_(&helper);
+
+        bool result = true;
+        result &= check("play file reported finished", micInDone.load(), 0);
+        result &= check("microphone recording left open", (int)(g_sfRecMicFile.load() != nullptr), 0);
+        result &= check("modulator recording left open", (int)(g_sfRecFileFromModulator.load() != nullptr), 0);
+        result &= checkBetween("samples still sent to the radio",
+                               (int)drain(g_rxUserdata->outfifo1).size(), 1, TEST_SAMPLE_RATE);
+        return result;
+    }
+
+    static bool microphoneRecordingWithoutFileIsIgnored()
+    {
+        resetGlobals();
+        g_half_duplex = true;
+        g_tx = false;
+        g_recFileFromMic = true;           // g_sfRecMicFile stays NULL
+        FifoGuard fifos;
+        seedSine(g_rxUserdata->infifo2, TEST_SAMPLE_RATE);
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(true, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr,
+                          makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+
+        FakeRealtimeHelper helper;
+        thread.txProcessing_(&helper);
+
+        bool result = true;
+        result &= check("play file reported finished", micInDone.load(), 0);
+        result &= check("microphone recording left open", (int)(g_sfRecMicFile.load() != nullptr), 0);
+        result &= checkBetween("samples still sent to the radio",
+                               (int)drain(g_rxUserdata->outfifo1).size(), 1, TEST_SAMPLE_RATE);
+        return result;
+    }
+
+    static bool transmitIsSkippedWhenThereIsNoSecondSoundCard()
+    {
+        resetGlobals();
+        g_nSoundCards = 1;
+        g_tx = true;
+        FifoGuard fifos;
+        seedSine(g_rxUserdata->infifo2, TEST_SAMPLE_RATE);
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(true, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr,
+                          makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+
+        FakeRealtimeHelper helper;
+        thread.txProcessing_(&helper);
+
+        bool result = true;
+        result &= check("samples queued for the radio", g_rxUserdata->outfifo1->numUsed(), 0);
+        g_nSoundCards = 2;
+        return result;
+    }
+
+    static bool stoppedThreadDoesNoRealTimeWork()
+    {
+        resetGlobals();
+        FifoGuard fifos;
+        seedSine(g_rxUserdata->infifo1, TEST_SAMPLE_RATE);
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(false, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr,
+                          makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+        thread.stop();    // clears m_run; no thread was ever started to join
+
+        FakeRealtimeHelper helper;
+        thread.runOnce_(&helper);
+
+        bool result = true;
+        result &= check("real time work started", helper.startCalls.load(), 0);
+        result &= check("real time work stopped", helper.stopCalls.load(), 0);
+        result &= check("samples sent to the speaker", g_rxUserdata->outfifo2->numUsed(), 0);
+        return result;
+    }
+
+    static bool radioRecordAndPlayWithoutFilesAreIgnored()
+    {
+        resetGlobals();
+        g_recFileFromRadio = true;         // g_sfRecFile stays NULL
+        g_playFileFromRadio = true;        // g_sfPlayFileFromRadio stays NULL
+        g_recFileFromDecoder = true;       // g_sfRecDecoderFile stays NULL
+        FifoGuard fifos;
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(false, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr,
+                          makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+
+        // initializePipeline_ clears the RX FIFOs, so the demodulator is fed
+        // afterwards, one second at a time (the FIFOs hold two).
+        auto signal = transmittedSignal(4);
+        FakeRealtimeHelper helper;
+        for (size_t offset = 0; offset < signal.size(); offset += TEST_SAMPLE_RATE)
+        {
+            g_rxUserdata->infifo1->write(&signal[offset], std::min((size_t)TEST_SAMPLE_RATE, signal.size() - offset));
+            thread.rxProcessing_(&helper);
+        }
+
+        bool result = true;
+        result &= check("radio recording reported finished", recRadioDone.load(), 0);
+        result &= check("radio play file reported finished", playRadioDone.load(), 0);
+        result &= check("recording handles left open",
+                        (int)((g_sfRecFile.load() != nullptr) || (g_sfRecDecoderFile.load() != nullptr)), 0);
+        result &= check("speaker still fed", (int)(drain(g_rxUserdata->outfifo2).size() > 0), 1);
+        return result;
+    }
+
+    static bool voiceKeyerAudioIsNotMonitoredWhenMonitoringIsOff()
+    {
+        resetGlobals();
+        auto micLink = std::make_shared<LinkStep>(TEST_SAMPLE_RATE);
+        g_tx = true;                    // keeps the monitor chain live
+        g_monitorTxAudio = true;
+        g_voice_keyer_tx = true;
+        g_monitorVoiceKeyerAudio = false;
+        SoundCardFifos fifos(TEST_SAMPLE_RATE);
+        seedSine(g_rxUserdata->infifo2, TEST_SAMPLE_RATE);
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread txThread(true, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, micLink, nullptr,
+                            makeHooks(micInDone, recRadioDone, playRadioDone));
+        TxRxThread rxThread(false, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, micLink, nullptr,
+                            makeHooks(micInDone, recRadioDone, playRadioDone));
+        txThread.initializePipeline_();
+        rxThread.initializePipeline_();
+
+        FakeRealtimeHelper helper;
+        txThread.txProcessing_(&helper);
+        rxThread.rxProcessing_(&helper);
+
+        auto speakerOut = drain(g_rxUserdata->outfifo2);
+        bool result = true;
+        result &= check("voice keyer audio heard while unmonitored", peak(speakerOut), 0);
+        return result;
+    }
+
+    static bool radioAudioReachesTheMicrophoneChainWhenRecordingIt()
+    {
+        resetGlobals();
+        auto micLink = std::make_shared<LinkStep>(TEST_SAMPLE_RATE);
+        std::vector<short> signal;
+
+        // Recording the voice keyer's file keeps received audio in the mic chain.
+        g_recVoiceKeyerFile = true;
+        {
+            SoundCardFifos fifos(TEST_SAMPLE_RATE);
+            signal = transmittedSignal(4);
+            std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+            TxRxThread thread(false, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, micLink, nullptr,
+                              makeHooks(micInDone, recRadioDone, playRadioDone));
+            thread.initializePipeline_();
+            FakeRealtimeHelper helper;
+            for (size_t offset = 0; offset < signal.size(); offset += TEST_SAMPLE_RATE)
+            {
+                g_rxUserdata->infifo1->write(&signal[offset], std::min((size_t)TEST_SAMPLE_RATE, signal.size() - offset));
+                thread.rxProcessing_(&helper);
+            }
+            g_recVoiceKeyerFile = false;
+        }
+
+        // Voice keyer off, not transmitting, analog off, nothing recording:
+        // every group of the keep-it-out predicate is false, so the radio
+        // audio is demodulated and heard.
+        g_analog = 0;
+        g_voice_keyer_tx = false;
+        g_monitorVoiceKeyerAudio = false;
+        g_tx = false;
+        g_recVoiceKeyerFile = false;
+        SoundCardFifos fifos(TEST_SAMPLE_RATE);
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(false, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, micLink, nullptr,
+                          makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+        FakeRealtimeHelper helper;
+        for (size_t offset = 0; offset < signal.size(); offset += TEST_SAMPLE_RATE)
+        {
+            g_rxUserdata->infifo1->write(&signal[offset], std::min((size_t)TEST_SAMPLE_RATE, signal.size() - offset));
+            thread.rxProcessing_(&helper);
+        }
+
+        auto speakerOut = drain(g_rxUserdata->outfifo2);
+        bool result = true;
+        result &= check("received audio demodulated", (int)(peak(speakerOut) > 0), 1);
+        return result;
+    }
+
+    static bool analogAudioReachesTheSpeakerWithoutAMicLink()
+    {
+        resetGlobals();
+        g_analog = 1;                    // the no-mic-link predicate's only operand
+        FifoGuard fifos;
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(false, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr,
+                          makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+
+        // initializePipeline_ clears the RX FIFOs, so seed after it.
+        seedSine(g_rxUserdata->infifo1, TEST_SAMPLE_RATE);
+
+        FakeRealtimeHelper helper;
+        thread.rxProcessing_(&helper);
+
+        bool result = true;
+        result &= checkBetween("loudest speaker sample of analog audio",
+                               peak(drain(g_rxUserdata->outfifo2)), 1, 32767);
+        g_analog = 0;
+        return result;
+    }
+
+    static bool radioRecordingStopsWhenItsBudgetIsUsedUp()
+    {
+        // Recording is done at RECORD_FILE_SAMPLE_RATE, so receive at that
+        // rate too (as recordingFromRadioContinuesUntilStopped does).
+        constexpr int RADIO_SAMPLE_RATE = RECORD_FILE_SAMPLE_RATE;
+        constexpr int SAMPLES_PER_ROUND = RADIO_SAMPLE_RATE / 10;  // 0.1s
+        constexpr int ROUNDS = 7;
+        constexpr int MAX_SAMPLES_WAITING = RADIO_SAMPLE_RATE * 13 / 100;
+
+        resetGlobals();
+        g_analog = 1;
+        FifoGuard fifos;
+        RecordingFile recordFile(RECORD_FILE_SAMPLE_RATE);
+        g_sfRecFile = recordFile.get();
+        // One round less than is fed, so the budget runs out while audio is
+        // still flowing and the stop can be reported.
+        const unsigned int startBudget = SAMPLES_PER_ROUND * (ROUNDS - 1);
+        g_recFromRadioSamples = startBudget;
+        g_recFileFromRadio = true;
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(false, RADIO_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr,
+                          makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+
+        FakeRealtimeHelper helper;
+        for (int round = 0; round < ROUNDS && recRadioDone.load() == 0; round++)
+        {
+            seedSine(g_rxUserdata->infifo1, SAMPLES_PER_ROUND);
+            thread.rxProcessing_(&helper);
+            drain(g_rxUserdata->outfifo2);
+
+            // Recording happens on other threads; give them time to catch up.
+            int expectedSoFar = SAMPLES_PER_ROUND * (round + 1) - MAX_SAMPLES_WAITING;
+            auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            while (recRadioDone.load() == 0 &&
+                   (startBudget - g_recFromRadioSamples.load()) < (unsigned int)std::max(0, expectedSoFar) &&
+                   std::chrono::steady_clock::now() < deadline)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            }
+        }
+
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (recRadioDone.load() == 0 && std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::yield();
+        }
+        // As the application's finished handler does, turn recording off.
+        g_recFileFromRadio = false;
+
+        bool result = true;
+        result &= check("times recording was reported finished", recRadioDone.load(), 1);
+        result &= check("samples left in the recording budget", (int)g_recFromRadioSamples.load(), 0);
+        g_sfRecFile = nullptr;
+        return result;
+    }
+
+    static bool endOfOverIsKeptWhenThereIsNoRoomForIt()
+    {
+        constexpr short MARKER = 12345;
+
+        resetGlobals();
+        g_tx = true;
+        endingTx = true;
+        FifoGuard fifos;
+
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(true, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr,
+                          makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+        const int nsam = (freedvInterface.getTxNNomModemSamples() * TEST_SAMPLE_RATE)
+                         / freedvInterface.getTxModemSampleRate();
+        const int minimumAudio = std::min(200 * TEST_SAMPLE_RATE / 1000,
+                                          (int)(g_rxUserdata->infifo2->capacity() * 90 / 100));
+
+        // Fill the radio FIFO with markers, leaving room for a few speech
+        // frames plus the waiting end-of-over batch.
+        const int room = 4 * nsam + (nsam + 100);
+        std::vector<short> queued(g_rxUserdata->outfifo1->capacity() - room, MARKER);
+        g_rxUserdata->outfifo1->write(queued.data(), (int)queued.size());
+        seedSine(g_rxUserdata->infifo2, minimumAudio);
+        // More end-of-over waiting than the room left after those frames.
+        thread.pendingEooCount_ = nsam + 100;
+        std::fill(thread.pendingEooSamples_.get(),
+                  thread.pendingEooSamples_.get() + thread.pendingEooCount_, MARKER);
+
+        FakeRealtimeHelper helper;
+        helper.stopWork = true;
+        thread.txProcessing_(&helper);       // the radio FIFO isn't drained, so nothing is sent
+
+        bool result = true;
+        result &= check("end of over reported as queued", (int)g_eoo_enqueued.load(), 0);
+        result &= check("end of over still waiting", (int)(thread.pendingEooCount_ > 0), 1);
+        result &= onlyContains(drain(g_rxUserdata->outfifo1), MARKER)
+                      ? true : (std::cout << "[speech written over the queued markers] ", false);
+
+        // With room again it is sent, once, from the pending batch.
+        drain(g_rxUserdata->outfifo1);
+        helper.stopWork = false;
+        thread.txProcessing_(&helper);
+        result &= check("end of over reported as queued now", (int)g_eoo_enqueued.load(), 1);
+        result &= check("end of over no longer waiting", (int)thread.pendingEooCount_, 0);
+        endingTx = false;
+        return result;
+    }
 };
 
 int main()
@@ -2934,6 +3277,16 @@ int main()
     executeTestCase("speechSurvivesRoundTrip", &TxRxThreadTest::speechSurvivesRoundTrip);
     executeTestCase("speechSurvivesRoundTripInBlocksOfAnySize", &TxRxThreadTest::speechSurvivesRoundTripInBlocksOfAnySize);
     executeTestCase("speechSurvivesRoundTripThroughFiles", &TxRxThreadTest::speechSurvivesRoundTripThroughFiles);
+    executeTestCase("playAndRecordFileRequestsWithoutFilesAreIgnored", &TxRxThreadTest::playAndRecordFileRequestsWithoutFilesAreIgnored);
+    executeTestCase("microphoneRecordingWithoutFileIsIgnored", &TxRxThreadTest::microphoneRecordingWithoutFileIsIgnored);
+    executeTestCase("transmitIsSkippedWhenThereIsNoSecondSoundCard", &TxRxThreadTest::transmitIsSkippedWhenThereIsNoSecondSoundCard);
+    executeTestCase("stoppedThreadDoesNoRealTimeWork", &TxRxThreadTest::stoppedThreadDoesNoRealTimeWork);
+    executeTestCase("radioRecordAndPlayWithoutFilesAreIgnored", &TxRxThreadTest::radioRecordAndPlayWithoutFilesAreIgnored);
+    executeTestCase("voiceKeyerAudioIsNotMonitoredWhenMonitoringIsOff", &TxRxThreadTest::voiceKeyerAudioIsNotMonitoredWhenMonitoringIsOff);
+    executeTestCase("radioAudioReachesTheMicrophoneChainWhenRecordingIt", &TxRxThreadTest::radioAudioReachesTheMicrophoneChainWhenRecordingIt);
+    executeTestCase("analogAudioReachesTheSpeakerWithoutAMicLink", &TxRxThreadTest::analogAudioReachesTheSpeakerWithoutAMicLink);
+    executeTestCase("radioRecordingStopsWhenItsBudgetIsUsedUp", &TxRxThreadTest::radioRecordingStopsWhenItsBudgetIsUsedUp);
+    executeTestCase("endOfOverIsKeptWhenThereIsNoRoomForIt", &TxRxThreadTest::endOfOverIsKeptWhenThereIsNoRoomForIt);
 
     freedvInterface.stop();
 

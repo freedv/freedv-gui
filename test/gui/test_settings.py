@@ -41,6 +41,9 @@ NOWHERE = "127.0.0.1:9"
 PTT_VIA_CAT, PTT_VIA_RTS, PTT_VIA_DTR, PTT_VIA_NONE, PTT_VIA_CAT_DATA = range(5)
 
 WXK_F5 = 344
+# wxWidgets' code for the keypad's Enter. The plain one never reaches the
+# list: the combo's text box acts on it first.
+NUMPAD_ENTER = 370
 
 
 def check(condition, message):
@@ -218,38 +221,50 @@ def test_buttons():
 
 def test_audio():
     """The RX Audio and TX Audio tabs."""
+    transmit_controls = ["lcSoundCard2InDevice", "tcSoundCard2InDevice", "btnSoundCard2InTest",
+                         "lcSoundCard2OutDevice", "tcSoundCard2OutDevice", "btnSoundCard2OutTest"]
+
+    def first_settings(app):
+        """Choosing receive devices only, from where FreeDV starts out."""
+        open_settings(app, "RX Audio")
+
+        # Every device is offered, along with "none", which is what's
+        # selected to begin with.
+        inputs = device_labels(app, "lcSoundCard1InDevice")
+        outputs = device_labels(app, "lcSoundCard1OutDevice")
+        check(VirtualAudioDevices.input_label(RADIO_RX) in inputs, "The radio's input isn't listed: %r" % inputs)
+        check(SPEAKER in outputs, "The speaker isn't listed: %r" % outputs)
+        check_equal((inputs[-1], outputs[-1]), ("none", "none"), "Last devices listed")
+        listed = [item for item in app.get(name("lcSoundCard1OutDevice"))["items"] if item["label"] == SPEAKER]
+        check_equal(listed[0]["columns"][2], "48000 Hz", "Speaker's sample rate as listed")
+        check_values(app, {"tcSoundCard1InDevice": "none", "tcSoundCard1OutDevice": "none"})
+
+        set_value(app, "lcSoundCard1InDevice", VirtualAudioDevices.input_label(RADIO_RX))
+        set_value(app, "lcSoundCard1OutDevice", SPEAKER)
+        check_values(app, {"tcSoundCard1InDevice": VirtualAudioDevices.input_label(RADIO_RX),
+                           "tcSoundCard1OutDevice": SPEAKER})
+
+        # Receive only until told otherwise.
+        go_to_tab(app, "TX Audio")
+        check_values(app, {"ckTxReceiveOnly": True})
+        check_enabled(app, transmit_controls, False)
+        press_ok(app)
+        check_saved(app, {
+            "/Audio/soundCard1InDeviceName": RADIO_RX_IN, "/Audio/soundCard1InSampleRate": 48000,
+            "/Audio/soundCard1OutDeviceName": SPEAKER, "/Audio/soundCard1OutSampleRate": 48000,
+            "/Audio/soundCard2InDeviceName": "none", "/Audio/soundCard2OutDeviceName": "none",
+        })
+
     with audio_devices():
+        # Transmit devices that aren't set at all start out the same as
+        # ones saved as "none".
         with freedvtest.start(settings={}) as app:
-            open_settings(app, "RX Audio")
+            first_settings(app)
+            quit_and_check_log(app)
 
-            # Every device is offered, along with "none", which is what's
-            # selected to begin with.
-            inputs = device_labels(app, "lcSoundCard1InDevice")
-            outputs = device_labels(app, "lcSoundCard1OutDevice")
-            check(VirtualAudioDevices.input_label(RADIO_RX) in inputs, "The radio's input isn't listed: %r" % inputs)
-            check(SPEAKER in outputs, "The speaker isn't listed: %r" % outputs)
-            check_equal((inputs[-1], outputs[-1]), ("none", "none"), "Last devices listed")
-            listed = [item for item in app.get(name("lcSoundCard1OutDevice"))["items"] if item["label"] == SPEAKER]
-            check_equal(listed[0]["columns"][2], "48000 Hz", "Speaker's sample rate as listed")
-            check_values(app, {"tcSoundCard1InDevice": "none", "tcSoundCard1OutDevice": "none"})
-
-            set_value(app, "lcSoundCard1InDevice", VirtualAudioDevices.input_label(RADIO_RX))
-            set_value(app, "lcSoundCard1OutDevice", SPEAKER)
-            check_values(app, {"tcSoundCard1InDevice": VirtualAudioDevices.input_label(RADIO_RX),
-                               "tcSoundCard1OutDevice": SPEAKER})
-
-            # Receive only until told otherwise.
-            go_to_tab(app, "TX Audio")
-            transmit_controls = ["lcSoundCard2InDevice", "tcSoundCard2InDevice", "btnSoundCard2InTest",
-                                 "lcSoundCard2OutDevice", "tcSoundCard2OutDevice", "btnSoundCard2OutTest"]
-            check_values(app, {"ckTxReceiveOnly": True})
-            check_enabled(app, transmit_controls, False)
-            press_ok(app)
-            check_saved(app, {
-                "/Audio/soundCard1InDeviceName": RADIO_RX_IN, "/Audio/soundCard1InSampleRate": 48000,
-                "/Audio/soundCard1OutDeviceName": SPEAKER, "/Audio/soundCard1OutSampleRate": 48000,
-                "/Audio/soundCard2InDeviceName": "none", "/Audio/soundCard2OutDeviceName": "none",
-            })
+        with freedvtest.start(settings={"/Audio/soundCard2InDeviceName": "none",
+                                        "/Audio/soundCard2OutDeviceName": "none"}) as app:
+            first_settings(app)
 
             # With transmit devices as well, the speaker becomes the second
             # sound card's output and the radio the first's.
@@ -285,31 +300,37 @@ def test_audio():
                                "tcSoundCard2OutDevice": RADIO_TX})
 
             # ...including after the lists are refreshed, which is how a
-            # device that's just been plugged in gets to be listed. (Only the
-            # refreshing on macOS and Windows, where a device can't be plugged
-            # in here.)
+            # device that's just been plugged in gets to be listed, and how a
+            # removal of a device gets noticed too. (Only the refreshing on
+            # macOS and Windows, where a device can't be plugged in here.)
+            def new_device_unlisted():
+                return "FreeDVGuiTest_New_Device" not in device_labels(app, "lcSoundCard2OutDevice")
             with contextlib.ExitStack() as new_device:
                 if not freedvtest.audio.FIXED_DEVICES:
                     new_device.enter_context(VirtualAudioDevices("FreeDVGuiTest_New_Device"))
-                    check("FreeDVGuiTest_New_Device" not in device_labels(app, "lcSoundCard2OutDevice"),
-                          "A new device was listed without refreshing")
+                    check(new_device_unlisted(), "A new device was listed without refreshing")
                 app.click(name("btnRefreshTxAudio"))
                 if not freedvtest.audio.FIXED_DEVICES:
-                    check("FreeDVGuiTest_New_Device" in device_labels(app, "lcSoundCard2OutDevice"),
-                          "A new device wasn't listed after refreshing")
+                    check(not new_device_unlisted(), "A new device wasn't listed after refreshing")
+                    # Refreshing one tab's lists refreshes the other's too.
+                    go_to_tab(app, "RX Audio")
+                    check("FreeDVGuiTest_New_Device" in device_labels(app, "lcSoundCard1OutDevice"),
+                          "A new device wasn't listed on the other tab after refreshing")
+                    go_to_tab(app, "TX Audio")
+                    new_device.close()
+                    app.click(name("btnRefreshTxAudio"))
+                    check(new_device_unlisted(), "An unplugged device was still listed after refreshing")
                 check_values(app, {"tcSoundCard2InDevice": VirtualAudioDevices.input_label(MICROPHONE),
                                    "tcSoundCard2OutDevice": RADIO_TX})
                 go_to_tab(app, "RX Audio")
                 if not freedvtest.audio.FIXED_DEVICES:
-                    check("FreeDVGuiTest_New_Device" in device_labels(app, "lcSoundCard1OutDevice"),
-                          "A new device wasn't listed on the other tab after refreshing")
+                    check("FreeDVGuiTest_New_Device" not in device_labels(app, "lcSoundCard1OutDevice"),
+                          "An unplugged device was listed on the other tab after refreshing")
                 check_values(app, {"tcSoundCard1InDevice": VirtualAudioDevices.input_label(RADIO_RX),
                                    "tcSoundCard1OutDevice": SPEAKER})
                 app.click(name("btnRefreshRxAudio"))
                 check_values(app, {"tcSoundCard1InDevice": VirtualAudioDevices.input_label(RADIO_RX),
                                    "tcSoundCard1OutDevice": SPEAKER})
-
-            # Back to receive only: the speaker goes back to the first card.
             go_to_tab(app, "TX Audio")
             set_value(app, "ckTxReceiveOnly", True)
             check_enabled(app, transmit_controls, False)
@@ -383,6 +404,18 @@ def test_audio_tests():
             check(radio_level < 50, "The microphone recording was played to the radio (level %d)" % radio_level)
             app.wait_until(lambda: label(app, "btnSoundCard2InTest") == "Test", timeout=30,
                            description="the audio test to finish")
+            # An input whose matching output is set to none records, but
+            # plays its recording to nothing.
+            go_to_tab(app, "RX Audio")
+            set_value(app, "lcSoundCard1OutDevice", "none")
+            with Tone(RADIO_RX):
+                app.click(name("btnSoundCard1InTest"))
+                check_equal(label(app, "btnSoundCard1InTest"), "Recording", "Test button's label while testing")
+                level = record_level(VirtualAudioDevices.input_name(SPEAKER), 4.0)
+            check(level < 50, "A recording was played through the speaker although its device is none (level %d)" % level)
+            app.wait_until(lambda: label(app, "btnSoundCard1InTest") == "Test", timeout=15,
+                           description="the test to finish without playback")
+
 
             # There has to be a device to test.
             go_to_tab(app, "RX Audio")
@@ -571,6 +604,13 @@ def test_ptt_test():
         check_enabled(app, ["buttonTestPTT"] + everything_else, False)
         wait_for_test_to_finish(app)
         check_equal(app.message_boxes(), [], "Messages displayed by a successful test")
+
+        # Keying by RTS through Hamlib works just as CAT does.
+        set_value(app, "cbPttMethod", "RTS")
+        app.click(name("buttonTestPTT"))
+        wait_for_test_to_finish(app)
+        check_equal(app.message_boxes(), [], "Messages displayed by a successful RTS test")
+        set_value(app, "cbPttMethod", "CAT")
 
         # Keying by tone can't be tested from here, which gets said.
         set_value(app, "ckLeftChannelVoxTone", True)
@@ -771,7 +811,21 @@ def test_frequency_list():
         check_equal(label(app, "labelEnterFreq"), "Enter frequency (MHz):", "Frequency entry label")
         check_values(app, {"txtCtrlNewFrequency": ""})
         check_buttons(app, False, False)
+        # Switching to kHz and back with nothing typed in changes the units
+        # on offer but nothing else.
+        set_value(app, "ckboxFrequencyEntryAsKHz", True)
+        press_apply(app)
+        check_equal(frequencies(app), ["3625.0", "7177.0", "14236.0"], "Frequencies listed in kHz")
+        set_value(app, "ckboxFrequencyEntryAsKHz", False)
+        press_apply(app)
+        check_equal(frequencies(app), ["3.6250", "7.1770", "14.2360"], "Frequencies listed again in MHz")
+        check_values(app, {"txtCtrlNewFrequency": ""})
 
+        # Applying while something is typed in but the units haven't
+        # changed adds nothing.
+        set_value(app, "txtCtrlNewFrequency", "10.136")
+        press_apply(app)
+        check_equal(frequencies(app), ["3.6250", "7.1770", "14.2360"], "Frequencies listed")
         # Something that isn't a frequency can't be added.
         for text in ["abc", "0", "-5"]:
             set_value(app, "txtCtrlNewFrequency", text)
@@ -798,6 +852,7 @@ def test_frequency_list():
         set_value(app, "freqList", "7.1770")
         check_values(app, {"txtCtrlNewFrequency": "7.1770"})
         check_buttons(app, False, True)
+
 
         set_value(app, "freqList", "14.2360")
         app.click(name("freqListRemove"))
@@ -848,8 +903,19 @@ def test_frequency_list():
 def test_frequency_list_from_main_window():
     """The predefined frequencies can be added to and deleted from the main
     window's frequency box."""
+    # Thousands are grouped as the user's region has them on macOS and
+    # Windows, e.g. "3,600.0" in the US: left out here.
+    def ungrouped(text):
+        return text.replace(",", "")
+
     def offered(app):
-        return [item["label"] for item in app.get("main.lbReportFrequencies")["items"]]
+        return [ungrouped(item["label"]) for item in app.get("main.lbReportFrequencies")["items"]]
+
+    def choose(app, target, label):
+        """Chooses a context menu item, going by its label without grouping."""
+        labels = [item["label"] for item in app.context_menu(target) if ungrouped(item["label"]) == label]
+        check(labels, "No %r in the menu" % label)
+        return app.context_menu(target, choose=labels[0])
 
     def list_shown(app):
         return app.get("main.lbReportFrequencies")["shown"]
@@ -870,6 +936,17 @@ def test_frequency_list_from_main_window():
         items = app.context_menu("main.cboReportFrequency")
         check_equal([(item["label"], item["enabled"]) for item in items][0],
                     ("Add 10.1360MHz to list", False), "Frequency box's menu when it's listed")
+        # Text that isn't a frequency, or too small to round to one, can't
+        # be added: the menu says so and disables the item.
+        app.set_value("main.cboReportFrequency", "not a frequency")
+        items = app.context_menu("main.cboReportFrequency")
+        check_equal([(item["label"], item["enabled"]) for item in items][0],
+                    ("Add frequency to list", False), "Menu for text that isn't a frequency")
+        app.set_value("main.cboReportFrequency", "0.00004")
+        items = app.context_menu("main.cboReportFrequency")
+        check_equal([(item["label"], item["enabled"]) for item in items][0],
+                    ("Add frequency to list", False), "Menu for too small a frequency")
+        app.set_value("main.cboReportFrequency", "10.1360")
 
         # One in the open list can be deleted from its menu, and the list
         # opens again for the next.
@@ -884,19 +961,102 @@ def test_frequency_list_from_main_window():
         app.key("main.lbReportFrequencies", "Delete")
         check_equal(offered(app), ["7.1770", "10.1360"], "Frequencies offered")
         check(list_shown(app), "The list closed")
-
-        # Closing the list doesn't take what was highlighted.
-        before = app.get("main.cboReportFrequency")["value"]
+        # Keys in the open list move the highlight about, clamping at the
+        # ends, and Enter takes the highlighted frequency.
         app.set_value("main.lbReportFrequencies", "7.1770")
+        app.key("main.lbReportFrequencies", "Down")
+        check_equal(app.get("main.lbReportFrequencies")["selection"], 1, "Highlight moved down")
+        app.key("main.lbReportFrequencies", "Down")
+        check_equal(app.get("main.lbReportFrequencies")["selection"], 1, "Highlight clamped at the end")
+        app.key("main.lbReportFrequencies", "Up")
+        check_equal(app.get("main.lbReportFrequencies")["selection"], 0, "Highlight moved up")
+        app.key("main.lbReportFrequencies", "PageDown")
+        check_equal(app.get("main.lbReportFrequencies")["selection"], 1, "Highlight paged down")
+        app.key("main.lbReportFrequencies", "PageUp")
+        check_equal(app.get("main.lbReportFrequencies")["selection"], 0, "Highlight clamped by paging up")
+        app.key("main.lbReportFrequencies", "End")
+        check_equal(app.get("main.lbReportFrequencies")["selection"], 1, "Highlight at the end")
+        app.key("main.lbReportFrequencies", "Home")
+        check_equal(app.get("main.lbReportFrequencies")["selection"], 0, "Highlight at the top")
+        app.key("main.lbReportFrequencies", NUMPAD_ENTER)
+        check_equal(app.get("main.cboReportFrequency")["value"], "7.1770", "Frequency taken with Enter")
+        check(not list_shown(app), "The list closed on Enter")
+
+        # Reopening the list: it highlights the frequency the box already
+        # has, and Up clamps at the top. A box that matches no item opens
+        # with nothing highlighted, and then Up starts at the end. Closing
+        # without a pick leaves the box as it was.
+        app.combo_popup("main.cboReportFrequency", True)
+        app.wait_until(lambda: list_shown(app), description="the frequencies to be listed")
+        check_equal(app.get("main.lbReportFrequencies")["selection"], 0, "The open list highlights the box's frequency")
+        app.key("main.lbReportFrequencies", "Up")
+        check_equal(app.get("main.lbReportFrequencies")["selection"], 0, "Up clamps at the top")
         app.combo_popup("main.cboReportFrequency", False)
-        check_equal(app.get("main.cboReportFrequency")["value"], before, "Frequency after closing the list")
+        app.set_value("main.cboReportFrequency", "10.136")
+        app.combo_popup("main.cboReportFrequency", True)
+        app.wait_until(lambda: list_shown(app), description="the frequencies to be listed again")
+        check_equal(app.get("main.lbReportFrequencies")["selection"], -1, "A box matching nothing opens with no highlight")
+        app.key("main.lbReportFrequencies", "Up")
+        check_equal(app.get("main.lbReportFrequencies")["selection"], 1, "Up starts at the end of the list")
+        app.combo_popup("main.cboReportFrequency", False)
+        check_equal(app.get("main.cboReportFrequency")["value"], "10.136", "Frequency after closing the list")
 
         # The changes are kept, as Tools > Options shows.
         open_settings(app, "Rig Control")
         check_equal([item["label"] for item in app.get(name("freqList"))["items"]],
                     ["7.1770", "10.1360"], "Frequencies listed in Options")
         press_cancel(app)
+        # Deleting down to nothing leaves an empty list that isn't reopened.
+        app.combo_popup("main.cboReportFrequency", True)
+        app.wait_until(lambda: list_shown(app), description="the frequencies to be listed")
+        app.context_menu("main.lbReportFrequencies", item=0, choose="Delete 7.1770MHz from list")
+        check_equal(offered(app), ["10.1360"], "The last frequency")
+        app.wait_until(lambda: list_shown(app), description="the list to open again")
+        app.context_menu("main.lbReportFrequencies", item=0, choose="Delete 10.1360MHz from list")
+        check_equal(offered(app), [], "No frequencies left")
+        time.sleep(0.5)
+        check(not list_shown(app), "An empty list isn't reopened")
 
+        # With an empty list open, nothing is highlighted and keys do
+        # nothing, including Delete and the numpad one. Enter there leaves
+        # the box alone.
+        app.combo_popup("main.cboReportFrequency", True)
+        app.wait_until(lambda: list_shown(app), description="the empty list to open")
+        check_equal(app.get("main.lbReportFrequencies")["selection"], -1, "Highlight in the empty list")
+        app.key("main.lbReportFrequencies", "Down")
+        app.key("main.lbReportFrequencies", "PageDown")
+        app.key("main.lbReportFrequencies", "PageUp")
+        app.key("main.lbReportFrequencies", "x")
+        app.key("main.lbReportFrequencies", "Delete")
+        app.key("main.lbReportFrequencies", 385)  # numpad Delete
+        check_equal(offered(app), [], "Still no frequencies")
+        app.key("main.lbReportFrequencies", "Enter")
+        check_equal(app.get("main.cboReportFrequency")["value"], "10.136", "Frequency box after Enter on the empty list")
+        app.combo_popup("main.cboReportFrequency", False)
+        check_equal(app.get("main.cboReportFrequency")["value"], "10.136", "Frequency box after closing the empty list")
+
+        quit_and_check_log(app)
+
+    # In kHz mode, the box and the list show the list's frequencies in kHz,
+    # to one decimal place, and the box is read as kHz too.
+    settings = {"/Reporting/FrequencyList": "3.6,14.2", "/Reporting/FrequencyAsKHz": True,
+                "/Reporting/Frequency": "14200000"}
+    with freedvtest.start(settings=settings) as app:
+        check_equal(offered(app), ["3600.0", "14200.0"], "Frequencies offered in kHz")
+        app.set_value("main.cboReportFrequency", "10136")
+        items = choose(app, "main.cboReportFrequency", "Add 10136.0kHz to list")
+        check_equal([(ungrouped(item["label"]), item["enabled"]) for item in items][0],
+                    ("Add 10136.0kHz to list", True), "Frequency box's menu in kHz")
+        check_equal(offered(app), ["3600.0", "10136.0", "14200.0"], "Frequencies offered")
+        app.combo_popup("main.cboReportFrequency", True)
+        app.wait_until(lambda: list_shown(app), description="the frequencies to be listed")
+        listed = app.get("main.lbReportFrequencies")["items"][1]["label"]
+        check_equal(ungrouped(listed), "10136.0", "Second frequency listed")
+        app.context_menu("main.lbReportFrequencies", item=1, choose="Delete %skHz from list" % listed)
+        check_equal(offered(app), ["3600.0", "14200.0"], "Frequencies after a kHz delete")
+        # The delete reopened the list; quitting with it still open has to
+        # work too.
+        app.wait_until(lambda: list_shown(app), description="the list to open again")
         quit_and_check_log(app)
 
 
@@ -1336,6 +1496,7 @@ SCENARIOS = {
     "ptt_test": test_ptt_test,
     "rig_control": test_rig_control,
     "frequency_list": test_frequency_list,
+    "frequency_list_from_main_window": test_frequency_list_from_main_window,
     "reporting": test_reporting,
     "voice_keyer": test_voice_keyer,
     "display": test_display,

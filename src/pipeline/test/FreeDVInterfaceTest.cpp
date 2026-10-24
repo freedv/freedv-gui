@@ -451,6 +451,67 @@ bool bandwidthExpansionAddsHighFrequencies()
     return result;
 }
 
+// FreeDV's shutdown paths let go of the interface while it's still running
+// (the main window's on close, for one): the destructor has to do the
+// stopping, and stopping an already stopped interface again has to be
+// harmless too.
+bool destroyingARunningInterfaceStopsIt()
+{
+    FreeDVInterface* dv = new FreeDVInterface();
+    dv->start(100, false);
+    if (!dv->isRunning())
+    {
+        std::cout << "[start() left the interface not running] ";
+        delete dv;
+        return false;
+    }
+
+    // Deleted while it's running: the destructor stops it.
+    delete dv;
+
+    // And an interface stopped the usual way stops once more on the way out
+    // without anything going wrong.
+    FreeDVInterface stopped;
+    stopped.start(100, false);
+    stopped.stop();
+    return true;
+}
+
+// Starting with verbose on (what FreeDV does with its debug console option)
+// brings the interface up with RADE's own commentary left in.
+bool startingVerboseBringsTheInterfaceUp()
+{
+    FreeDVInterface dv;
+    dv.start(100, false, true);
+    bool running = dv.isRunning();
+    dv.stop();
+    if (!running)
+    {
+        std::cout << "[verbose start() did not bring the interface up] ";
+        return false;
+    }
+    return true;
+}
+
+// Reliable text can be asked for at any time, including before there's an
+// interface to carry it: there's nothing to change and nothing to fall over.
+bool reliableTextAskedForBeforeStartingIsIgnored()
+{
+    FreeDVInterface dv;
+    if (dv.isRunning())
+    {
+        std::cout << "[an interface that was never started reported as running] ";
+        return false;
+    }
+    dv.setReliableText("TESTCALL");
+    if (dv.isRunning())
+    {
+        std::cout << "[setReliableText() started the interface] ";
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 int main()
@@ -462,6 +523,9 @@ int main()
     executeTestCase("staysUnsyncedWhenNothingIsReceived", staysUnsyncedWhenNothingIsReceived);
     executeTestCase("receiveFrequencyOffsetMovesSignalBeforeDemodulating", receiveFrequencyOffsetMovesSignalBeforeDemodulating);
     executeTestCase("bandwidthExpansionAddsHighFrequencies", bandwidthExpansionAddsHighFrequencies);
+    executeTestCase("destroyingARunningInterfaceStopsIt", destroyingARunningInterfaceStopsIt);
+    executeTestCase("startingVerboseBringsTheInterfaceUp", startingVerboseBringsTheInterfaceUp);
+    executeTestCase("reliableTextAskedForBeforeStartingIsIgnored", reliableTextAskedForBeforeStartingIsIgnored);
 
     return testResult();
 }

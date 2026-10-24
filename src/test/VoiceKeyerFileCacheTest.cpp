@@ -664,6 +664,34 @@ bool cacheCanBeDestroyedWhileLoading()
     return true;
 }
 
+bool removedFileIsNeverServedFromTheCache()
+{
+    auto samples = ramp(2000, 1);
+    TestFile file(samples);
+    VoiceKeyerFileCache cache;
+    cache.preload(file.path());
+
+    CachedFile cached;
+    if (!cached.waitForOpen(cache, file.path())) return false;
+    cached.close();
+
+    std::filesystem::remove(file.path());
+
+    // The cached copy knows the path it was loaded from; a file that is
+    // gone must stay gone, not quietly served from memory.
+    CachedFile reopened;
+    for (int attempt = 0; attempt < 2; attempt++)
+    {
+        if (reopened.open(cache, file.path()))
+        {
+            std::cout << "[removed file opened from cache] ";
+            return false;
+        }
+        std::this_thread::sleep_for(50ms);
+    }
+    return reopened.reader == nullptr;
+}
+
 }
 
 int main()
@@ -705,5 +733,6 @@ int main()
     executeTestCase("emptyMemoryFileIsHandled", emptyMemoryFileIsHandled);
     executeTestCase("openFileOutlivesCache", openFileOutlivesCache);
     executeTestCase("cacheCanBeDestroyedWhileLoading", cacheCanBeDestroyedWhileLoading);
+    executeTestCase("removedFileIsNeverServedFromTheCache", removedFileIsNeverServedFromTheCache);
     return testResult();
 }

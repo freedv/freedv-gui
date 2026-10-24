@@ -390,6 +390,41 @@ bool outputDestroysCleanlyWhileConnected()
     return true;
 }
 
+// A controller for a port that was never opened. Its control-line helpers
+// must do nothing at all rather than touch a handle that isn't there.
+struct UnopenedLineController : public SerialPortOutRigController
+{
+    explicit UnopenedLineController(std::string const& portName)
+        : SerialPortRigController(portName)
+        , SerialPortOutRigController(portName, true, true, true, true) {}
+
+    void cycleLines()
+    {
+        lowerDTR_();
+        raiseDTR_();
+        lowerRTS_();
+        raiseRTS_();
+    }
+};
+
+bool outputIgnoresControlLinesWhilePortUnopened()
+{
+    Events events;
+    UnopenedLineController controller(MISSING_PORT);
+    events.listenTo(controller);
+
+    controller.cycleLines();          // never connected: silently does nothing
+
+    controller.connect();
+    if (!events.reportedOneErrorNaming(MISSING_PORT)) return false;
+
+    // The port still isn't there, so keying the lines is still a no-op, and
+    // nothing is reported on the radio's behalf.
+    controller.cycleLines();
+    std::this_thread::sleep_for(SEVERAL_POLLS);
+    return !controller.isConnected() && events.numPttChanges() == 0;
+}
+
 // A pseudo-terminal never asserts CTS, so which way round the interface is
 // wired decides whether that reads as the operator transmitting.
 bool inputReportsStateOnConnecting(bool ctsPos)
@@ -534,6 +569,7 @@ int main()
     executeTestCase("outputDisconnects", outputDisconnects);
     executeTestCase("outputDisconnectWithoutConnectingIsHarmless", outputDisconnectWithoutConnectingIsHarmless);
     executeTestCase("outputDestroysCleanlyWhileConnected", outputDestroysCleanlyWhileConnected);
+    executeTestCase("outputIgnoresControlLinesWhilePortUnopened", outputIgnoresControlLinesWhilePortUnopened);
     executeTestCase("inputReportsStateOnConnecting (CTS means transmit)", []() { return inputReportsStateOnConnecting(true); });
     executeTestCase("inputReportsStateOnConnecting (CTS means receive)", []() { return inputReportsStateOnConnecting(false); });
     executeTestCase("inputLeavesPortSettingsAlone", inputLeavesPortSettingsAlone);

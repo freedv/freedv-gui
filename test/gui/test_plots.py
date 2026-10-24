@@ -82,9 +82,10 @@ def test_tuning():
                       "Double-clicking on the %s tuned to %r, which aren't all multiples of 10 Hz" % (tab, tuned))
                 check(900 < tuned[3] - tuned[0] < 2800, "The %s spans %r" % (tab, tuned))
 
-                # Outside the plot itself, nothing happens.
-                app.mouse(plot, "left_dclick", x=0.001, y=0.5)
-                check_equal(tuned_to(app), tuned[3], "Tuned to after double-clicking beside the %s" % tab)
+                # Beside the plot itself, in any direction, nothing happens.
+                for x, y in [(0.001, 0.5), (0.999, 0.5), (0.3, 0.002)]:
+                    app.mouse(plot, "left_dclick", x=x, y=y)
+                    check_equal(tuned_to(app), tuned[3], "Tuned to after double-clicking beside the %s" % tab)
 
                 # The wheel and the arrow keys move 10 Hz at a time.
                 for action, expected in [(lambda: app.mouse(plot, "wheel", rotation=1), 10),
@@ -120,6 +121,20 @@ def test_tuning():
                             break
                         previous = now
                     check_equal(previous, limit, "Furthest that the %s's wheel goes" % tab)
+
+                # The arrow keys stop at either end as well. (Again not too
+                # near the left edge: on macOS the Spectrum's labels take up
+                # more than its first 12%.)
+                for key, x, limit in [("Up", 0.95, HIGHEST), ("Down", 0.25, LOWEST)]:
+                    app.mouse(plot, "left_dclick", x=x, y=0.5)
+                    previous = None
+                    for press in range(200):
+                        app.key(plot, key)
+                        now = tuned_to(app)
+                        if now == previous:
+                            break
+                        previous = now
+                    check_equal(previous, limit, "Furthest that the %s key goes on the %s" % (key, tab))
                 app.mouse(plot, "middle_down")
 
                 # Other things the mouse does there are harmless.
@@ -221,7 +236,7 @@ def test_waterfall_colours():
     and a loud signal in each scheme without anything going wrong."""
     plot = PLOTS["Waterfall"]
     with audio_devices():
-        for scheme in (1, 2):
+        for scheme in (1, 2, 3):
             with freedvtest.start(settings=settings(Waterfall__Color=scheme)) as app:
                 app.wait_for_window("main")
                 start_modem(app)
@@ -232,16 +247,21 @@ def test_waterfall_colours():
                     check_equal(app.state()["running"], True, "Running while drawing in colour scheme %d" % scheme)
 
                     # The arrow keys stop at either end.
-                    for key, x, limit in [("Up", 0.95, HIGHEST), ("Down", 0.12, LOWEST)]:
+                    for key, x, limit in [("Up", 0.95, HIGHEST), ("Down", 0.25, LOWEST)]:
                         app.mouse(plot, "left_dclick", x=x, y=0.5)
                         previous = None
-                        for press in range(60):
+                        for press in range(200):
                             app.key(plot, key)
                             now = tuned_to(app)
                             if now == previous:
                                 break
                             previous = now
                         check_equal(previous, limit, "Furthest that the %s key goes" % key)
+
+                    # Held at the bottom long enough for the periodic
+                    # redraws to catch up with where it's tuned.
+                    check_equal(tuned_to(app), LOWEST, "Held at the bottom")
+                    time.sleep(1)
                     app.mouse(plot, "middle_down")
                 time.sleep(1)
                 stop_modem(app)
@@ -249,11 +269,162 @@ def test_waterfall_colours():
                 check_equal(int(freedvtest.read_config(app.config_path)["/Waterfall/Color"]), scheme,
                             "Colour scheme saved")
 
+def test_spectrum_averaging():
+    """The spectrum's averaging settings other than the default one: what
+    it shows over the last few redraws instead of just the latest."""
+    with audio_devices():
+        for averaging in (1, 2):
+            with freedvtest.start(settings=settings(Plot__Spectrum__CurrentAveraging=averaging)) as app:
+                app.wait_for_window("main")
+                start_modem(app)
+                show(app, "Spectrum")
+                time.sleep(2)
+                check_equal(app.state()["running"], True,
+                            "Running with averaging set to %d" % averaging)
+                stop_modem(app)
+                quit_and_check_log(app)
+                check_equal(int(freedvtest.read_config(app.config_path)["/Plot/Spectrum/CurrentAveraging"]),
+                            averaging, "Averaging saved")
+
+
+def test_sized_plots():
+    """The plots at window sizes where they have to fit fewer pixels' worth
+    into the space they're given: shorter waterfall columns, and a narrow
+    spectrum whose bins no longer all get drawn.
+
+    Consecutive heights are launched so that one of them divides the
+    waterfall's slices exactly."""
+    plot = PLOTS["Waterfall"]
+    with audio_devices():
+        for height in (600, 601, 602):
+            with freedvtest.start(settings=settings(MainFrame__height=height)) as app:
+                app.wait_for_window("main")
+                start_modem(app)
+                show(app, "Waterfall")
+                time.sleep(20)
+                check_equal(app.state()["running"], True,
+                            "Running with a %d-high window" % height)
+                app.mouse(plot, "middle_down")  # back to the middle, whatever the plot's size
+                check_equal(tuned_to(app), CENTRE, "Tuned to in a %d-high window" % height)
+                stop_modem(app)
+                quit_and_check_log(app)
+
+        for width in (700, 660, 620):
+            with freedvtest.start(settings=settings(MainFrame__width=width)) as app:
+                app.wait_for_window("main")
+                start_modem(app)
+                show(app, "Spectrum")
+                time.sleep(2)
+                check_equal(app.state()["running"], True,
+                            "Running with a %d-wide window" % width)
+                app.mouse(PLOTS["Spectrum"], "middle_down")
+                check_equal(tuned_to(app), CENTRE, "Tuned to in a %d-wide window" % width)
+                stop_modem(app)
+                quit_and_check_log(app)
+
+def test_translated_layout():
+    """Running in a language FreeDV is translated into. Labels, messages and
+    layout all go through the translation machinery, which only switches to
+    a translated layout when the language is one FreeDV actually has."""
+    binary = os.path.abspath(freedvtest.default_binary())
+    build_dir = os.path.dirname(os.path.dirname(binary))
+    if not os.path.exists(os.path.join(build_dir, "share", "locale", "pt_BR", "LC_MESSAGES", "freedv.mo")):
+        print("SKIPPED: no compiled Brazilian Portuguese translations in %s" % build_dir)
+        sys.exit(77)
+    # FreeDV looks for its translations beside the folder it's in, which
+    # isn't where the build tree keeps them.
+    share = os.path.join(os.path.dirname(binary), "share")
+    if not os.path.exists(share) and os.path.exists(os.path.join(build_dir, "share")):
+        os.symlink(os.path.join(build_dir, "share"), share)
+
+    def english(label):
+        """The Portuguese wording of an English menu label, as the translated
+        menu bar presents it (po/pt_BR.po is what the catalog was built
+        from). Anything FreeDV doesn't translate, it says in English."""
+        po = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "po", "pt_BR.po")
+        entry = None
+        try:
+            with open(po, encoding="utf-8") as messages:
+                for line in messages:
+                    if line.startswith('msgid "'):
+                        entry = line[len('msgid "'):].rstrip('"\n')
+                    elif line.startswith('msgstr "') and entry is not None:
+                        translation = line[len('msgstr "'):].rstrip('"\n')
+                        if entry.replace("&", "") == label and translation:
+                            return translation.replace("&", "")
+                        entry = None
+        except OSError:
+            pass
+        return label
+
+    with audio_devices():
+        with freedvtest.start(settings=settings(
+                Rig__TotTimerSecs=18,
+                Reporting__Enable=True, Reporting__Callsign=CALLSIGN, Reporting__GridSquare="DM12",
+                Reporting__UDP__Enable=True), env={"LANGUAGE": "pt_BR"}) as app:
+            app.wait_for_window("main")
+            start_modem(app)
+
+            for tab, plot in PLOTS.items():  # the notebook's pages are named in Portuguese
+                app.set_value("main.notebook", english(tab))
+                app.wait_until(lambda plot=plot: app.get(plot)["shown"],
+                               description="the plot to be displayed")
+            app.wait_until(lambda: app.get("main.btnPTT")["enabled"],
+                           description="transmitting to be possible, with the monitor up")
+
+            # A volume control, which pops up over the button it adjusts.
+            app.context_menu("main.btnPTT", choose=english("Monitor transmitted audio"))
+            app.context_menu("main.btnPTT", choose=english("Adjust Monitor Volume..."))
+            check_equal(app.get("monitorVolume")["shown"], True, "Volume control shown")
+            app.close("monitorVolume")
+
+            # The dialogs whose menu items FreeDV translates.
+            app.menu("%s/%s" % (english("Settings"), english("Edit Settings...")))
+            app.wait_for_window("settings")
+            app.click("settings.sdbSizer5OK")
+            app.wait_for_window_closed("settings")
+            app.menu("%s/%s" % (english("Tools"), english("FreeDV Reporter")))
+            app.wait_for_window("reporter")
+            app.menu("%s/%s" % (english("Tools"), english("Filter Audio...")))
+            app.wait_for_window("filter")
+            app.click("filter.btnClose")
+            app.wait_for_window_closed("filter")
+
+            # And the ones it reaches from buttons, whatever language they're in.
+            app.click("main.btnLogQSO")
+            app.wait_for_window("logEntry")
+            app.click("logEntry.btnCancel")
+            app.wait_for_window_closed("logEntry")
+            app.click("main.btnRecord")
+            app.wait_for_window("beginRecording")
+            app.click("beginRecording.btnCancel")
+            app.wait_for_window_closed("beginRecording")
+            app.wait_until(lambda: app.get("main.btnRecord")["enabled"],
+                           description="Recording to be offered again")
+
+            # The time-out warning, which appears near the end of a transmission
+            # that has gone on too long.
+            app.click("main.btnPTT")
+            wait_for_transmit(app)
+            app.wait_for_window("totWarning", timeout=30)
+            app.click("totWarning.btnExtend")
+            app.wait_for_window_closed("totWarning")
+            app.click("main.btnPTT")  # end the transmission, before the timer runs out
+            app.close("reporter")
+            app.wait_for_window_closed("reporter")
+            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"],
+                           description="the modem to be stoppable again")
+            stop_modem(app)
+            quit_and_check_log(app)
+
 
 SCENARIOS = {
     "tuning": test_tuning,
     "waterfall_colours": test_waterfall_colours,
     "tuned_away": test_tuned_away,
+    "spectrum_averaging": test_spectrum_averaging,
+    "translated_layout": test_translated_layout,
+    "sized_plots": test_sized_plots,
     "drawing": test_drawing,
 }
 
