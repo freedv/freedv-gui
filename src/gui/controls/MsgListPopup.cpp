@@ -50,8 +50,10 @@ void MsgListPopup::SetStringValue(const wxString& s)
 
 wxString MsgListPopup::GetStringValue() const
 {
+    // The combo takes this whenever the list closes. With nothing
+    // highlighted, keep what's already in the box rather than emptying it.
     int sel = GetSelection();
-    return sel != wxNOT_FOUND ? GetString(sel) : wxString();
+    return sel != wxNOT_FOUND ? GetString(sel) : m_combo->GetValue();
 }
 
 void MsgListPopup::OnPopup()
