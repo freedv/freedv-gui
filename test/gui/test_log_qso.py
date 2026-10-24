@@ -461,7 +461,7 @@ def test_selected_khz():
                 choose_callsign(app, 0)
                 open_log_entry(app)
                 entry = log_entry(app)
-                check_equal((entry["dxCall"], entry["dxLocator"], entry["frequency"]),
+                check_equal((entry["dxCall"], entry["dxLocator"], number(entry["frequency"])),
                             ("VK5DGR", "", "14236.0"), "Who's being logged")
                 confirm(app)
                 status, decodes, contact = logged(logger)

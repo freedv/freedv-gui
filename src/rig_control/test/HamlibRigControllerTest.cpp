@@ -2,6 +2,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
+#include <filesystem>
 #include <future>
 #include <fstream>
 #include <map>
@@ -1548,10 +1549,16 @@ bool logsHamlibDebugMessagesAtEachLevel()
 
     fflush(stdout);
     fflush(stderr);
-    auto path = "/tmp/freedv-hamlib-logs-" +
-        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".txt";
-    FILE* capture = fopen(path.c_str(), "w+");
-    if (capture == nullptr) return false;
+    // In binary mode, so that Windows doesn't add carriage returns of its
+    // own to what's captured.
+    auto path = (std::filesystem::temp_directory_path() / ("freedv-hamlib-logs-" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".txt")).string();
+    FILE* capture = fopen(path.c_str(), "w+b");
+    if (capture == nullptr)
+    {
+        std::cout << "[could not create " << path << "] ";
+        return false;
+    }
     int savedOut = dup(fileno(stdout));
     int savedErr = dup(fileno(stderr));
     dup2(fileno(capture), fileno(stdout));
@@ -1581,7 +1588,7 @@ bool logsHamlibDebugMessagesAtEachLevel()
 
     std::string logs;
     {
-        std::ifstream file(path);
+        std::ifstream file(path, std::ios::binary);
         logs.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
         fclose(capture);
         remove(path.c_str());

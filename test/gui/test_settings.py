@@ -903,8 +903,19 @@ def test_frequency_list():
 def test_frequency_list_from_main_window():
     """The predefined frequencies can be added to and deleted from the main
     window's frequency box."""
+    # Thousands are grouped as the user's region has them on macOS and
+    # Windows, e.g. "3,600.0" in the US: left out here.
+    def ungrouped(text):
+        return text.replace(",", "")
+
     def offered(app):
-        return [item["label"] for item in app.get("main.lbReportFrequencies")["items"]]
+        return [ungrouped(item["label"]) for item in app.get("main.lbReportFrequencies")["items"]]
+
+    def choose(app, target, label):
+        """Chooses a context menu item, going by its label without grouping."""
+        labels = [item["label"] for item in app.context_menu(target) if ungrouped(item["label"]) == label]
+        check(labels, "No %r in the menu" % label)
+        return app.context_menu(target, choose=labels[0])
 
     def list_shown(app):
         return app.get("main.lbReportFrequencies")["shown"]
@@ -1033,13 +1044,15 @@ def test_frequency_list_from_main_window():
     with freedvtest.start(settings=settings) as app:
         check_equal(offered(app), ["3600.0", "14200.0"], "Frequencies offered in kHz")
         app.set_value("main.cboReportFrequency", "10136")
-        items = app.context_menu("main.cboReportFrequency", choose="Add 10136.0kHz to list")
-        check_equal([(item["label"], item["enabled"]) for item in items][0],
+        items = choose(app, "main.cboReportFrequency", "Add 10136.0kHz to list")
+        check_equal([(ungrouped(item["label"]), item["enabled"]) for item in items][0],
                     ("Add 10136.0kHz to list", True), "Frequency box's menu in kHz")
         check_equal(offered(app), ["3600.0", "10136.0", "14200.0"], "Frequencies offered")
         app.combo_popup("main.cboReportFrequency", True)
         app.wait_until(lambda: list_shown(app), description="the frequencies to be listed")
-        app.context_menu("main.lbReportFrequencies", item=1, choose="Delete 10136.0kHz from list")
+        listed = app.get("main.lbReportFrequencies")["items"][1]["label"]
+        check_equal(ungrouped(listed), "10136.0", "Second frequency listed")
+        app.context_menu("main.lbReportFrequencies", item=1, choose="Delete %skHz from list" % listed)
         check_equal(offered(app), ["3600.0", "14200.0"], "Frequencies after a kHz delete")
         # The delete reopened the list; quitting with it still open has to
         # work too.

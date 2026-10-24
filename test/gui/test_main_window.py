@@ -1917,6 +1917,9 @@ def test_default_config():
 def test_config_migration_failure():
     """When FreeDV can't move an older configuration file into the newer
     place, it says so in its log and carries on without migrating."""
+    if not sys.platform.startswith("linux"):
+        # Only Linux has an older place for it to move from.
+        raise freedvtest.audio.Unavailable("configuration files are only migrated on Linux")
     quiet = {"/Reporting/FreeDV/Hostname": NOWHERE, "/Reporting/FreeDV/UseTls": False}
 
     def old_file(home):

@@ -802,7 +802,8 @@ def test_status_message():
             check_equal(saved(app), [], "Saved messages")
 
             # Opening the saved list with text that hasn't been saved
-            # highlights nothing; closing it without a pick drops that text.
+            # highlights nothing; closing it without a pick leaves that text
+            # alone.
             # Right-clicking or pressing Delete on an empty list does nothing.
             app.set_value(message_box, "Temporary note")
             app.combo_popup(message_box, True)
@@ -815,7 +816,8 @@ def test_status_message():
             app.key(saved_list, "Delete")
             check_equal(saved(app), [], "Saved messages after Delete on the empty list")
             app.combo_popup(message_box, False)
-            check_equal(app.get(message_box)["value"], "", "Status message after closing the list")
+            check_equal(app.get(message_box)["value"], "Temporary note", "Status message after closing the list")
+            app.set_value(message_box, "")
 
             # With nothing typed in, there's nothing to save.
             check_equal(popup(app, "reporter.btnSend"),
@@ -2491,7 +2493,8 @@ def test_frequency_in_khz():
                                                          **{"/Reporting/FrequencyAsKHz": True})) as app:
             open_reporter(app)
             wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
-            wait_for_cell(app, "K1ABC", FREQUENCY, "14236.0")
+            # (Without the separators some regions put between thousands.)
+            wait_for_cell(app, "K1ABC", FREQUENCY, lambda text: text.replace(",", "") == "14236.0")
 
             def set_filter(column, operator, value):
                 app.column_context_menu(LIST, column, choose=operator)
@@ -2511,7 +2514,7 @@ def test_frequency_in_khz():
 
             # Frequency changes come out in kHz too.
             k1abc.set_frequency(3500000)
-            wait_for_cell(app, "K1ABC", FREQUENCY, "3500.0")
+            wait_for_cell(app, "K1ABC", FREQUENCY, lambda text: text.replace(",", "") == "3500.0")
 
             quit_and_check_log(app)
 

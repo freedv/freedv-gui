@@ -383,15 +383,18 @@ def test_unreachable():
 def test_missing_port():
     """Starting with the radio's serial port (or the one for keying) not
     there: FreeDV says so and carries on without radio control."""
+    # FreeDV only checks for names of ports that could be there: COM ones on
+    # Windows, ones in /dev elsewhere.
+    NO_SUCH_PORT = "COM250" if sys.platform == "win32" else "/dev/ttyFreeDVNoSuchPort"
     with Rigctld() as radio, audio_devices():
         # The port itself isn't there.
-        with freedvtest.start(settings=rig_settings("/dev/ttyFreeDVNoSuchPort")) as app:
+        with freedvtest.start(settings=rig_settings(NO_SUCH_PORT)) as app:
             app.wait_for_window("main")
             app.click("main.btnOnOff")
             app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="FreeDV to start")
             app.wait_until(lambda: errors(app), timeout=10, description="FreeDV to say that the port isn't there")
             messages = errors(app)
-            check(all(message.startswith("Could not open serial port /dev/ttyFreeDVNoSuchPort.")
+            check(all(message.startswith("Could not open serial port %s." % NO_SUCH_PORT)
                       for message in messages),
                   "Messages displayed are %r" % messages)
             app.message_boxes(clear=True)
@@ -401,14 +404,14 @@ def test_missing_port():
 
         # The radio's port is there, but the one named for keying isn't.
         with freedvtest.start(settings=rig_settings(
-                radio.address, Hamlib__PttType=1, Hamlib__PttSerialPort="/dev/ttyFreeDVNoSuchPort")) as app:
+                radio.address, Hamlib__PttType=1, Hamlib__PttSerialPort=NO_SUCH_PORT)) as app:
             app.wait_for_window("main")
             app.click("main.btnOnOff")
             app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="FreeDV to start")
             app.wait_until(lambda: errors(app), timeout=10,
                            description="FreeDV to say that the keying port isn't there")
             messages = errors(app)
-            check(all(message.startswith("Could not open serial port /dev/ttyFreeDVNoSuchPort.")
+            check(all(message.startswith("Could not open serial port %s." % NO_SUCH_PORT)
                       for message in messages),
                   "Messages displayed are %r" % messages)
             app.message_boxes(clear=True)

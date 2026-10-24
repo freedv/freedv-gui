@@ -65,8 +65,10 @@ wxString MsgListPopup::GetStringValue() const
     if (!options_.hoverPicks && !picked_)
         return m_combo->GetValue();
 
+    // With nothing highlighted, keep what's already in the box rather than
+    // emptying it.
     int sel = GetSelection();
-    return sel != wxNOT_FOUND ? GetString(sel) : wxString();
+    return sel != wxNOT_FOUND ? GetString(sel) : m_combo->GetValue();
 }
 
 void MsgListPopup::OnPopup()
