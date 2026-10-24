@@ -1918,7 +1918,8 @@ def test_config_migration_failure():
     """When FreeDV can't move an older configuration file into the newer
     place, it says so in its log and carries on without migrating."""
     if not sys.platform.startswith("linux"):
-        # Only Linux has an older place for it to move from.
+        # Only Linux has an older place for it to move from (and only with
+        # wxWidgets 3.3 or later; see below).
         raise freedvtest.audio.Unavailable("configuration files are only migrated on Linux")
     quiet = {"/Reporting/FreeDV/Hostname": NOWHERE, "/Reporting/FreeDV/UseTls": False}
 
@@ -1937,7 +1938,12 @@ def test_config_migration_failure():
         os.chmod(os.path.join(home, ".config"), 0o500)
         with freedvtest.start(home=home, default_config=True) as app:
             app.wait_for_window("main")
-            check("Could not create folder" in open(app.log_path, errors="replace").read(),
+            output = open(app.log_path, errors="replace").read()
+            if "Determining if we need to migrate" not in output:
+                # Built with a wxWidgets older than 3.3, which has no newer
+                # place to move it to.
+                raise freedvtest.audio.Unavailable("this FreeDV doesn't migrate configuration files")
+            check("Could not create folder" in output,
                   "FreeDV's output when its new settings folder can't be created")
             check_equal(app.quit(), 0, "FreeDV's exit code (unreadable folder)")
         check(not os.path.exists(migrated(home)), "Migrated configuration file exists (unreadable folder)")
