@@ -494,6 +494,20 @@ void PulseAudioDevice::StreamStateCallback_(pa_stream *p, void *userdata)
     {
         pa_threaded_mainloop_signal(thisObj->mainloop_, 0);
     }
+    else if (state == PA_STREAM_READY)
+    {
+        // Streams aren't connected with PA_STREAM_DONT_MOVE, so that they
+        // can be moved to another device later. That also lets the sound
+        // server put one somewhere other than where it was asked to if that
+        // isn't there (PipeWire plays to the default device, for instance).
+        // Note it in the log when that happens.
+        const char* actualName = pa_stream_get_device_name(p);
+        if (actualName != nullptr && !thisObj->devName_.IsEmpty() &&
+            thisObj->devName_ != wxString::FromUTF8(actualName))
+        {
+            log_info("Stream for %s was connected to %s instead", (const char*)thisObj->devName_.ToUTF8(), actualName);
+        }
+    }
     else if (state == PA_STREAM_FAILED)
     {
         // The stream's gone without being asked to, e.g. because the sound
