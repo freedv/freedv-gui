@@ -1038,6 +1038,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
 4. Other:
     * Various GUI performance improvements. (PR #1481, #1521, #1524, #1527, #1531)
     * Windows audio thread timing improvements. (PR #1488)
+    * Log when the sound server puts a PulseAudio stream on another device. (PR #1591)
 
 ## V2.4.0 August 2026
 
