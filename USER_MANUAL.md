@@ -1069,6 +1069,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Fix waterfall/spectrum filling solid colour during half-duplex TX. (PR #1462) - thanks @barjac!
     * Windows/macOS: Zero audio on startup. (PR #1463)
     * Fix issue causing TX thread to use more CPU time than expected with no audio available. (PR #1465)
+    * AppImage: stop forcing GDK_BACKEND=x11. (PR #1593)
 2. Enhancements:
     * Add UDP broadcast of received callsigns. (PR #1367)
     * Add Time-Out Timer (TOT) capability to FreeDV. (PR #1366, #1398, #1405) - thanks @barjac!
