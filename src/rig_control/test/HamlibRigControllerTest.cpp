@@ -1564,6 +1564,10 @@ bool logsHamlibDebugMessagesAtEachLevel()
     dup2(fileno(capture), fileno(stdout));
     dup2(fileno(capture), fileno(stderr));
 
+    // The async logger's thread reads the quiet flag, which isn't atomic;
+    // wait for it to go idle first so that turning logging back on doesn't
+    // race with it.
+    ulog_async_flush();
     ulog_set_quiet(false);
     rig_debug(RIG_DEBUG_BUG, "FreeDV unit test: a bug\n");
     rig_debug(RIG_DEBUG_WARN, "FreeDV unit test: a warning\r");

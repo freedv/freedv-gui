@@ -43,10 +43,20 @@ struct PulseAudioDeviceTestAccess
         PulseAudioDevice::StreamOverflowCallback_(nullptr, &device);
     }
 
-    // What a device currently considers itself connected to.
+    // What a device currently considers itself connected to. A running
+    // device's stream callbacks change this on PulseAudio's thread while
+    // holding the mainloop lock, so it has to be read under that lock too.
     static wxString deviceName(const PulseAudioDevice& device)
     {
-        return device.devName_;
+        if (device.mainloop_ == nullptr)
+        {
+            return device.devName_;
+        }
+
+        pa_threaded_mainloop_lock(device.mainloop_);
+        wxString name = device.devName_;
+        pa_threaded_mainloop_unlock(device.mainloop_);
+        return name;
     }
 
     // What starting a device does, once its stream is connected, for the
