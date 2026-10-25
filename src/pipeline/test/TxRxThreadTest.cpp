@@ -1411,6 +1411,61 @@ public:
         return result;
     }
 
+    static bool radioRecordingStopsWhenItsBudgetIsUsedUp()
+    {
+        // As in recordingFromRadioContinuesUntilStopped.
+        constexpr int RADIO_SAMPLE_RATE = RECORD_FILE_SAMPLE_RATE;
+        constexpr int SAMPLES_PER_ROUND = RADIO_SAMPLE_RATE / 10; // 0.1s
+        constexpr int ROUNDS = 7;
+        constexpr int MAX_SAMPLES_WAITING = RADIO_SAMPLE_RATE * 13 / 100;
+
+        resetGlobals();
+        g_analog = 1;
+        FifoGuard fifos;
+        RecordingFile recordFile(RECORD_FILE_SAMPLE_RATE);
+        g_sfRecFile = recordFile.get();
+
+        // Leave the budget running out partway through a round, so that it
+        // ends in the middle of what's written rather than right after it.
+        const unsigned int startBudget = SAMPLES_PER_ROUND * (ROUNDS - 1) - SAMPLES_PER_ROUND / 2 - 1;
+        g_recFromRadioSamples = startBudget;
+        g_recFileFromRadio = true;
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        {
+            TxRxThread thread(false, RADIO_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr, makeHooks(micInDone, recRadioDone, playRadioDone));
+            thread.initializePipeline_();
+
+            FakeRealtimeHelper helper;
+            for (int round = 0; round < ROUNDS; round++)
+            {
+                seedSine(g_rxUserdata->infifo1, SAMPLES_PER_ROUND);
+                thread.rxProcessing_(&helper);
+                drain(g_rxUserdata->outfifo2);
+
+                // Recording happens on other threads; give them time to catch up.
+                unsigned int expectedSoFar = std::min<unsigned int>(startBudget, std::max(0, SAMPLES_PER_ROUND * (round + 1) - MAX_SAMPLES_WAITING));
+                auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+                while (recRadioDone.load() == 0 &&
+                       startBudget - g_recFromRadioSamples.load() < expectedSoFar &&
+                       std::chrono::steady_clock::now() < deadline)
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                }
+            }
+        }
+
+        // Audio kept arriving after the budget ran out, as it would until the
+        // application's finished handler turns recording off.
+        g_recFileFromRadio = false;
+        g_sfRecFile = nullptr;
+
+        bool result = true;
+        result &= check("times recording was reported finished", recRadioDone.load(), 1);
+        result &= check("samples left in the recording budget", (int)g_recFromRadioSamples.load(), 0);
+        return result;
+    }
+
     static bool queuedResyncIsCarriedOutOnce()
     {
         resetGlobals();
@@ -2852,6 +2907,7 @@ int main()
     executeTestCase("playFileFromRadioFinishedHookFiresWhenFileEnds", &TxRxThreadTest::playFileFromRadioFinishedHookFiresWhenFileEnds);
     executeTestCase("playFileFromRadioStartsOverWhenLooping", &TxRxThreadTest::playFileFromRadioStartsOverWhenLooping);
     executeTestCase("recordingFromRadioContinuesUntilStopped", &TxRxThreadTest::recordingFromRadioContinuesUntilStopped);
+    executeTestCase("radioRecordingStopsWhenItsBudgetIsUsedUp", &TxRxThreadTest::radioRecordingStopsWhenItsBudgetIsUsedUp);
     executeTestCase("queuedResyncIsCarriedOutOnce", &TxRxThreadTest::queuedResyncIsCarriedOutOnce);
     executeTestCase("timeOutWarningBeepsThenTurnsItselfOff", &TxRxThreadTest::timeOutWarningBeepsThenTurnsItselfOff);
     executeTestCase("interferingToneIsAddedToReceivedAudio", &TxRxThreadTest::interferingToneIsAddedToReceivedAudio);
