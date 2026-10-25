@@ -710,6 +710,15 @@ class MainFrame : public TopFrame
 #endif // 0
         }
         
+        // A contact can only be logged by sending it to a
+        // logging program over UDP, so only allow Log QSO if that's enabled.
+        bool canLogQso_()
+        {
+            return
+                wxGetApp().appConfiguration.reportingConfiguration.udpReportingEnabled &&
+                m_lastReportedCallsignListView->GetItemCount() > 0;
+        }
+        
         int getIdealStationsHeardColumnLength_(int col);
 };
 

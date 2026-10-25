@@ -966,6 +966,10 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Fix data races between the window and the threads that start/stop FreeDV and process audio on the frequency offset display, the list of active reporters and the audio device latency check at the end of TX. (PR #1583)
     * macOS: fix a possible crash when an audio device that failed to start, or was already stopped, is stopped again. (PR #1583)
     * Windows: fix audio devices closing their timing handles while the audio processing thread could still be waiting on them, and undoing the 1 ms timer resolution request twice. (PR #1583)
+    * Prevent duplicate contacts from being restored. (PR #1589)
+    * Disable Log QSO button if logging is disabled. (PR #1589)
+    * Keep a typed FreeDV Reporter status message when the saved list closes. (PR #1590)
+    * Stop the radio recording budget at zero instead of wrapping it. (PR #1592)
 2. Build system:
     * Windows versions are now built with llvm-mingw 20260908 (PR #1489)
     * Ccache support extended to third party dependencies. (PR #1498, #1505))
@@ -981,6 +985,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
 4. Other:
     * Various GUI performance improvements. (PR #1481, #1521, #1524, #1527, #1531)
     * Windows audio thread timing improvements. (PR #1488)
+    * Log when the sound server puts a PulseAudio stream on another device. (PR #1591)
 
 ## V2.4.0 August 2026
 

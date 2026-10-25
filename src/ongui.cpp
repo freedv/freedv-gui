@@ -185,6 +185,12 @@ void MainFrame::OnToolsOptions(wxCommandEvent& event)
 
         // Update reporting list.
         updateReportingFreqList_();
+
+        // UDP logging may have been turned on or off.
+        if (!m_RxRunning.load(std::memory_order_acquire))
+        {
+            m_logQSO->Enable(canLogQso_());
+        }
     
         // Show/hide frequency box based on CAT control configuration.
         m_freqBox->Show(isFrequencyControlEnabled_());
