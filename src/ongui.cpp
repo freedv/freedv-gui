@@ -257,7 +257,7 @@ void MainFrame::OnToolsOptions(wxCommandEvent& event)
         // UDP logging may have been turned on or off.
         if (!m_RxRunning.load(std::memory_order_acquire))
         {
-            m_logQSO->Enable(canLogQsoWhileStopped_());
+            m_logQSO->Enable(canLogQso_());
         }
     
         // Show/hide frequency box based on CAT control configuration.

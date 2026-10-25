@@ -721,9 +721,9 @@ class MainFrame : public TopFrame
 #endif // 0
         }
         
-        // While stopped, a contact can only be logged by sending it to a
+        // A contact can only be logged by sending it to a
         // logging program over UDP, so only allow Log QSO if that's enabled.
-        bool canLogQsoWhileStopped_()
+        bool canLogQso_()
         {
             return
                 wxGetApp().appConfiguration.reportingConfiguration.udpReportingEnabled &&
