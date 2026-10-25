@@ -1023,6 +1023,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Prevent duplicate contacts from being restored. (PR #1589)
     * Disable Log QSO button if logging is disabled. (PR #1589)
     * Keep a typed FreeDV Reporter status message when the saved list closes. (PR #1590)
+    * Stop the radio recording budget at zero instead of wrapping it. (PR #1592)
 2. Build system:
     * Windows versions are now built with llvm-mingw 20260908 (PR #1489)
     * Ccache support extended to third party dependencies. (PR #1498, #1505))
