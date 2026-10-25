@@ -55,6 +55,33 @@ namespace {
             GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryTimerResolution"));
         return fn;
     }
+
+    // PKEY_Devices_AudioDevice_RawProcessingSupported from propkey.h, defined
+    // locally since not every toolchain's headers provide it.
+    const PROPERTYKEY PKEY_RawProcessingSupported_ = {
+        { 0x8943b373, 0x388c, 0x4395, { 0xb5, 0x57, 0xbc, 0x6d, 0xba, 0xff, 0xaf, 0xdb } }, 2
+    };
+
+    // Requesting AUDCLNT_STREAMOPTIONS_RAW on an endpoint that doesn't support
+    // raw mode can make IAudioClient::Initialize() fail with E_INVALIDARG, so
+    // only request it when the device says it's supported.
+    bool IsRawModeSupported_(ComPtr<IMMDevice> device)
+    {
+        ComPtr<IPropertyStore> propStore = nullptr;
+        HRESULT hr = device->OpenPropertyStore(STGM_READ, propStore.GetAddressOf());
+        if (FAILED(hr))
+        {
+            log_warn("Could not open device property store to check for raw mode support (hr = %ld)", hr);
+            return false;
+        }
+
+        PROPVARIANT value;
+        PropVariantInit(&value);
+        hr = propStore->GetValue(PKEY_RawProcessingSupported_, &value);
+        bool supported = SUCCEEDED(hr) && value.vt == VT_BOOL && value.boolVal == VARIANT_TRUE;
+        PropVariantClear(&value);
+        return supported;
+    }
 }
 
 thread_local HANDLE WASAPIAudioDevice::HelperTask_ = nullptr;
@@ -139,7 +166,15 @@ void WASAPIAudioDevice::start()
         prop.cbSize = sizeof(AudioClientProperties);
         prop.bIsOffload = FALSE;
         prop.eCategory = AudioCategory_Other;
-        prop.Options = AUDCLNT_STREAMOPTIONS_RAW;
+        if (IsRawModeSupported_(device_))
+        {
+            prop.Options = AUDCLNT_STREAMOPTIONS_RAW;
+        }
+        else
+        {
+            log_info("Device does not support raw mode, using default audio processing");
+            prop.Options = AUDCLNT_STREAMOPTIONS_NONE;
+        }
         HRESULT hr = client_->SetClientProperties(&prop);
         if (FAILED(hr))
         {
