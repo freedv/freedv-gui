@@ -1797,6 +1797,14 @@ void MainFrame::exportConfiguration_(wxConfigBase* config)
 //-------------------------------------------------------------------------
 MainFrame::~MainFrame()
 {
+    // Close the frequency list now if it's open. Otherwise ~wxComboCtrlBase()
+    // closes it once this window is partly destroyed, and on macOS working out
+    // where the mouse is then asserts ("TopLevel Window missing").
+    if (m_cboReportFrequency->IsPopupShown())
+    {
+        m_cboReportFrequency->Dismiss();
+    }
+
     delete voiceKeyerPopupMenu_;
     
     if (m_filterDialog != nullptr)

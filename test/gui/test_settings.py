@@ -1019,17 +1019,20 @@ def test_frequency_list_from_main_window():
 
         # With an empty list open, nothing is highlighted and keys do
         # nothing, including Delete and the numpad one. Enter there leaves
-        # the box alone.
-        app.combo_popup("main.cboReportFrequency", True)
-        app.wait_until(lambda: list_shown(app), description="the empty list to open")
+        # the box alone. On macOS, a key the list doesn't use closes it, so
+        # it's opened again for each.
+        def open_empty_list():
+            if not list_shown(app):
+                app.combo_popup("main.cboReportFrequency", True)
+                app.wait_until(lambda: list_shown(app), description="the empty list to open")
+
+        open_empty_list()
         check_equal(app.get("main.lbReportFrequencies")["selection"], -1, "Highlight in the empty list")
-        app.key("main.lbReportFrequencies", "Down")
-        app.key("main.lbReportFrequencies", "PageDown")
-        app.key("main.lbReportFrequencies", "PageUp")
-        app.key("main.lbReportFrequencies", "x")
-        app.key("main.lbReportFrequencies", "Delete")
-        app.key("main.lbReportFrequencies", 385)  # numpad Delete
+        for key in ("Down", "PageDown", "PageUp", "x", "Delete", 385):  # 385 is numpad Delete
+            open_empty_list()
+            app.key("main.lbReportFrequencies", key)
         check_equal(offered(app), [], "Still no frequencies")
+        open_empty_list()
         app.key("main.lbReportFrequencies", "Enter")
         check_equal(app.get("main.cboReportFrequency")["value"], "10.136", "Frequency box after Enter on the empty list")
         app.combo_popup("main.cboReportFrequency", False)
