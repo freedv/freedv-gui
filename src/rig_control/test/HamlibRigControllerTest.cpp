@@ -108,7 +108,7 @@ struct RadioFaults
 
     // Whether a faulted get_vfo reports that VFO information isn't available
     // right now (-RIG_ENAVAIL) rather than outright refusing the request.
-    static inline bool getVfoUnavailable = false;
+    static inline std::atomic<bool> getVfoUnavailable { false };
 
     static inline struct rig_caps hookedCaps;
     static inline const struct rig_caps* realCaps = nullptr;
