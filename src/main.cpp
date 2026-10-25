@@ -1193,7 +1193,7 @@ setDefaultMode:
     m_freqBox->Show(isFrequencyControlEnabled_());
 
     restoreCallsignListFromCsv_();
-    m_logQSO->Enable(m_lastReportedCallsignListView->GetItemCount() > 0);
+    m_logQSO->Enable(canLogQso_());
 
     // Show/hide callsign combo box based on reporting enablement
     if (wxGetApp().appConfiguration.reportingConfiguration.reportingEnabled)
@@ -1687,6 +1687,18 @@ void MainFrame::restoreCallsignListFromCsv_()
         try { snrInt = std::stoi(snrStr); } catch (...) { continue; }
         wxString snrDisplay;
         snrDisplay.Printf(SNR_FORMAT_STR_NO_DB, (float)snrInt);
+
+        // The log gets a row for every time a callsign is decoded, but while
+        // on the air repeated decodes of the same station on the same
+        // frequency only update the SNR of the top row. Do the same here so
+        // the list looks the same after a restart.
+        if (m_lastReportedCallsignListView->GetItemCount() > 0 &&
+            m_lastReportedCallsignListView->GetItemText(0, 0) == wxString(callsign) &&
+            m_lastReportedCallsignListView->GetItemText(0, 1) == freqDisplay)
+        {
+            m_lastReportedCallsignListView->SetItem(0, 3, snrDisplay);
+            continue;
+        }
 
         auto index = m_lastReportedCallsignListView->InsertItem(0, wxString(callsign), 0);
         m_lastReportedCallsignListView->SetItem(index, 1, freqDisplay);
@@ -3191,7 +3203,7 @@ void MainFrame::performFreeDVOff_()
         m_rb700d->Enable();
         m_rb700e->Enable();
         
-        m_logQSO->Enable(m_lastReportedCallsignListView->GetItemCount() > 0);
+        m_logQSO->Enable(canLogQso_());
 
         // Make sure QSY button becomes disabled after stop.
         if (m_reporterDialog != nullptr)
