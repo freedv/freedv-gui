@@ -2497,8 +2497,8 @@ def test_receive_reports():
                 with freedvtest.start(config=app.config_path) as again:
                     again.wait_for_window("main")
                     items = again.get("main.listLastReportedCallsigns")["items"]
-                    check([(item["columns"][0], item["columns"][1].replace(",", "")) for item in items][:2]
-                          == [(CALLSIGN, "14236.0")] * 2, "Stations heard the next time: %r" % items)
+                    check_equal([(item["columns"][0], item["columns"][1].replace(",", "")) for item in items],
+                                [(CALLSIGN, "14236.0")], "Stations heard the next time")
                     check_equal(again.quit(), 0, "FreeDV's exit code the next time")
     finally:
         listener.close()

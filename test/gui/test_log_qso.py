@@ -324,10 +324,9 @@ def test_callsign_list():
 
 
 def test_no_udp():
-    """Logging a contact when no logging program is listening: the window
-    just closes, and nothing is sent anywhere. Off the air, the Log QSO
-    button comes from the list of callsigns heard; while on the air
-    there's no logging program to send a contact to."""
+    """Without UDP reporting there's no logging program to send a contact
+    to, so Log QSO stays off, on the air or off it, even with callsigns
+    heard."""
     folder = tempfile.mkdtemp(prefix="freedvtest-files-")
     try:
         csv_log = os.path.join(folder, "heard.csv")
@@ -345,15 +344,8 @@ def test_no_udp():
                 check_equal(app.get("main.btnLogQSO")["enabled"], False,
                             "Log QSO enabled while on the air without a logging program")
                 stop_modem(app)
-                check_equal(app.get("main.btnLogQSO")["enabled"], True,
-                            "Log QSO enabled off the air, from the callsigns heard")
-
-                open_log_entry(app)
-                fill_in(app, dxCall="VK5DGR", dxLocator="OF79", frequency="14.2360")
-                confirm(app)
-                check_equal(app.message_boxes(clear=True), [], "Messages displayed when logging without UDP")
-                check_equal([window["name"] for window in app.windows() if window["name"] == "logEntry"], [],
-                            "Log entry windows left behind")
+                check_equal(app.get("main.btnLogQSO")["enabled"], False,
+                            "Log QSO enabled off the air without a logging program")
 
                 quit_and_check_log(app)
     finally:
