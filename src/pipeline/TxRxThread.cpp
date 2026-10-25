@@ -321,8 +321,16 @@ void TxRxThread::initializePipeline_()
             RECORD_FILE_SAMPLE_RATE, 
             []() { return g_sfRecFile.load(std::memory_order_acquire); }, 
             [this](int numSamples) {
-                g_recFromRadioSamples.fetch_sub(numSamples, std::memory_order_relaxed);
-                if (g_recFromRadioSamples.load(std::memory_order_relaxed) <= 0)
+                // The budget is unsigned, so stop it at zero rather than letting a write
+                // that runs past the end wrap it around. Report the end only once.
+                unsigned int left = g_recFromRadioSamples.load(std::memory_order_relaxed);
+                unsigned int newLeft;
+                do
+                {
+                    newLeft = left > (unsigned int)numSamples ? left - numSamples : 0;
+                } while (!g_recFromRadioSamples.compare_exchange_weak(left, newLeft, std::memory_order_relaxed));
+
+                if (left > 0 && newLeft == 0)
                 {
                     // call stop record menu item, should be thread safe
                     uiHooks_.recFileFromRadioFinished();
