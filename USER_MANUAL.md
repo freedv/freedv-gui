@@ -883,7 +883,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * CI: only build with PGO, run the tests and report coverage on merges; other pushes get unsigned packages to try out. (PR #1563, #1585)
 4. Other:
     * Remove legacy FreeDV modes (700D/700E/1600). (PR #1407, #1411, #1415)
-    * Add automated tests of the user interface: Setup Wizard, FreeDV Reporter, Settings, main, Log QSO, Start Recording and Filter windows, plots, audio device errors, serial port PTT and rig control. (PR #1544, #1546, #1548, #1550, #1551, #1553, #1554, #1556, #1588)
+    * Add automated tests of the user interface: Setup Wizard, FreeDV Reporter, Settings, main, Log QSO, Start Recording and Filter windows, plots, audio device errors, serial port PTT and rig control. (PR #1544, #1546, #1548, #1550, #1551, #1553, #1554, #1556, #1588, #1595)
     * Run the automated user interface tests, and report test coverage, as part of CI. (PR #1556)
     * Run the automated user interface tests on macOS. (PR #1563)
     * Run the automated user interface tests on Windows. (PR #1566)
