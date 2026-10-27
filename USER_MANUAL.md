@@ -881,6 +881,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Hamlib: only allow selecting a PTT serial device when using RTS or DTR for PTT. (PR #1544)
     * Improved ease of use when adjusting predefined frequencies. (PR #1570, #1581) - thanks @barjac!
     * Improved Level metering and AGC for easier input level adjustment. (PR #1532, #1599) - thanks @barjac!
+    * Hamlib/OmniRig: add option to not set the radio to the last used frequency on start. (PR #1600)
 2. Bugfixes:
     * Fix silence being mixed into the first half second of each transmission, and holes in the signal at its start. (PR #1562)
 3. Build system:
