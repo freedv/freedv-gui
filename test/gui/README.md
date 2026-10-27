@@ -40,7 +40,10 @@ skipped and failed, and prints the output of every try that failed,
 including those of a scenario that then passed on a retry.
 
 `FREEDV_BINARY` says which FreeDV to test. It's otherwise the one in the
-build folder that the script was run from.
+build folder that the script was run from. Likewise `FREEDVTEST_SHIMS` says
+where the small libraries some tests load into FreeDV are (`serial_shim.so`,
+`pulse_shim.so`); they're otherwise in `test/gui` in the build folder, built
+along with FreeDV's tests (`-DUNITTEST=1`).
 
 `reporter:live_view` connects to the public FreeDV Reporter server, so CI
 leaves it out. Everything else stays on the machine it runs on.
@@ -56,7 +59,7 @@ use for anything else meanwhile.
 | Display | an X display (Xvfb works; Wayland sessions are told to use X) and a window manager | the desktop | the logged-in desktop, not an SSH session's |
 | Audio | PulseAudio or PipeWire (`pactl`) | four separate loopback devices: BlackHole (`build_macos_sound_drivers.sh` builds extra copies) and/or VB-Cable | Virtual Audio Cable and/or VB-Cable |
 | Playing and recording | `paplay`, `parecord` | `sox` | `pip install sounddevice` |
-| Serial ports | a C compiler | a C compiler | not available yet |
+| Serial ports | nothing more (the build makes the library they need) | the same | not available yet |
 | Rig control | `rigctld` (Hamlib's, built with FreeDV, is found by itself) | the same | `rigctld.exe` (built with FreeDV), named by `RIGCTLD` |
 | FreeDV Reporter | `pip install aiohttp python-socketio aiosqlite`, and git | the same | the same |
 
@@ -187,9 +190,12 @@ Windows it points FreeDV's radio input at the device it sends to.
 - **`rigctld.py`** runs Hamlib's `rigctld` with its dummy radio for FreeDV to
   control over the network, and reads and sets its frequency and mode.
 - **`serial.py`** provides serial ports (Linux and macOS): pseudo-terminals,
-  plus a small library (`serial_shim.c`, compiled when needed) loaded into
-  FreeDV with `LD_PRELOAD` or `DYLD_INSERT_LIBRARIES`. It records the control
-  lines FreeDV sets and lets the test set the one FreeDV reads.
+  plus a small library (`serial_shim.c`) loaded into FreeDV with
+  `LD_PRELOAD` or `DYLD_INSERT_LIBRARIES`. It records the control lines
+  FreeDV sets and lets the test set the one FreeDV reads.
+- **`pulse.py`** makes PulseAudio report a given latency for FreeDV's input
+  (Linux), with a small library (`pulse_shim.c`) loaded into FreeDV with
+  `LD_PRELOAD`.
 - **`wsjtx.py`** stands in for a logging program that takes contacts in WSJT-X's
   format, which is how FreeDV sends logged contacts.
 

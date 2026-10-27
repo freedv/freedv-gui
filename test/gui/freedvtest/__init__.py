@@ -64,6 +64,15 @@ def default_binary():
     return "src/freedv"
 
 
+def shim_path(name):
+    """Returns the library the build made from freedvtest/<name>.c, for
+    loading into FreeDV: in $FREEDVTEST_SHIMS, or test/gui in the build folder
+    that the script was run from. These are built with FreeDV's tests
+    (-DUNITTEST=1)."""
+    folder = os.environ.get("FREEDVTEST_SHIMS") or os.path.join("test", "gui")
+    return os.path.abspath(os.path.join(folder, name + ".so"))
+
+
 # Somewhere for FreeDV to look for a FreeDV Reporter server and not find one.
 NO_REPORTER_SERVER = "127.0.0.1:9"
 

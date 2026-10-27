@@ -953,12 +953,34 @@ foreach(scenario meter agc agc_off saved_gain)
 endforeach(scenario)
 
 # These use Hamlib's rigctld as the radio, and are skipped without it.
-foreach(scenario control frequency_only save_restore_frequency mode_display analog_sideband editing_frequency unreachable serial_ptt missing_port lost)
+foreach(scenario control frequency_only save_restore_frequency mode_display analog_sideband editing_frequency unreachable serial_ptt missing_port receive_after_transmit lost)
     add_test(NAME gui_rig_control_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_rig_control.py ${scenario})
     set_tests_properties(gui_rig_control_${scenario} PROPERTIES LABELS gui SKIP_RETURN_CODE 77)
     freedv_set_test_pass_criteria(gui_rig_control_${scenario})
 endforeach(scenario)
 endif(LINUX OR APPLE)
+
+# Small libraries the GUI tests load into FreeDV (see test/gui/freedvtest),
+# put in test/gui. It's FreeDV that the sanitizers are there to check, so these
+# aren't built with them.
+function(freedv_add_test_shim name)
+    add_library(freedvtest_${name} SHARED test/gui/freedvtest/${name}.c)
+    set_target_properties(freedvtest_${name} PROPERTIES
+        PREFIX ""
+        SUFFIX ".so"
+        OUTPUT_NAME ${name}
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test/gui)
+    target_compile_options(freedvtest_${name} PRIVATE -fno-sanitize=all)
+    target_link_options(freedvtest_${name} PRIVATE -fno-sanitize=all)
+    target_link_libraries(freedvtest_${name} PRIVATE ${CMAKE_DL_LIBS} Threads::Threads)
+endfunction()
+
+if(LINUX OR APPLE)
+    freedv_add_test_shim(serial_shim)
+endif(LINUX OR APPLE)
+if(LINUX)
+    freedv_add_test_shim(pulse_shim)
+endif(LINUX)
 
 endif(UNITTEST)

@@ -14,18 +14,24 @@ needs). Hamlib's rigctld stands in for the radio; without it ($RIGCTLD, the
 PATH or the build folder's copy), these are skipped.
 """
 
+import array
 import os
+import shutil
 import sys
+import tempfile
 import time
+import wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import freedvtest
 import freedvtest.audio
+from freedvtest.audio import Tone, VirtualAudioDevices, play, record
+from freedvtest.pulse import RecordLatency
 from freedvtest.rigctld import Rigctld, find_rigctld
 from freedvtest.serial import SerialPorts
-from test_main_window import (CALLSIGN, audio_devices, check, check_equal, settings, start_modem, stop_modem,
-                              transmitting, wait_for_transmit)
+from test_main_window import (CALLSIGN, MICROPHONE, RADIO_RX, RADIO_TX, audio_devices, check, check_equal, settings,
+                              start_modem, stop_modem, transmitting, wait_for_transmit)
 
 SKIPPED = 77
 
@@ -489,6 +495,65 @@ def test_serial_ptt():
                     quit_and_check_log(app)
 
 
+def test_receive_after_transmit():
+    """Once the radio has confirmed it's stopped transmitting, FreeDV goes
+    back to receiving, even if the sound system says its input is a very long
+    way behind. Some PipeWire versions say about 2055 seconds, which kept RX
+    muted for that long, through Stop and Start too (#1601)."""
+    folder = tempfile.mkdtemp(prefix="freedvtest-files-")
+    try:
+        reply = os.path.join(folder, "reply.wav")
+        with Rigctld() as radio, audio_devices(), RecordLatency(2055085278) as latency:
+            with freedvtest.start(settings=rig_settings(radio.address), env=latency.env) as app:
+                app.wait_for_window("main")
+                start_modem(app)
+
+                def answer(what):
+                    """Plays the reply to FreeDV as if from the radio."""
+                    player = play(RADIO_RX, reply)
+                    try:
+                        app.wait_until(lambda: app.state()["sync"] == 1, timeout=15,
+                                       description="FreeDV to sync on a reply %s" % what)
+                    finally:
+                        player.kill()
+                        player.wait()
+                    app.wait_until(lambda: app.state()["sync"] == 0, timeout=15, description="FreeDV to lose sync")
+
+                # Someone to answer: FreeDV's own transmission, kept for later.
+                with Tone(MICROPHONE):
+                    app.click("main.btnPTT")
+                    wait_for_transmit(app)
+                    wait_for(radio.transmitting, "The radio wasn't keyed")
+                    time.sleep(1)
+                    samples = record(VirtualAudioDevices.input_name(RADIO_TX), 8, rate=48000)[0]
+                    app.click("main.btnPTT")
+                    wait_for_transmit(app, False)
+                    wait_for(lambda: not radio.transmitting(), "The radio was left keyed")
+                with wave.open(reply, "wb") as f:
+                    f.setnchannels(1)
+                    f.setsampwidth(2)
+                    f.setframerate(48000)
+                    f.writeframes(array.array("h", samples).tobytes())
+                if sys.platform.startswith("linux") and not latency.reported():
+                    print("NOTE: FreeDV didn't ask PulseAudio for its input's latency", flush=True)
+
+                answer("after transmitting")
+
+                # Once more, after stopping and starting.
+                app.click("main.btnPTT")
+                wait_for_transmit(app)
+                app.click("main.btnPTT")
+                wait_for_transmit(app, False)
+                stop_modem(app)
+                start_modem(app)
+                answer("after stopping and starting")
+
+                stop_modem(app)
+                quit_and_check_log(app)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
 def test_lost():
     """The radio going away while FreeDV is running."""
     with Rigctld() as radio, audio_devices():
@@ -545,6 +610,7 @@ SCENARIOS = {
     "unreachable": test_unreachable,
     "serial_ptt": test_serial_ptt,
     "missing_port": test_missing_port,
+    "receive_after_transmit": test_receive_after_transmit,
     "lost": test_lost,
 }
 

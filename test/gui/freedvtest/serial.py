@@ -2,8 +2,9 @@
 
 These are pseudo-terminals, which FreeDV can open as it would a real port.
 What they lack is a real port's control lines, so FreeDV is run with a
-small library (serial_shim.c, built here with the system's C compiler) that
-keeps track of the ones it sets and lets the test set the one it reads.
+small library (serial_shim.c, built along with FreeDV's tests; see
+freedvtest.shim_path()) that keeps track of the ones it sets and lets the
+test set the one it reads.
 
     with SerialPorts() as ports:
         radio = ports.add()
@@ -16,8 +17,9 @@ import os
 import re
 import shutil
 import sys
-import subprocess
 import tempfile
+
+from . import shim_path
 
 
 class SerialError(Exception):
@@ -88,21 +90,10 @@ class SerialPorts:
             # such as com0com's.)
             from .audio import Unavailable
             raise Unavailable("Serial ports for tests can't be had on Windows")
+        shim = shim_path("serial_shim")
+        if not os.path.exists(shim):
+            raise SerialError("%s isn't there; it's built with FreeDV's tests (-DUNITTEST=1)" % shim)
         self._directory = tempfile.mkdtemp(prefix="freedvtest-serial-")
-        try:
-            compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
-            if compiler is None:
-                raise SerialError("A C compiler is needed for serial port tests")
-            shim = os.path.join(self._directory, "serial_shim.so")
-            source = os.path.join(os.path.dirname(os.path.abspath(__file__)), "serial_shim.c")
-            kind = ["-dynamiclib"] if sys.platform == "darwin" else ["-shared", "-fPIC"]
-            result = subprocess.run([compiler] + kind + ["-O1", "-o", shim, source, "-ldl", "-lpthread"],
-                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            if result.returncode != 0:
-                raise SerialError("Could not build serial_shim.c:\n" + result.stdout.decode(errors="replace"))
-        except BaseException:
-            shutil.rmtree(self._directory, ignore_errors=True)
-            raise
 
         preload = "DYLD_INSERT_LIBRARIES" if sys.platform == "darwin" else "LD_PRELOAD"
         self.env = {preload: shim, "FREEDVTEST_SERIAL_DIR": self._directory}
