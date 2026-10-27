@@ -50,7 +50,7 @@ static constexpr auto RX_MUTE_MAX_WAIT_FOR_RADIO = std::chrono::milliseconds(200
 // RX muted, or hold up going back to RX.
 static constexpr int64_t MAX_AUDIO_LATENCY_US = 1000000;
 
-static int64_t GetPlausibleLatencyUs_(std::shared_ptr<IAudioDevice> device, const char* which)
+static int64_t GetPlausibleLatencyUs_(const std::shared_ptr<IAudioDevice>& device, const char* which)
 {
     if (!device)
     {
