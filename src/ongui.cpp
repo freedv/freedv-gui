@@ -498,16 +498,22 @@ void MainFrame::onFrequencyModeChange_(IRigFrequencyController*, uint64_t freq, 
 
 void MainFrame::onRadioConnected_(IRigController*)
 {
+    // If the user doesn't want the last used frequency restored, the radio
+    // keeps its current frequency (and FreeDV picks it up from the radio).
+    bool restoreLastFrequency = wxGetApp().appConfiguration.rigControlConfiguration.hamlibRestoreLastFrequency;
     if (wxGetApp().rigFrequencyController && 
         (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges || wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly) &&
-        wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency > 0)
+        (!restoreLastFrequency || wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency > 0))
     {
-        // Suppress the frequency update message that will occur immediately after
-        // connect; this will prevent overwriting of whatever's in the text box.
-        firstFreqUpdateOnConnect_ = true;
+        if (restoreLastFrequency)
+        {
+            // Suppress the frequency update message that will occur immediately after
+            // connect; this will prevent overwriting of whatever's in the text box.
+            firstFreqUpdateOnConnect_ = true;
 
-        // Set frequency/mode to the one pre-selected by the user before start.
-        wxGetApp().rigFrequencyController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+            // Set frequency/mode to the one pre-selected by the user before start.
+            wxGetApp().rigFrequencyController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+        }
         
         if (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
         {

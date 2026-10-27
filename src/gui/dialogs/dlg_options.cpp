@@ -559,6 +559,10 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     
     m_ckboxUseAnalogModes = new wxCheckBox(sb_hamlib, wxID_ANY, _("Use USB instead of DIGU"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
     sbSizer_hamlib->Add(m_ckboxUseAnalogModes, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);
+
+    m_ckboxRestoreLastFrequency = new wxCheckBox(sb_hamlib, wxID_ANY, _("Set the radio to the last used frequency on start"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
+    m_ckboxRestoreLastFrequency->SetToolTip(_("When unchecked, FreeDV leaves the radio on its current frequency when you push Start."));
+    sbSizer_hamlib->Add(m_ckboxRestoreLastFrequency, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);
     
     m_ckboxFrequencyEntryAsKHz = new wxCheckBox(sb_hamlib, wxID_ANY, _("Frequency entry in kHz"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
     sbSizer_hamlib->Add(m_ckboxFrequencyEntryAsKHz, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);
@@ -1172,6 +1176,7 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     m_cbCtlDevicePathPttIn->SetName("settings.cbCtlDevicePathPttIn");
     m_buttonTestPTT->SetName("settings.buttonTestPTT");
     m_ckboxUseAnalogModes->SetName("settings.ckboxUseAnalogModes");
+    m_ckboxRestoreLastFrequency->SetName("settings.ckboxRestoreLastFrequency");
     m_ckboxEnableFreqModeChanges->SetName("settings.ckboxEnableFreqModeChanges");
     m_ckboxEnableFreqChangesOnly->SetName("settings.ckboxEnableFreqChangesOnly");
     m_ckboxNoFreqModeChanges->SetName("settings.ckboxNoFreqModeChanges");
@@ -1506,6 +1511,7 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         m_txtTOTTimerSecs->Enable(wxGetApp().appConfiguration.rigControlConfiguration.totTimerEnabled);
 
         m_ckboxUseAnalogModes->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes);
+        m_ckboxRestoreLastFrequency->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.hamlibRestoreLastFrequency);
         m_ckboxEnableFreqModeChanges->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges);
         m_ckboxEnableFreqChangesOnly->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly);
         m_ckboxNoFreqModeChanges->SetValue(!wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges && !wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly);
@@ -1713,6 +1719,7 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         }
 
         wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes = m_ckboxUseAnalogModes->GetValue();
+        wxGetApp().appConfiguration.rigControlConfiguration.hamlibRestoreLastFrequency = m_ckboxRestoreLastFrequency->GetValue();
         
         wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges = m_ckboxEnableFreqModeChanges->GetValue();
         wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly = m_ckboxEnableFreqChangesOnly->GetValue();
@@ -2193,11 +2200,13 @@ void OptionsDlg::updateRigControlState()
         m_ckboxEnableSpacebarForPTT->Enable(true);
         m_txtTxRxDelayMilliseconds->Enable(true);
         m_ckboxUseAnalogModes->Enable(m_ckboxEnableFreqModeChanges->GetValue());
+        m_ckboxRestoreLastFrequency->Enable(!m_ckboxNoFreqModeChanges->GetValue());
     }
     else
     {
         // Rig control settings cannot be updated during a session.
         m_ckboxUseAnalogModes->Enable(false);
+        m_ckboxRestoreLastFrequency->Enable(false);
         m_ckboxEnableFreqModeChanges->Enable(false);
         m_ckboxEnableFreqChangesOnly->Enable(false);
         m_ckboxNoFreqModeChanges->Enable(false);

@@ -418,6 +418,10 @@ also enabled, this frequency will automatically remain in sync with the current 
 frequency is changed in the application, the radio will also change its frequency). Double-clicking on users in 
 the Tools->FreeDV Reporter window will also cause this frequency to change to match the other user.
 
+By default, pushing Start also sets the radio to the last frequency FreeDV used. To leave the radio on its current
+frequency instead (with FreeDV showing that frequency once it connects), uncheck "Set the radio to the last used
+frequency on start" in Settings->Edit Settings->Rig Control. This applies to both Hamlib and OmniRig.
+
 *Note: in some setups (such as when using ALE), it is not preferred to have the reporting frequency automatically be 
 in sync with the radio. For example, in the case of ALE, the radio's frequency changes multiple times per second while
 waiting for a contact, which is faster than FreeDV can pull the latest from the radio (every five seconds). This can 

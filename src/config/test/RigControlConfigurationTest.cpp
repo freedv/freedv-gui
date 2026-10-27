@@ -19,6 +19,7 @@ bool defaultsMatchApplication()
     result &= check("hamlibEnableFreqModeChanges", rig.hamlibEnableFreqModeChanges.get(), true);
     result &= check("hamlibEnableFreqChangesOnly", rig.hamlibEnableFreqChangesOnly.get(), false);
     result &= check("hamlibUseAnalogModes", rig.hamlibUseAnalogModes.get(), false);
+    result &= check("hamlibRestoreLastFrequency", rig.hamlibRestoreLastFrequency.get(), true);
     result &= check("hamlibIcomCIVAddress", rig.hamlibIcomCIVAddress.get(), 0u);
     result &= check("hamlibRigName", rig.hamlibRigName.get(), "");
     result &= check("hamlibPTTType", rig.hamlibPTTType.get(), 0u);
@@ -53,6 +54,7 @@ bool roundTripPreservesValues()
     rig.hamlibEnableFreqModeChanges = false;
     rig.hamlibEnableFreqChangesOnly = true;
     rig.hamlibUseAnalogModes = true;
+    rig.hamlibRestoreLastFrequency = false;
     rig.hamlibIcomCIVAddress = 0x1a;
     // Rig names are free text and may legitimately contain '$' (e.g. a path
     // the operator keeps in their home directory); loading must not rewrite it.
@@ -85,6 +87,7 @@ bool roundTripPreservesValues()
     result &= check("hamlibEnableFreqModeChanges", afterRestart.hamlibEnableFreqModeChanges.get(), false);
     result &= check("hamlibEnableFreqChangesOnly", afterRestart.hamlibEnableFreqChangesOnly.get(), true);
     result &= check("hamlibUseAnalogModes", afterRestart.hamlibUseAnalogModes.get(), true);
+    result &= check("hamlibRestoreLastFrequency", afterRestart.hamlibRestoreLastFrequency.get(), false);
     result &= check("hamlibIcomCIVAddress", afterRestart.hamlibIcomCIVAddress.get(), 0x1au);
     result &= check("hamlibRigName", afterRestart.hamlibRigName.get(), "ICOM IC-7300 ($HOME)");
     result &= check("hamlibPTTType", afterRestart.hamlibPTTType.get(), 2u);

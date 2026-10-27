@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FreeDV 3.0.0\n"
 "Report-Msgid-Bugs-To: mooneer@gmail.com\n"
-"POT-Creation-Date: 2026-10-20 10:06+0100\n"
+"POT-Creation-Date: 2026-10-26 20:38-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -75,7 +75,9 @@ msgid "AGC"
 msgstr ""
 
 #: src/gui/dialogs/dlg_filter.cpp
-msgid "Automatic gain control for microphone"
+msgid ""
+"Automatic level control for microphone. Peak limiting stays on when this is "
+"off."
 msgstr ""
 
 #: src/gui/dialogs/dlg_filter.cpp
@@ -560,6 +562,16 @@ msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
 msgid "Use USB instead of DIGU"
+msgstr ""
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Set the radio to the last used frequency on start"
+msgstr ""
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"When unchecked, FreeDV leaves the radio on its current frequency when you "
+"push Start."
 msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp
@@ -1733,6 +1745,10 @@ msgid "Frm Decoder"
 msgstr ""
 
 #: src/main.cpp
+msgid "AGC dB"
+msgstr ""
+
+#: src/main.cpp
 msgid "&Use another voice keyer file..."
 msgstr ""
 
@@ -2241,13 +2257,8 @@ msgstr ""
 
 #: src/topFrame.cpp
 msgid ""
-"Acceptable level range (amber = too low, green = target, red = too high)"
-msgstr ""
-
-#: src/topFrame.cpp
-msgid ""
 "RX: Peak level of radio's audio output, TX: Peak level of microphone audio "
-"as recorded by FreeDV (before AGC/level settings)."
+"from the sound card (before noise reduction/AGC/level settings)."
 msgstr ""
 
 #: src/topFrame.cpp

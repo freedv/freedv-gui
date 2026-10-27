@@ -689,6 +689,7 @@ def test_rig_control():
             "txtTxRxDelayMilliseconds": "0", "ckboxTOTTimerEnabled": True, "txtTOTTimerSecs": "180",
             "ckboxEnableFreqModeChanges": True, "ckboxEnableFreqChangesOnly": False,
             "ckboxNoFreqModeChanges": False, "ckboxUseAnalogModes": False, "ckboxFrequencyEntryAsKHz": False,
+            "ckboxRestoreLastFrequency": True,
         })
         check_equal(label(app, "btnSetPTTKey"), "Change...", "PTT key button")
 
@@ -752,11 +753,20 @@ def test_rig_control():
         check_enabled(app, ["ckboxUseAnalogModes"], True)
         app.click(name("ckboxEnableFreqChangesOnly"))
 
+        # Restoring the last used frequency only matters if FreeDV sets it.
+        check_enabled(app, ["ckboxRestoreLastFrequency"], True)
+        app.click(name("ckboxNoFreqModeChanges"))
+        check_enabled(app, ["ckboxRestoreLastFrequency"], False)
+        app.click(name("ckboxEnableFreqChangesOnly"))
+        check_enabled(app, ["ckboxRestoreLastFrequency"], True)
+        set_value(app, "ckboxRestoreLastFrequency", False)
+
         press_ok(app)
         check_saved(app, {
             "/Rig/EnableSpacebarForPTT": 1, "/Rig/PttKeyCode": WXK_F5, "/Rig/PttMomentaryMode": 1,
             "/Audio/TxRxDelayMilliseconds": 250, "/Rig/TotTimerEnabled": 1, "/Rig/TotTimerSecs": 90,
             "/Hamlib/EnableFreqModeChanges": 0, "/Hamlib/EnableFreqChangesOnly": 1, "/Hamlib/UseAnalogModes": 1,
+            "/Hamlib/RestoreLastFrequency": 0,
         })
 
         open_settings(app, "Rig Control")
@@ -764,7 +774,7 @@ def test_rig_control():
             "ckboxEnableSpacebarForPTT": True, "txtPTTKeyName": "F5", "ckboxPTTMomentaryMode": True,
             "txtTxRxDelayMilliseconds": "250", "ckboxTOTTimerEnabled": True, "txtTOTTimerSecs": "90",
             "ckboxEnableFreqModeChanges": False, "ckboxEnableFreqChangesOnly": True,
-            "ckboxNoFreqModeChanges": False,
+            "ckboxNoFreqModeChanges": False, "ckboxRestoreLastFrequency": False,
         })
 
         # Neither kind of change; no key; and a time-out that makes no sense
@@ -1452,7 +1462,8 @@ def test_while_running():
                  "useCardinalDirections", "ckboxUDPReportingEnable", "ckboxUDPBroadcastEnable",
                  "ckbox_use_utc_time"]
     rig_control = ["ckboxEnableFreqModeChanges", "ckboxEnableFreqChangesOnly", "ckboxNoFreqModeChanges",
-                   "ckboxUseAnalogModes", "ckboxEnableSpacebarForPTT", "txtTxRxDelayMilliseconds"]
+                   "ckboxUseAnalogModes", "ckboxRestoreLastFrequency", "ckboxEnableSpacebarForPTT",
+                   "txtTxRxDelayMilliseconds"]
 
     settings = audio_settings()
     settings.update({

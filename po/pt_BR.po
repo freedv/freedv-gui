@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FreeDV 3.0.0\n"
 "Report-Msgid-Bugs-To: https://github.com/freedv/freedv-gui/issues\n"
-"POT-Creation-Date: 2026-10-20 10:06+0100\n"
+"POT-Creation-Date: 2026-10-26 20:38-0700\n"
 "PO-Revision-Date: 2026-10-06 14:00+ZONE\n"
 "Last-Translator: manotroll <manotroll@gmail.com>\n"
 "Language-Team: pt-br <LL@li.org>\n"
@@ -77,8 +77,10 @@ msgid "AGC"
 msgstr "AGC"
 
 #: src/gui/dialogs/dlg_filter.cpp
-msgid "Automatic gain control for microphone"
-msgstr "Controle automático de ganho do microfone"
+msgid ""
+"Automatic level control for microphone. Peak limiting stays on when this is "
+"off."
+msgstr ""
 
 #: src/gui/dialogs/dlg_filter.cpp
 msgid "Speaker Audio Post-Processing"
@@ -583,6 +585,16 @@ msgstr "Sem alterações de frequência ou modo."
 #: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
 msgid "Use USB instead of DIGU"
 msgstr "Use USB em vez de DIGU"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Set the radio to the last used frequency on start"
+msgstr ""
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"When unchecked, FreeDV leaves the radio on its current frequency when you "
+"push Start."
+msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Frequency entry in kHz"
@@ -1794,6 +1806,10 @@ msgid "Frm Decoder"
 msgstr "Decodificador Frm"
 
 #: src/main.cpp
+msgid "AGC dB"
+msgstr ""
+
+#: src/main.cpp
 msgid "&Use another voice keyer file..."
 msgstr "&Use outro arquivo de keyer de voz..."
 
@@ -2329,16 +2345,10 @@ msgid "Level"
 msgstr "Nivel"
 
 #: src/topFrame.cpp
-msgid ""
-"Acceptable level range (amber = too low, green = target, red = too high)"
-msgstr ""
-"Faixa de níveis aceitáveis ​​(amarelo = muito baixo, verde = dentro da meta, "
-"vermelho = muito alto)"
-
-#: src/topFrame.cpp
+#, fuzzy
 msgid ""
 "RX: Peak level of radio's audio output, TX: Peak level of microphone audio "
-"as recorded by FreeDV (before AGC/level settings)."
+"from the sound card (before noise reduction/AGC/level settings)."
 msgstr ""
 "RX: Nível máximo de saída de áudio do rádio, TX: Nível máximo de áudio do "
 "microfoneConforme gravado pelo FreeDV (antes das configurações de AGC/nível)."
@@ -2572,6 +2582,15 @@ msgstr "Canais demais"
 #, c-format
 msgid "Voice Keyer: Playing file %s to mic input"
 msgstr "Voice Keyer: Reproduzindo o arquivo %s na entrada do microfone"
+
+#~ msgid "Automatic gain control for microphone"
+#~ msgstr "Controle automático de ganho do microfone"
+
+#~ msgid ""
+#~ "Acceptable level range (amber = too low, green = target, red = too high)"
+#~ msgstr ""
+#~ "Faixa de níveis aceitáveis ​​(amarelo = muito baixo, verde = dentro da "
+#~ "meta, vermelho = muito alto)"
 
 #~ msgid "Move Up"
 #~ msgstr "Para cima"
