@@ -3198,9 +3198,23 @@ void MainFrame::stopRxStream()
 
             // The TX thread saved the leveler's final gain state into the
             // in-memory config as it exited; write it out now. Flush() so
-            // it reaches disk on every Stop, not only at app exit.
-            wxGetApp().appConfiguration.save(pConfig);
-            pConfig->Flush();
+            // it reaches disk on every Stop, not only at app exit. This
+            // reads settings the UI thread can change while we're stopping
+            // (e.g. the reporting frequency, as the radio goes back to where
+            // it was before Start), so do it there. At exit we're already
+            // on the UI thread and waiting for it would never return.
+            auto saveConfig = [&]() {
+                wxGetApp().appConfiguration.save(pConfig);
+                pConfig->Flush();
+            };
+            if (wxIsMainThread())
+            {
+                saveConfig();
+            }
+            else
+            {
+                executeOnUiThreadAndWait_(saveConfig);
+            }
         }
 
         if (m_rxThread)
