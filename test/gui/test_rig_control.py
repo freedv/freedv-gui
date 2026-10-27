@@ -177,28 +177,30 @@ def test_frequency_only():
             quit_and_check_log(app)
 
 
-def test_keep_radio_frequency():
-    """Told not to restore the last used frequency, FreeDV leaves the radio
-    where it is on start (still setting its mode) and shows that instead."""
-    with Rigctld() as radio, audio_devices():
-        radio.set_frequency(14236000)
-        radio.command("M AM 6000")
-        extra = dict(Hamlib__RestoreLastFrequency=False, Reporting__Frequency=7177000)
-        with freedvtest.start(settings=rig_settings(radio.address, **extra)) as app:
-            app.wait_for_window("main")
-            start_modem(app)
-            wait_for_frequency(app, "14.2360", "Frequency displayed once connected")
-            wait_for(lambda: "USB" in radio.mode(), lambda: "The radio's mode after starting is %s" % radio.mode())
-            check_equal(radio.frequency(), 14236000, "Radio's frequency after starting")
-            stop_modem(app)
-
-            # Nor is it put back on the next start.
-            radio.set_frequency(21313000)
-            start_modem(app)
-            wait_for_frequency(app, "21.3130", "Frequency displayed after starting again")
-            check_equal(radio.frequency(), 21313000, "Radio's frequency after starting again")
-            stop_modem(app)
-            quit_and_check_log(app)
+def test_restore_on_stop():
+    """FreeDV puts the radio back where it was before Start when it stops,
+    unless told not to, in which case it stays where FreeDV left it."""
+    for restore in [True, False]:
+        with Rigctld() as radio, audio_devices():
+            radio.set_frequency(14236000)
+            radio.command("M AM 6000")
+            extra = dict(Hamlib__RestoreFreqModeOnStop=restore, Reporting__Frequency=7177000)
+            with freedvtest.start(settings=rig_settings(radio.address, **extra)) as app:
+                app.wait_for_window("main")
+                start_modem(app)
+                wait_for(lambda: radio.frequency() == 7177000,
+                         lambda: "The radio is on %d Hz after starting, not 7177000" % radio.frequency())
+                wait_for(lambda: "USB" in radio.mode(), lambda: "The radio's mode after starting is %s" % radio.mode())
+                stop_modem(app)
+                if restore:
+                    wait_for(lambda: (radio.frequency(), radio.mode()) == (14236000, "AM"),
+                             lambda: "The radio is on %d Hz, %s after stopping, not 14236000 Hz, AM" %
+                             (radio.frequency(), radio.mode()))
+                else:
+                    time.sleep(3)
+                    check_equal(radio.frequency(), 7177000, "Radio's frequency after stopping")
+                    check("USB" in radio.mode(), "The radio's mode after stopping is %s" % radio.mode())
+                quit_and_check_log(app)
 
 
 def test_mode_display():
@@ -526,7 +528,7 @@ SCENARIOS = {
     "frequency_only": test_frequency_only,
     "mode_display": test_mode_display,
     "analog_sideband": test_analog_sideband,
-    "keep_radio_frequency": test_keep_radio_frequency,
+    "restore_on_stop": test_restore_on_stop,
     "editing_frequency": test_editing_frequency,
     "unreachable": test_unreachable,
     "serial_ptt": test_serial_ptt,

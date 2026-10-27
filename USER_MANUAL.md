@@ -418,9 +418,9 @@ also enabled, this frequency will automatically remain in sync with the current 
 frequency is changed in the application, the radio will also change its frequency). Double-clicking on users in 
 the Tools->FreeDV Reporter window will also cause this frequency to change to match the other user.
 
-By default, pushing Start also sets the radio to the last frequency FreeDV used. To leave the radio on its current
-frequency instead (with FreeDV showing that frequency once it connects), uncheck "Set the radio to the last used
-frequency on start" in Settings->Edit Settings->Rig Control. This applies to both Hamlib and OmniRig.
+By default, FreeDV saves the radio's frequency and mode when you push Start and sets the radio back to them when you
+push Stop. To leave the radio on the frequency and mode FreeDV last used instead, uncheck "Return the radio to its
+previous frequency and mode on stop" in Settings->Edit Settings->Rig Control. This applies to both Hamlib and OmniRig.
 
 *Note: in some setups (such as when using ALE), it is not preferred to have the reporting frequency automatically be 
 in sync with the radio. For example, in the case of ALE, the radio's frequency changes multiple times per second while
@@ -881,7 +881,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Hamlib: only allow selecting a PTT serial device when using RTS or DTR for PTT. (PR #1544)
     * Improved ease of use when adjusting predefined frequencies. (PR #1570, #1581) - thanks @barjac!
     * Improved Level metering and AGC for easier input level adjustment. (PR #1532, #1599) - thanks @barjac!
-    * Hamlib/OmniRig: add option to not set the radio to the last used frequency on start. (PR #1600)
+    * Hamlib/OmniRig: add option to not return the radio to its previous frequency and mode on stop. (PR #1600)
 2. Bugfixes:
     * Fix silence being mixed into the first half second of each transmission, and holes in the signal at its start. (PR #1562)
 3. Build system:
