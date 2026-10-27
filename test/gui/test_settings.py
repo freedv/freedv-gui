@@ -689,7 +689,7 @@ def test_rig_control():
             "txtTxRxDelayMilliseconds": "0", "ckboxTOTTimerEnabled": True, "txtTOTTimerSecs": "180",
             "ckboxEnableFreqModeChanges": True, "ckboxEnableFreqChangesOnly": False,
             "ckboxNoFreqModeChanges": False, "ckboxUseAnalogModes": False, "ckboxFrequencyEntryAsKHz": False,
-            "ckboxRestoreFreqModeOnStop": True,
+            "ckboxSaveRestoreFrequency": True,
         })
         check_equal(label(app, "btnSetPTTKey"), "Change...", "PTT key button")
 
@@ -753,20 +753,20 @@ def test_rig_control():
         check_enabled(app, ["ckboxUseAnalogModes"], True)
         app.click(name("ckboxEnableFreqChangesOnly"))
 
-        # Returning the radio to its previous frequency only matters if FreeDV changes it.
-        check_enabled(app, ["ckboxRestoreFreqModeOnStop"], True)
+        # Saving and restoring the frequency only matters if FreeDV changes it.
+        check_enabled(app, ["ckboxSaveRestoreFrequency"], True)
         app.click(name("ckboxNoFreqModeChanges"))
-        check_enabled(app, ["ckboxRestoreFreqModeOnStop"], False)
+        check_enabled(app, ["ckboxSaveRestoreFrequency"], False)
         app.click(name("ckboxEnableFreqChangesOnly"))
-        check_enabled(app, ["ckboxRestoreFreqModeOnStop"], True)
-        set_value(app, "ckboxRestoreFreqModeOnStop", False)
+        check_enabled(app, ["ckboxSaveRestoreFrequency"], True)
+        set_value(app, "ckboxSaveRestoreFrequency", False)
 
         press_ok(app)
         check_saved(app, {
             "/Rig/EnableSpacebarForPTT": 1, "/Rig/PttKeyCode": WXK_F5, "/Rig/PttMomentaryMode": 1,
             "/Audio/TxRxDelayMilliseconds": 250, "/Rig/TotTimerEnabled": 1, "/Rig/TotTimerSecs": 90,
             "/Hamlib/EnableFreqModeChanges": 0, "/Hamlib/EnableFreqChangesOnly": 1, "/Hamlib/UseAnalogModes": 1,
-            "/Hamlib/RestoreFreqModeOnStop": 0,
+            "/Hamlib/SaveRestoreFrequency": 0,
         })
 
         open_settings(app, "Rig Control")
@@ -774,7 +774,7 @@ def test_rig_control():
             "ckboxEnableSpacebarForPTT": True, "txtPTTKeyName": "F5", "ckboxPTTMomentaryMode": True,
             "txtTxRxDelayMilliseconds": "250", "ckboxTOTTimerEnabled": True, "txtTOTTimerSecs": "90",
             "ckboxEnableFreqModeChanges": False, "ckboxEnableFreqChangesOnly": True,
-            "ckboxNoFreqModeChanges": False, "ckboxRestoreFreqModeOnStop": False,
+            "ckboxNoFreqModeChanges": False, "ckboxSaveRestoreFrequency": False,
         })
 
         # Neither kind of change; no key; and a time-out that makes no sense
@@ -1462,7 +1462,7 @@ def test_while_running():
                  "useCardinalDirections", "ckboxUDPReportingEnable", "ckboxUDPBroadcastEnable",
                  "ckbox_use_utc_time"]
     rig_control = ["ckboxEnableFreqModeChanges", "ckboxEnableFreqChangesOnly", "ckboxNoFreqModeChanges",
-                   "ckboxUseAnalogModes", "ckboxRestoreFreqModeOnStop", "ckboxEnableSpacebarForPTT",
+                   "ckboxUseAnalogModes", "ckboxSaveRestoreFrequency", "ckboxEnableSpacebarForPTT",
                    "txtTxRxDelayMilliseconds"]
 
     settings = audio_settings()

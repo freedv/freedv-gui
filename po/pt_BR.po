@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FreeDV 3.0.0\n"
 "Report-Msgid-Bugs-To: https://github.com/freedv/freedv-gui/issues\n"
-"POT-Creation-Date: 2026-10-26 21:16-0700\n"
+"POT-Creation-Date: 2026-10-26 21:25-0700\n"
 "PO-Revision-Date: 2026-10-06 14:00+ZONE\n"
 "Last-Translator: manotroll <manotroll@gmail.com>\n"
 "Language-Team: pt-br <LL@li.org>\n"
@@ -587,14 +587,15 @@ msgid "Use USB instead of DIGU"
 msgstr "Use USB em vez de DIGU"
 
 #: src/gui/dialogs/dlg_options.cpp
-msgid "Return the radio to its previous frequency and mode on stop"
+msgid "Save and restore the frequency on start and stop"
 msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid ""
-"FreeDV saves the radio's frequency and mode when you push Start and sets "
-"them back when you push Stop. When unchecked, the radio stays where FreeDV "
-"left it."
+"When checked, Start sets the radio to the frequency FreeDV last used, and "
+"Stop returns the radio to the frequency and mode it had before Start. When "
+"unchecked, FreeDV shows the radio's current frequency on Start and leaves "
+"the radio where it is on Stop."
 msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp

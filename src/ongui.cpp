@@ -498,16 +498,22 @@ void MainFrame::onFrequencyModeChange_(IRigFrequencyController*, uint64_t freq, 
 
 void MainFrame::onRadioConnected_(IRigController*)
 {
+    // If the user doesn't want frequencies saved and restored, the radio
+    // keeps its current frequency (and FreeDV picks it up from the radio).
+    bool saveRestoreFrequency = wxGetApp().appConfiguration.rigControlConfiguration.hamlibSaveRestoreFrequency;
     if (wxGetApp().rigFrequencyController && 
         (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges || wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly) &&
-        wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency > 0)
+        (!saveRestoreFrequency || wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency > 0))
     {
-        // Suppress the frequency update message that will occur immediately after
-        // connect; this will prevent overwriting of whatever's in the text box.
-        firstFreqUpdateOnConnect_ = true;
+        if (saveRestoreFrequency)
+        {
+            // Suppress the frequency update message that will occur immediately after
+            // connect; this will prevent overwriting of whatever's in the text box.
+            firstFreqUpdateOnConnect_ = true;
 
-        // Set frequency/mode to the one pre-selected by the user before start.
-        wxGetApp().rigFrequencyController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+            // Set frequency/mode to the one pre-selected by the user before start.
+            wxGetApp().rigFrequencyController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+        }
         
         if (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
         {
@@ -577,7 +583,7 @@ bool MainFrame::OpenHamlibRig() {
             rig, (const char*)port.mb_str(wxConvUTF8), serial_rate, wxGetApp().appConfiguration.rigControlConfiguration.hamlibIcomCIVAddress,
             pttType, pttType == HamlibRigController::PTT_VIA_CAT || pttType == HamlibRigController::PTT_VIA_NONE ? (const char*)port.mb_str(wxConvUTF8) : (const char*)pttPort.mb_str(wxConvUTF8),
             (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges || wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly) &&
-                wxGetApp().appConfiguration.rigControlConfiguration.hamlibRestoreFreqModeOnStop,
+                wxGetApp().appConfiguration.rigControlConfiguration.hamlibSaveRestoreFrequency,
             wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly,
             wxGetApp().appConfiguration.rigControlConfiguration.hamlibForceRTSOn,
             wxGetApp().appConfiguration.rigControlConfiguration.hamlibForceDTROn);
@@ -627,7 +633,7 @@ void MainFrame::OpenOmniRig()
     auto tmp = std::make_shared<OmniRigController>(
         wxGetApp().appConfiguration.rigControlConfiguration.omniRigRigId,
         (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges || wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly) &&
-            wxGetApp().appConfiguration.rigControlConfiguration.hamlibRestoreFreqModeOnStop,
+            wxGetApp().appConfiguration.rigControlConfiguration.hamlibSaveRestoreFrequency,
         wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly);
 
     // OmniRig also controls PTT.

@@ -953,7 +953,7 @@ foreach(scenario meter agc agc_off saved_gain)
 endforeach(scenario)
 
 # These use Hamlib's rigctld as the radio, and are skipped without it.
-foreach(scenario control frequency_only restore_on_stop mode_display analog_sideband editing_frequency unreachable serial_ptt missing_port lost)
+foreach(scenario control frequency_only save_restore_frequency mode_display analog_sideband editing_frequency unreachable serial_ptt missing_port lost)
     add_test(NAME gui_rig_control_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_rig_control.py ${scenario})
     set_tests_properties(gui_rig_control_${scenario} PROPERTIES LABELS gui SKIP_RETURN_CODE 77)

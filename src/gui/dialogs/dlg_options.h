@@ -135,7 +135,7 @@ class OptionsDlg : public wxDialog
         
         /* Hamlib options */
         wxCheckBox    *m_ckboxUseAnalogModes;
-        wxCheckBox    *m_ckboxRestoreFreqModeOnStop;
+        wxCheckBox    *m_ckboxSaveRestoreFrequency;
         wxRadioButton *m_ckboxEnableFreqModeChanges;
         wxRadioButton *m_ckboxEnableFreqChangesOnly;
         wxRadioButton *m_ckboxNoFreqModeChanges;

@@ -35,7 +35,7 @@ public:
     ConfigurationDataElement<bool> hamlibEnableFreqModeChanges;
     ConfigurationDataElement<bool> hamlibEnableFreqChangesOnly;
     ConfigurationDataElement<bool> hamlibUseAnalogModes;
-    ConfigurationDataElement<bool> hamlibRestoreFreqModeOnStop;
+    ConfigurationDataElement<bool> hamlibSaveRestoreFrequency;
     ConfigurationDataElement<unsigned int> hamlibIcomCIVAddress;
     ConfigurationDataElement<wxString> hamlibRigName;
     ConfigurationDataElement<unsigned int> hamlibPTTType;

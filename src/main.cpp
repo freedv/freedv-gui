@@ -2794,11 +2794,17 @@ void MainFrame::performFreeDVOn_()
     #endif // defined(WIN32)
                 
                 // Set frequency/mode to the one pre-selected by the user before start.
+                // If the user doesn't want frequencies saved and restored, the radio
+                // keeps its current frequency (and FreeDV picks it up from the radio).
+                bool saveRestoreFrequency = wxGetApp().appConfiguration.rigControlConfiguration.hamlibSaveRestoreFrequency;
                 if (wxGetApp().rigFrequencyController && 
                     (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges || wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly) &&
-                    wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency > 0)
+                    (!saveRestoreFrequency || wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency > 0))
                 {
-                    wxGetApp().rigFrequencyController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+                    if (saveRestoreFrequency)
+                    {
+                        wxGetApp().rigFrequencyController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+                    }
         
                     if (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
                     {
