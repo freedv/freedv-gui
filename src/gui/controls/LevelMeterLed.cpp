@@ -95,7 +95,7 @@ void LevelMeterLed::OnPaint(wxPaintEvent&)
     // Shows between the LEDs. Unstyled parents (e.g. a wxStaticBox on GTK)
     // don't report a usable colour.
     wxWindow* parent = GetParent();
-    wxColour background = parent->UseBackgroundColour() ? parent->GetBackgroundColour() : wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE);
+    wxColour background = parent->UseBgCol() ? parent->GetBackgroundColour() : wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE);
     dc.SetBackground(wxBrush(background));
     dc.Clear();
 

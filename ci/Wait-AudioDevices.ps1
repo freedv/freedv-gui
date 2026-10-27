@@ -42,8 +42,21 @@ param (
 
 $ErrorActionPreference = 'Stop'
 
+# The PowerShell Gallery download occasionally fails on the runners, so
+# retry a few times before giving up.
 if (-not (Get-Module -ListAvailable -Name AudioDeviceCmdlets)) {
-    Install-Module -Name AudioDeviceCmdlets -Force -Confirm:$false -Scope CurrentUser
+    $attempt = 1
+    while ($true) {
+        try {
+            Install-Module -Name AudioDeviceCmdlets -Force -Confirm:$false -Scope CurrentUser
+            break
+        } catch {
+            if ($attempt -ge 5) { throw }
+            Write-Host "Installing AudioDeviceCmdlets failed (attempt $attempt): $_"
+            Start-Sleep -Seconds (10 * $attempt)
+            $attempt++
+        }
+    }
 }
 Import-Module AudioDeviceCmdlets
 
