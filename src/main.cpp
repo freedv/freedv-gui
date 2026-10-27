@@ -2721,6 +2721,9 @@ void MainFrame::performFreeDVOn_()
     endingTx.store(false, std::memory_order_release);
     g_voice_keyer_tx.store(false, std::memory_order_release);
     g_tx.store(false, std::memory_order_release);
+
+    // Nothing from a previous session should keep RX muted.
+    g_rxMutedUntilNs.store(0, std::memory_order_release);
     
     m_timeSinceSyncLoss = 0;
     syncState_ = false;

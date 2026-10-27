@@ -44,6 +44,31 @@ extern std::atomic<int64_t> g_rxInputLatencyUs;
 // confirm that it has stopped transmitting.
 static constexpr auto RX_MUTE_MAX_WAIT_FOR_RADIO = std::chrono::milliseconds(2000);
 
+// Longest audio device latency that's believed. Some sound systems report
+// ones that can't be right (e.g. about 2055 seconds for record streams on
+// some PipeWire versions, #1601), and waiting that long after TX would keep
+// RX muted, or hold up going back to RX.
+static constexpr int64_t MAX_AUDIO_LATENCY_US = 1000000;
+
+static int64_t GetPlausibleLatencyUs_(std::shared_ptr<IAudioDevice> device, const char* which)
+{
+    if (!device)
+    {
+        return 0;
+    }
+
+    int64_t latency = device->getLatencyInMicroseconds();
+    if (latency < 0 || latency > MAX_AUDIO_LATENCY_US)
+    {
+        int64_t used = latency < 0 ? 0 : MAX_AUDIO_LATENCY_US;
+        log_warn(
+            "The %s device reported a latency of %lld us; using %lld us instead",
+            which, (long long)latency, (long long)used);
+        latency = used;
+    }
+    return latency;
+}
+
 extern std::atomic<bool>  g_monitorTxAudio;
 extern std::atomic<float> g_monitorTxAudioVol;
 extern std::atomic<int>   g_State, g_prev_State;
@@ -1599,12 +1624,7 @@ void MainFrame::togglePTT(void) {
         
         // Wait for a minimum amount of time before stopping TX to ensure that
         // remaining audio gets piped to the radio from the operating system.
-        auto outDevice = txOutSoundDevice;
-        auto latency = 0;
-        if (outDevice)
-        {
-            latency = outDevice->getLatencyInMicroseconds();
-        }
+        int latency = (int)GetPlausibleLatencyUs_(txOutSoundDevice, "TX output");
 
         log_info(
             "Pausing for a minimum of %d us before TX->RX to allow remaining audio to go out", 
@@ -1647,8 +1667,7 @@ void MainFrame::togglePTT(void) {
         // onRigPttChange_()). If it never does, give up after a timeout.
         if (wxGetApp().rigPttController != nullptr && wxGetApp().rigPttController->isConnected())
         {
-            auto inDevice = rxInSoundDevice;
-            g_rxInputLatencyUs.store(inDevice ? inDevice->getLatencyInMicroseconds() : 0, std::memory_order_release);
+            g_rxInputLatencyUs.store(GetPlausibleLatencyUs_(rxInSoundDevice, "RX input"), std::memory_order_release);
             g_rxMutedUntilNs.store(
                 std::chrono::duration_cast<std::chrono::nanoseconds>(
                     (std::chrono::steady_clock::now() + RX_MUTE_MAX_WAIT_FOR_RADIO).time_since_epoch()).count(),
