@@ -147,15 +147,24 @@ bool recordsSamplesInOrder()
 {
     Recording recording;
 
-    // Pace things the way the audio device would so that this is about
-    // ordering rather than how much can be queued at once.
+    // Let each burst reach the file before queuing the next so that this is
+    // about ordering rather than how much can be queued at once (a fixed sleep
+    // isn't enough when the writer thread is starved, as on Windows runners).
     std::vector<short> expected;
     for (int block = 0; block < 100; block++)
     {
         auto samples = ramp(BLOCK_SIZE, block * BLOCK_SIZE);
         expected.insert(expected.end(), samples.begin(), samples.end());
         recording.record(samples);
-        if (block % 10 == 9) std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        if (block % 10 == 9)
+        {
+            auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            while (recording.numSamplesReported < (int)expected.size() &&
+                   std::chrono::steady_clock::now() < deadline)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        }
     }
 
     return samplesAre(recording.finish(), expected);

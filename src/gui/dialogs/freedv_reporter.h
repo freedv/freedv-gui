@@ -527,7 +527,9 @@ class FreeDVReporterDialog : public wxFrame
             
         };
 
-        bool isSelectionPossible_;
+        // Linux workaround to avoid inadvertent selections: set once the
+        // pointer has been over a row.
+        bool isSelectionPossible_ = false;
 
         void createColumn_(int col, bool visible);
         wxDataViewColumn* getColumnForModelColId_(unsigned int col);
