@@ -1026,6 +1026,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Stop the radio recording budget at zero instead of wrapping it. (PR #1592)
     * Windows: Fix issue preventing audio devices that don't support raw mode from starting. (PR #1594)
     * PlotScalar: draw the trace when the plot is wider than its sample count. (PR #1597) - thanks @barjac!
+    * Linux/FreeDV Reporter: fix uninitialized value deciding whether a selection is honored. (PR #1606)
 2. Build system:
     * Windows versions are now built with llvm-mingw 20260908 (PR #1489)
     * Ccache support extended to third party dependencies. (PR #1498, #1505))
