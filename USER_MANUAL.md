@@ -969,7 +969,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * PulseAudio: give each device its own connection. (PR #1523)
     * Fix possible deadlock on playback completion. (PR #1533)
     * Windows: add logic to detect audio device stalls. (PR #1537)
-    * Keep RX muted after TX until the radio confirms PTT off. (PR #1536)
+    * Keep RX muted after TX until the radio confirms PTT off. (PR #1536, #1603)
     * Fix FreeDV hanging when starting the Voice Keyer with a cloud-backed file. (PR #1534)
     * Fix data races on settings read by the audio threads. (PR #1535)
     * Prevent a closed network connection from terminating FreeDV with SIGPIPE. (PR #1540)
@@ -1026,7 +1026,6 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Stop the radio recording budget at zero instead of wrapping it. (PR #1592)
     * Windows: Fix issue preventing audio devices that don't support raw mode from starting. (PR #1594)
     * PlotScalar: draw the trace when the plot is wider than its sample count. (PR #1597) - thanks @barjac!
-    * Fix RX staying muted after TX when the sound system reports an implausible latency. (PR #1602, #1603)
 2. Build system:
     * Windows versions are now built with llvm-mingw 20260908 (PR #1489)
     * Ccache support extended to third party dependencies. (PR #1498, #1505))
