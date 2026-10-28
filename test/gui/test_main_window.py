@@ -2531,14 +2531,21 @@ def test_test_tone():
             # nothing here, until the tone's added to it.
             app.click("main.btnAnalog")
             check_silent(SPEAKER_MONITOR, "Something is being played with nothing being received")
+            # (Listened for until it's heard: on Windows CI, what's played
+            # sometimes has gaps in it.)
             set_debugging(app, ckboxTone=True, txtToneFreqHz="1500", txtToneAmplitude="8000")
-            left, right = heard(SPEAKER_MONITOR)
-            for name, channel in [("left", left), ("right", right)]:
-                check(tone_share(channel, 1500) > 0.8, "What's played on the %s is only %.2f the tone (level %d)"
-                      % (name, tone_share(channel, 1500), math.sqrt(sum(x * x for x in channel) / len(channel))))
+            last = []
+            def tone_heard():
+                last[:] = heard(SPEAKER_MONITOR)
+                return all(tone_share(channel, 1500) > 0.8 for channel in last)
+            try:
+                app.wait_until(tone_heard, timeout=10)
+            except freedvtest.FreeDVError:
+                for name, channel in zip(["left", "right"], last):
+                    check(tone_share(channel, 1500) > 0.8, "What's played on the %s is only %.2f the tone (level %d)"
+                          % (name, tone_share(channel, 1500), math.sqrt(sum(x * x for x in channel) / len(channel))))
 
-            # Another frequency. (Listened for until it's heard: on Windows CI,
-            # what's played sometimes has gaps in it.)
+            # Another frequency, listened for the same way.
             set_debugging(app, txtToneFreqHz="700")
             shares = []
             def changed():
@@ -2567,12 +2574,21 @@ def test_test_tone():
             check_silent(RADIO_TX_MONITOR, "Something is being sent to the radio while receiving")
             app.click("main.btnPTT")
             wait_for_transmit(app)
-            left, right = heard(RADIO_TX_MONITOR)
-            check(tone_share(left, 1000) > 0.8, "The left channel is only %.2f VOX tone" % tone_share(left, 1000))
-            check(tone_share(right, 1000) < 0.2, "The right channel is mostly VOX tone (%.2f)"
-                  % tone_share(right, 1000))
-            check(math.sqrt(sum(sample * sample for sample in right) / len(right)) > AUDIBLE,
-                  "Nothing but the VOX tone is being sent to the radio")
+            last = []
+            def vox_heard():
+                last[:] = heard(RADIO_TX_MONITOR)
+                left, right = last
+                return tone_share(left, 1000) > 0.8 and tone_share(right, 1000) < 0.2 and \
+                    math.sqrt(sum(sample * sample for sample in right) / len(right)) > AUDIBLE
+            try:
+                app.wait_until(vox_heard, timeout=10)
+            except freedvtest.FreeDVError:
+                left, right = last
+                check(tone_share(left, 1000) > 0.8, "The left channel is only %.2f VOX tone" % tone_share(left, 1000))
+                check(tone_share(right, 1000) < 0.2, "The right channel is mostly VOX tone (%.2f)"
+                      % tone_share(right, 1000))
+                check(math.sqrt(sum(sample * sample for sample in right) / len(right)) > AUDIBLE,
+                      "Nothing but the VOX tone is being sent to the radio")
             app.click("main.btnPTT")
             wait_for_transmit(app, False)
             check_silent(RADIO_TX_MONITOR, "Something is still being sent to the radio after transmitting")
