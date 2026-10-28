@@ -1027,6 +1027,11 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Windows: Fix issue preventing audio devices that don't support raw mode from starting. (PR #1594)
     * PlotScalar: draw the trace when the plot is wider than its sample count. (PR #1597) - thanks @barjac!
     * Linux/FreeDV Reporter: fix uninitialized value deciding whether a selection is honored. (PR #1606)
+    * FreeDV Reporter: fix possible crash when repeatedly connecting and disconnecting. (freedv-backend PR #44)
+    * FreeDV Reporter: fix exiting FreeDV taking up to 60 seconds when the server stalls setting up the secure connection; give up on it after 10 seconds instead. (freedv-backend PR #63)
+    * FreeDV Reporter: fix memory leak when FreeDV exits just as FreeDV Reporter connects. (freedv-backend PR #75)
+    * Recording: fix up to the last 100 ms of audio being lost when a recording stops, and log when audio has to be dropped. (freedv-backend PR #71, #72)
+    * Fix conversion of 16-bit audio to floating point going slightly past full scale. (freedv-backend PR #60)
 2. Build system:
     * Windows versions are now built with llvm-mingw 20260908 (PR #1489)
     * Ccache support extended to third party dependencies. (PR #1498, #1505))
@@ -1037,12 +1042,17 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Add unit tests for non-GUI code. (PR #1542)
     * Add tests of whole transmissions through the TX/RX threads without sound cards. (PR #1567)
     * Resolve build failure on OpenSUSE Tumbleweed. (PR #1577)
+    * Fix Windows build failures with newer llvm-mingw (clang/libc++) releases. (freedv-backend PR #51)
+    * Fix Windows build with older mingw-w64 headers that don't declare SetThreadDescription. (freedv-backend PR #60)
+    * macOS: fix RNNoise build failure with newer Xcode versions. (freedv-backend PR #59)
+    * Fix build errors with GCC 16 and with OpenSSL 4 deprecations. (freedv-backend PR #41, #73)
 3. Documentation:
     * Update documentation to reflect new repo URL. (PR #1569)
 4. Other:
     * Various GUI performance improvements. (PR #1481, #1521, #1524, #1527, #1531)
     * Windows audio thread timing improvements. (PR #1488)
     * Log when the sound server puts a PulseAudio stream on another device. (PR #1591)
+    * Log from the audio threads without blocking them. (freedv-backend PR #60)
 
 ## V2.4.0 August 2026
 
