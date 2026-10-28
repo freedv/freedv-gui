@@ -25,8 +25,10 @@
 #endif // defined(__has_feature) && __has_feature(realtime_sanitizer)
 #endif // defined(__clang__)
 
+#include <chrono>
 #include <future>
 #include <atomic>
+#include <memory>
 #include <vector>
 
 #include "main.h"
@@ -135,28 +137,72 @@ void FreeDVInterface::start(int, bool usingReliableText, bool verbose)
     // observed to stall the real-time TX/RX thread by hundreds of ms on its very first
     // live frame (right after PTT, or right after initial sync).
     //
-    // Run the dummy inference on a throwaway instance, NOT rade_ itself: rade_rx()'s
+    // That includes the decoder and FARGAN, which only run once the receiver has
+    // sync: on macOS CI the first synced frame took ~1 s every time while silence
+    // was all that had been decoded. So run a short over through the encoder and
+    // receiver until the decoder produces features, then synthesize them once.
+    //
+    // Do this on throwaway instances, NOT rade_ or fargan_: rade_rx()'s
     // sync detector keeps IIR-smoothed state (Ry_smooth, frame_sync_odd/even, etc.)
     // inside struct rade that rade_open() zeroes but a live call does not -- feeding
     // it one warmup frame nudges that state off its pristine zeroed start and was
     // confirmed via CI to cause intermittent loss of sync during real acquisition.
     // The weight tables a throwaway instance touches are the same static, read-only
-    // memory the real rade_ instance reads, so paging them in this way still avoids
-    // the first-frame stall without perturbing any state rade_ will actually use.
+    // memory the real instances read, so paging them in this way still avoids
+    // the first-frame stalls without perturbing any state they will actually use.
     {
+        auto warmupStart = std::chrono::steady_clock::now();
         struct rade* warmupRade = rade_open(modelFile, RADE_USE_C_ENCODER | RADE_USE_C_DECODER | RADE_MODE_V2 | RADE_VERBOSE_0);
         if (warmupRade != nullptr)
         {
-            std::vector<float> warmupFeatures(rade_n_features_in_out(warmupRade), 0.0f);
+            int numFeatures = rade_n_features_in_out(warmupRade);
+            std::vector<float> warmupFeatures(numFeatures, 0.0f);
             std::vector<RADE_COMP> warmupTxOut(rade_n_tx_out(warmupRade));
-            rade_tx(warmupRade, warmupTxOut.data(), warmupFeatures.data());
+            std::vector<RADE_COMP> warmupSignal;
+            std::vector<float> warmupRxFeatures(numFeatures, 0.0f);
+            size_t signalPos = 0;
+            int decodedFrames = 0;
 
-            std::vector<RADE_COMP> warmupRxIn(rade_nin_max(warmupRade));
-            std::vector<float> warmupRxFeatures(rade_n_features_in_out(warmupRade), 0.0f);
-            int warmupHasEoo = 0;
-            rade_rx(warmupRade, warmupRxFeatures.data(), &warmupHasEoo, nullptr, warmupRxIn.data());
+            // Acquisition takes ~1.5 s of signal; give up after 10 s worth.
+            constexpr size_t MAX_WARMUP_SAMPLES = 10 * RADE_MODEM_SAMPLE_RATE;
+            while (decodedFrames == 0 && signalPos < MAX_WARMUP_SAMPLES)
+            {
+                int nin = rade_nin(warmupRade);
+                while (warmupSignal.size() - signalPos < (size_t)nin)
+                {
+                    int ntx = rade_tx(warmupRade, warmupTxOut.data(), warmupFeatures.data());
+                    warmupSignal.insert(warmupSignal.end(), warmupTxOut.begin(), warmupTxOut.begin() + ntx);
+                }
 
+                int warmupHasEoo = 0;
+                if (rade_rx(warmupRade, warmupRxFeatures.data(), &warmupHasEoo, nullptr, warmupSignal.data() + signalPos) > 0)
+                {
+                    decodedFrames++;
+                }
+                signalPos += nin;
+            }
             rade_close(warmupRade);
+
+            if (decodedFrames == 0)
+            {
+                log_warn("RADE decoder warmup didn't get sync; first synced frame may be slow");
+            }
+            else
+            {
+                log_info("RADE decoder warmed up after %d ms of signal", (int)(signalPos * 1000 / RADE_MODEM_SAMPLE_RATE));
+            }
+
+            auto warmupFargan = std::make_unique<FARGANState>();
+            float warmupPcm0[320] = {0};
+            float warmupContFeatures[5*NB_TOTAL_FEATURES] = {0};
+            float warmupSynthFeatures[NB_TOTAL_FEATURES] = {0};
+            float warmupPcm[LPCNET_FRAME_SIZE];
+            fargan_init(warmupFargan.get());
+            fargan_cont(warmupFargan.get(), warmupPcm0, warmupContFeatures);
+            fargan_synthesize(warmupFargan.get(), warmupPcm, warmupSynthFeatures);
+
+            log_info("RADE warmup took %d ms", (int)std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - warmupStart).count());
         }
     }
 
