@@ -1,0 +1,2518 @@
+# Simplified Chinese (China) translation for FreeDV.
+# Copyright (C) 2026 FreeDV Project
+# This file is distributed under the same license as the FreeDV package.
+# pepefrog1234 <pty.11111@gmail.com>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: FreeDV 3.0.0\n"
+"Report-Msgid-Bugs-To: mooneer@gmail.com\n"
+"POT-Creation-Date: 2026-10-26 21:25-0700\n"
+"PO-Revision-Date: 2026-10-29 07:30+0800\n"
+"Last-Translator: pepefrog1234 <pty.11111@gmail.com>\n"
+"Language-Team: Chinese (Simplified)\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: src/gui/controls/MsgListPopup.cpp
+msgid "Right click for more options"
+msgstr "右键单击显示更多选项"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Start Recording"
+msgstr "开始录音"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Recording Settings"
+msgstr "录音设置"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Recording suffix:"
+msgstr "录音文件名后缀:"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Recording type:"
+msgstr "录音类型:"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Off Air"
+msgstr "空中信号"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Decoded"
+msgstr "解码后"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Both"
+msgstr "两者"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Recording format:"
+msgstr "录音格式:"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Start"
+msgstr "开始"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Mic Audio Pre-Processing"
+msgstr "麦克风音频预处理"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "TX Noise Suppression"
+msgstr "发射噪声抑制"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Enable noise suppression, dereverberation, AGC of mic signal"
+msgstr "对麦克风信号启用噪声抑制、去混响和 AGC"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "AGC"
+msgstr "AGC"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid ""
+"Automatic level control for microphone. Peak limiting stays on when this is "
+"off."
+msgstr "麦克风自动电平控制。关闭时峰值限制仍保持开启。"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Speaker Audio Post-Processing"
+msgstr "扬声器音频后处理"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "BW Expander"
+msgstr "带宽扩展器"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid ""
+"Expands RADE RX audio to 24kHz. Requires speaker or headset capable of "
+">16kHz sample rate."
+msgstr "将 RADE 接收音频扩展到 24kHz。需要支持 >16kHz 采样率的扬声器或耳机。"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Enable"
+msgstr "启用"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Default"
+msgstr "默认"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Vol"
+msgstr "音量"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Bass"
+msgstr "低音"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Mid"
+msgstr "中音"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Treble"
+msgstr "高音"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Microphone In Equaliser"
+msgstr "麦克风输入均衡器"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Speaker Out Equaliser"
+msgstr "扬声器输出均衡器"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Freq"
+msgstr "频率"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Gain"
+msgstr "增益"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Q"
+msgstr "Q"
+
+#: src/gui/dialogs/dlg_filter.h src/gui/dialogs/freedv_reporter.cpp
+msgid "Filter"
+msgstr "过滤"
+
+#: src/gui/dialogs/dlg_options.cpp
+#, c-format
+msgid "F%d"
+msgstr "F%d"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Space"
+msgstr "空格键"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Tab"
+msgstr "Tab"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enter"
+msgstr "回车键"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Escape"
+msgstr "Esc"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Backspace"
+msgstr "退格键"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Delete"
+msgstr "Delete"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Insert"
+msgstr "Insert"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Home"
+msgstr "Home"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "End"
+msgstr "End"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Page Up"
+msgstr "Page Up"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Page Down"
+msgstr "Page Down"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Up"
+msgstr "上方向键"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Down"
+msgstr "下方向键"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Left"
+msgstr "左方向键"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Right"
+msgstr "右方向键"
+
+#: src/gui/dialogs/dlg_options.cpp
+#, c-format
+msgid "Key(%d)"
+msgstr "按键(%d)"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "RX Audio"
+msgstr "接收音频"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "TX Audio"
+msgstr "发射音频"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Radio"
+msgstr "电台"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Rig Control"
+msgstr "电台控制"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Reporting"
+msgstr "上报"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Voice Keyer"
+msgstr "语音键控器"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Display"
+msgstr "显示"
+
+#. TRANSLATORS: Shown in the Sync box on the main window.
+#: src/gui/dialogs/dlg_options.cpp src/main.cpp src/topFrame.cpp
+msgid "Modem"
+msgstr "调制解调器"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Debugging"
+msgstr "调试"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "VOX PTT Settings"
+msgstr "VOX PTT 设置"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Left Channel Vox Tone"
+msgstr "左声道 VOX 音调"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Hamlib Settings"
+msgstr "Hamlib 设置"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Enable CAT control via Hamlib"
+msgstr "通过 Hamlib 启用 CAT 控制"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Rig Model:"
+msgstr "电台型号:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Serial Device (or hostname:port):"
+msgstr "串口设备 (或主机名:端口):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Radio Address:"
+msgstr "电台地址:"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Serial Rate:"
+msgstr "波特率:"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "PTT uses:"
+msgstr "PTT 使用:"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "PTT Serial Device:"
+msgstr "PTT 串口设备:"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "None"
+msgstr "无"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "CAT via Data port"
+msgstr "通过数据端口的 CAT"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"Always assert RTS on the Hamlib serial port (e.g. to power a radio interface)"
+msgstr "始终在 Hamlib 串口上置位 RTS (例如为电台接口供电)"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Force RTS"
+msgstr "强制 RTS"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"Always assert DTR on the Hamlib serial port (e.g. to power a radio interface)"
+msgstr "始终在 Hamlib 串口上置位 DTR (例如为电台接口供电)"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Force DTR"
+msgstr "强制 DTR"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Serial Port Settings"
+msgstr "串口设置"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "PTT Port"
+msgstr "PTT 端口"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Use Serial Port PTT"
+msgstr "使用串口 PTT"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Serial Device:  "
+msgstr "串口设备:  "
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Use DTR"
+msgstr "使用 DTR"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Toggle DTR line for PTT"
+msgstr "用 DTR 线切换 PTT"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Use RTS"
+msgstr "使用 RTS"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Toggle the RTS pin for PTT"
+msgstr "用 RTS 引脚切换 PTT"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "DTR = +V"
+msgstr "DTR = +V"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Set Polarity of the DTR line"
+msgstr "设置 DTR 线的极性"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "RTS = +V"
+msgstr "RTS = +V"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Set Polarity of the RTS line"
+msgstr "设置 RTS 线的极性"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "PTT In"
+msgstr "PTT 输入"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable PTT Input"
+msgstr "启用 PTT 输入"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "CTS = +V"
+msgstr "CTS = +V"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Set Polarity of the CTS line"
+msgstr "设置 CTS 线的极性"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "OmniRig Settings"
+msgstr "OmniRig 设置"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable CAT control via OmniRig"
+msgstr "通过 OmniRig 启用 CAT 控制"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Rig ID:"
+msgstr "Rig ID:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Test PTT"
+msgstr "测试 PTT"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable Reporting"
+msgstr "启用上报"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Callsign:"
+msgstr "呼号:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Grid Square/Locator:"
+msgstr "网格坐标/定位:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Manual Frequency Reporting"
+msgstr "手动上报频率"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Report to PSK Reporter"
+msgstr "上报到 PSK Reporter"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Report to FreeDV Reporter"
+msgstr "上报到 FreeDV Reporter"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable QSO Logging"
+msgstr "启用 QSO 日志"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"Enables QSO logging using the WSJT-X support in your preferred logging "
+"program."
+msgstr "使用您常用日志程序的 WSJT-X 支持功能来记录 QSO。"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "IP Address:"
+msgstr "IP 地址:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Port:"
+msgstr "端口:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable UDP Broadcast"
+msgstr "启用 UDP 广播"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"Broadcasts received callsign/frequency data as JSON UDP datagrams (e.g. to a "
+"multicast group or a local listener)."
+msgstr ""
+"将接收到的呼号/频率数据以 JSON UDP 数据报广播 (例如发送到组播组或本地监听程"
+"序)。"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Stations Heard Log File:"
+msgstr "已收听电台日志文件:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Choose"
+msgstr "选择"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/freedv_reporter.cpp
+#: src/gui/dialogs/freedv_reporter.h src/main.cpp
+msgid "FreeDV Reporter"
+msgstr "FreeDV Reporter"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Hostname:"
+msgstr "主机名:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Secure Connection"
+msgstr "安全连接"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Distances in km"
+msgstr "以公里显示距离"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Show cardinal directions"
+msgstr "显示方位"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Force RX Only reporting"
+msgstr "强制上报为仅接收"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Callsign List"
+msgstr "呼号列表"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Use UTC Time"
+msgstr "使用 UTC 时间"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "PTT Options"
+msgstr "PTT 选项"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable key for PTT:"
+msgstr "启用 PTT 快捷键:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "The key currently assigned to PTT."
+msgstr "当前分配给 PTT 的按键。"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Change..."
+msgstr "更改..."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Momentary PTT (hold key to transmit)"
+msgstr "瞬时 PTT (按住按键发射)"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"When enabled, you must hold the PTT button or key to keep transmitting. "
+"Releasing it returns to receive."
+msgstr "启用后，必须按住 PTT 按钮或按键才能持续发射。松开后即返回接收。"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "TX/RX Delay (milliseconds): "
+msgstr "发射/接收延迟 (毫秒): "
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"The amount of time to wait between toggling PTT and stopping/starting TX "
+"audio in milliseconds."
+msgstr "切换 PTT 与停止/开始发射音频之间的等待时间 (毫秒)。"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable Time-Out Timer (TOT):"
+msgstr "启用超时定时器 (TOT):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"When enabled, FreeDV will automatically stop transmitting after the "
+"configured time period has elapsed."
+msgstr "启用后，FreeDV 会在设定的时间过后自动停止发射。"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"The number of seconds FreeDV will transmit before automatically dropping "
+"back to receive."
+msgstr "FreeDV 在自动返回接收之前可持续发射的秒数。"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "seconds"
+msgstr "秒"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Frequency/Mode Control Options"
+msgstr "频率/模式控制选项"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable frequency and mode changes"
+msgstr "允许更改频率和模式"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable frequency changes only"
+msgstr "仅允许更改频率"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "No frequency or mode changes"
+msgstr "不更改频率或模式"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Use USB instead of DIGU"
+msgstr "使用 USB 而非 DIGU"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Save and restore the frequency on start and stop"
+msgstr "启动和停止时保存并恢复频率"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"When checked, Start sets the radio to the frequency FreeDV last used, and "
+"Stop returns the radio to the frequency and mode it had before Start. When "
+"unchecked, FreeDV shows the radio's current frequency on Start and leaves "
+"the radio where it is on Stop."
+msgstr ""
+"勾选后，点击“启动”会将电台设为 FreeDV 上次使用的频率，点击“停止”则会将电台恢"
+"复为启动前的频率和模式。未勾选时，FreeDV 在启动时显示电台当前的频率，并在停止"
+"时保持电台原状。"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Frequency entry in kHz"
+msgstr "以 kHz 输入频率"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Predefined Frequencies"
+msgstr "预设频率"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Add"
+msgstr "添加"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Remove"
+msgstr "移除"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enter frequency (kHz):"
+msgstr "输入频率 (kHz):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enter frequency (MHz):"
+msgstr "输入频率 (MHz):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Waterfall Style"
+msgstr "瀑布图样式"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Multicolor"
+msgstr "多色"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Black && White"
+msgstr "黑白"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Blue Tint"
+msgstr "蓝色调"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "FreeDV Reporter colors"
+msgstr "FreeDV Reporter 颜色"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "TX Stations:"
+msgstr "发射中电台:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Background"
+msgstr "背景"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Foreground"
+msgstr "前景"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "RX Stations:"
+msgstr "接收中电台:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Message updates:"
+msgstr "消息更新:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Plot settings"
+msgstr "绘图设置"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Average spectrum plot across"
+msgstr "频谱图平均范围"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "sample(s)"
+msgstr "个采样"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Input To Computer From Radio:"
+msgstr "从电台输入到电脑:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Test"
+msgstr "测试"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Selected:"
+msgstr "已选择:"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Output From Computer To Speaker/Headphones:"
+msgstr "从电脑输出到扬声器/耳机:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Refresh Device List"
+msgstr "刷新设备列表"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Receive only (I will not be transmitting)"
+msgstr "仅接收 (我不会发射)"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Input From Microphone To Computer:"
+msgstr "从麦克风输入到电脑:"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Output From Computer To Radio:"
+msgstr "从电脑输出到电台:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "File location: "
+msgstr "文件位置: "
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Path to Voice Keyer audio files"
+msgstr "语音键控器音频文件的路径"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Rx Pause:"
+msgstr "接收暂停:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "How long to wait in Rx mode before repeat"
+msgstr "重复播放前在接收模式等待的时间"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Repeats:"
+msgstr "重复次数:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Quick Record"
+msgstr "快速录音"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Location to save raw recordings: "
+msgstr "原始录音保存位置: "
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"Location which to save raw recordings started via the Record button in the "
+"main window."
+msgstr "通过主窗口“录音”按钮开始的原始录音的保存位置。"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Location to save decoded recordings: "
+msgstr "解码录音保存位置: "
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"Location which to save decoded recordings started via the Record button in "
+"the main window."
+msgstr "通过主窗口“录音”按钮开始的解码录音的保存位置。"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Modem Options"
+msgstr "调制解调器选项"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Start Automatically on Launch"
+msgstr "程序启动时自动开始"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Half/Full Duplex Operation"
+msgstr "半/全双工操作"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Half Duplex"
+msgstr "半双工"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Modem Statistics"
+msgstr "调制解调器统计"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Show Decode Stats"
+msgstr "显示解码统计"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Time before resetting stats (in seconds):"
+msgstr "重置统计前的时间 (秒):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Debug: Windows"
+msgstr "调试: 窗口"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Show Console"
+msgstr "显示控制台"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Debug: FIFO and Under/Over Flow Counters"
+msgstr "调试: FIFO 与下溢/上溢计数器"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Fifo Size (ms):"
+msgstr "FIFO 大小 (ms):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Reset"
+msgstr "重置"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Debug: Application Options"
+msgstr "调试: 应用程序选项"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Verbose"
+msgstr "详细输出"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable Experimental Features"
+msgstr "启用实验性功能"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Simulated Interference Tone"
+msgstr "模拟干扰音"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Tone"
+msgstr "音调"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Freq (Hz):"
+msgstr "频率 (Hz):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Amplitude (pk): "
+msgstr "振幅 (峰值): "
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Voice Keyer file location"
+msgstr "语音键控器文件位置"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Choose Quick Record save location"
+msgstr "选择快速录音保存位置"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Choose CSV log file location"
+msgstr "选择 CSV 日志文件位置"
+
+#: src/gui/dialogs/dlg_options.cpp src/ongui.cpp src/playrec.cpp
+#: src/voicekeyer.cpp
+msgid "All files (*.*)"
+msgstr "所有文件 (*.*)"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "CSV files (*.csv)"
+msgstr "CSV 文件 (*.csv)"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Press any key..."
+msgstr "请按任意键..."
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+#: src/main.cpp
+msgid "Cancel"
+msgstr "取消"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"Testing of tone based PTT not supported; try PTT after pressing Start on "
+"main window"
+msgstr "不支持测试音调式 PTT；请在主窗口点击“启动”后再尝试 PTT"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/log_entry.cpp src/main.cpp
+#: src/ongui.cpp src/util.cpp
+msgid "Error"
+msgstr "错误"
+
+#. TRANSLATORS: %s is the error message returned by Hamlib.
+#: src/gui/dialogs/dlg_options.cpp
+#, c-format
+msgid ""
+"Couldn't connect to Radio with Hamlib (%s). Make sure the Hamlib serial "
+"Device, Rate, and Params match your radio"
+msgstr ""
+"无法通过 Hamlib 连接到电台 (%s)。请确认 Hamlib 的串口设备、波特率和参数与您的"
+"电台相符"
+
+#. TRANSLATORS: The first %s is the serial port and the second is the error message returned by the operating system.
+#: src/gui/dialogs/dlg_options.cpp
+#, c-format
+msgid ""
+"Couldn't open serial port %s (%s). This is likely due to not having "
+"permission to access the chosen port."
+msgstr "无法打开串口 %s (%s)。这通常是因为没有访问所选端口的权限。"
+
+#. TRANSLATORS: %s is the error message returned by OmniRig.
+#: src/gui/dialogs/dlg_options.cpp
+#, c-format
+msgid ""
+"Couldn't connect to Radio with OmniRig (%s). Make sure the rig ID and "
+"OmniRig configuration is correct."
+msgstr "无法通过 OmniRig 连接到电台 (%s)。请确认 Rig ID 和 OmniRig 配置正确。"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Device"
+msgstr "设备"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "API"
+msgstr "API"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Default Sample Rate"
+msgstr "默认采样率"
+
+#. TRANSLATORS: Shown in the audio device lists to indicate that no device is selected.
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "none"
+msgstr "无"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Audio Test"
+msgstr "音频测试"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Please select an audio output device first."
+msgstr "请先选择音频输出设备。"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Playing"
+msgstr "播放中"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Please select an audio input device first."
+msgstr "请先选择音频输入设备。"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Recording"
+msgstr "录音中"
+
+#: src/gui/dialogs/dlg_options.h
+msgid "Settings"
+msgstr "设置"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "FreeDV Setup Wizard"
+msgstr "FreeDV 设置向导"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "< Previous"
+msgstr "< 上一步"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Next >"
+msgstr "下一步 >"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Finish"
+msgstr "完成"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Step 1 of 4: Receive Audio"
+msgstr "步骤 1/4: 接收音频"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Select the audio devices used for receiving transmissions."
+msgstr "选择用于接收信号的音频设备。"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Import From Another Program"
+msgstr "从其他程序导入"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid ""
+"Copy radio audio devices, rig control and callsign/grid square settings\n"
+"from another program installed on this computer."
+msgstr ""
+"从这台电脑上安装的其他程序复制电台音频设备、\n"
+"电台控制以及呼号/网格坐标设置。"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Import"
+msgstr "导入"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Step 2 of 4: Transmit Audio"
+msgstr "步骤 2/4: 发射音频"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid ""
+"Select the audio devices used for transmitting. Skip if you\n"
+"only want to receive."
+msgstr ""
+"选择用于发射的音频设备。如果只想接收，\n"
+"可以跳过此步骤。"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Step 3 of 4: Radio Control"
+msgstr "步骤 3/4: 电台控制"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid ""
+"Configure PTT (Push-To-Talk) control for your radio.\n"
+"Leave all options unchecked if you do not need PTT control."
+msgstr ""
+"配置电台的 PTT (按键通话) 控制。\n"
+"如果不需要 PTT 控制，请保持所有选项不勾选。"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "CAT Control via Hamlib"
+msgstr "通过 Hamlib 进行 CAT 控制"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Serial Device:"
+msgstr "串口设备:"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Serial Port PTT"
+msgstr "串口 PTT"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Enable serial port PTT"
+msgstr "启用串口 PTT"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Control Device:"
+msgstr "控制设备:"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Signal:"
+msgstr "信号:"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Inverted"
+msgstr "反相"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "OmniRig"
+msgstr "OmniRig"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Enable OmniRig"
+msgstr "启用 OmniRig"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Rig:"
+msgstr "电台:"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Rig 1"
+msgstr "Rig 1"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Rig 2"
+msgstr "Rig 2"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Step 4 of 4: Reporting"
+msgstr "步骤 4/4: 上报"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid ""
+"Optionally report your station to FreeDV Reporter and PSK Reporter.\n"
+"A valid callsign and grid square are required."
+msgstr ""
+"可选择将您的电台上报到 FreeDV Reporter 和 PSK Reporter。\n"
+"需要有效的呼号和网格坐标。"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Enable station reporting"
+msgstr "启用电台上报"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Grid Square:"
+msgstr "网格坐标:"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "radio audio devices"
+msgstr "电台音频设备"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "radio audio devices (not currently connected)"
+msgstr "电台音频设备 (当前未连接)"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "Hamlib rig control (%s)"
+msgstr "Hamlib 电台控制 (%s)"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "OmniRig rig control (%s)"
+msgstr "OmniRig 电台控制 (%s)"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "serial port PTT (%s)"
+msgstr "串口 PTT (%s)"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "rig control (%s is not supported by FreeDV)"
+msgstr "电台控制 (FreeDV 不支持 %s)"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "callsign"
+msgstr "呼号"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "grid square"
+msgstr "网格坐标"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "reporting enabled"
+msgstr "已启用上报"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid ", "
+msgstr "、"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "No usable settings were found in %s."
+msgstr "在 %s 中未找到可用的设置。"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "Imported: %s."
+msgstr "已导入: %s。"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "Not imported: %s."
+msgstr "未导入: %s。"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Review each page before clicking Finish."
+msgstr "点击“完成”前请检查每一页。"
+
+#: src/gui/dialogs/freedv_reporter.cpp src/topFrame.cpp
+msgid "Callsign"
+msgstr "呼号"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Locator"
+msgstr "网格坐标"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "km"
+msgstr "公里"
+
+#. TRANSLATORS: Abbreviation of "Heading".
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Hdg"
+msgstr "方位"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Version"
+msgstr "版本"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Mode"
+msgstr "模式"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Status"
+msgstr "状态"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Msg"
+msgstr "消息"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Last TX"
+msgstr "最后发射"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "RX Call"
+msgstr "接收呼号"
+
+#: src/gui/dialogs/freedv_reporter.cpp src/main.cpp src/topFrame.cpp
+msgid "SNR"
+msgstr "SNR"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Last Update"
+msgstr "最后更新"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Close"
+msgstr "关闭"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Closes FreeDV Reporter window."
+msgstr "关闭 FreeDV Reporter 窗口。"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Request QSY"
+msgstr "请求 QSY"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Asks selected user to switch to your frequency."
+msgstr "请所选用户切换到您的频率。"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Website"
+msgstr "网站"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Opens FreeDV Reporter in your Web browser."
+msgstr "在网页浏览器中打开 FreeDV Reporter。"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "All"
+msgstr "全部"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "160 m"
+msgstr "160 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "80 m"
+msgstr "80 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "60 m"
+msgstr "60 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "40 m"
+msgstr "40 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "30 m"
+msgstr "30 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "20 m"
+msgstr "20 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "17 m"
+msgstr "17 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "15 m"
+msgstr "15 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "12 m"
+msgstr "12 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "10 m"
+msgstr "10 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid ">= 6 m"
+msgstr ">= 6 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Other"
+msgstr "其他"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Band:"
+msgstr "波段:"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Track:"
+msgstr "跟踪:"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid ""
+"Filters FreeDV Reporter list based on radio's current frequency or band."
+msgstr "根据电台当前的频率或波段筛选 FreeDV Reporter 列表。"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "band"
+msgstr "波段"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "freq."
+msgstr "频率"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Idle Off"
+msgstr "空闲筛选: 关"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Message:"
+msgstr "消息:"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Send"
+msgstr "发送"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Sends message to FreeDV Reporter. Right-click for additional options."
+msgstr "将消息发送到 FreeDV Reporter。右键单击显示更多选项。"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Clear"
+msgstr "清除"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid ""
+"Clears message from FreeDV Reporter. Right-click for additional options."
+msgstr "清除 FreeDV Reporter 上的消息。右键单击显示更多选项。"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Show"
+msgstr "显示"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Distance"
+msgstr "距离"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Heading"
+msgstr "方位角"
+
+#: src/gui/dialogs/freedv_reporter.cpp src/topFrame.cpp
+msgid "Frequency"
+msgstr "频率"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "TX Mode"
+msgstr "发射模式"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "User Message"
+msgstr "用户消息"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Last TX Date"
+msgstr "最后发射日期"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Last RX Callsign"
+msgstr "最后接收呼号"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Idle more than (minutes)..."
+msgstr "空闲超过 (分钟)..."
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Disabled"
+msgstr "禁用"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Custom..."
+msgstr "自定义..."
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Send and save message"
+msgstr "发送并保存消息"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Only save message"
+msgstr "仅保存消息"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Remove selected from list"
+msgstr "从列表中移除所选项"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Clear all messages from list"
+msgstr "清除列表中的所有消息"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Edit message"
+msgstr "编辑消息"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Delete message"
+msgstr "删除消息"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Add new message"
+msgstr "添加新消息"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Copy message"
+msgstr "复制消息"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Lookup via QRZ"
+msgstr "通过 QRZ 查询"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Lookup via HamQTH"
+msgstr "通过 HamQTH 查询"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Lookup via HamCall"
+msgstr "通过 HamCall 查询"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Miles"
+msgstr "英里"
+
+#. TRANSLATORS: Abbreviation of "Direction".
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Dir"
+msgstr "方向"
+
+#. TRANSLATORS: %d is a number of minutes.
+#: src/gui/dialogs/freedv_reporter.cpp
+#, c-format
+msgid "Idle %d"
+msgstr "空闲筛选: %d 分"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Enter number of minutes: "
+msgstr "输入分钟数: "
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Max Idle Time"
+msgstr "最长空闲时间"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+#, c-format
+msgid "QSY request sent to %s"
+msgstr "已向 %s 发送 QSY 请求"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid ">= (Greater or equal to)"
+msgstr ">= (大于或等于)"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid ">  (Greater than)"
+msgstr ">  (大于)"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "=  (Equal to)"
+msgstr "=  (等于)"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "!= (Not equal to)"
+msgstr "!= (不等于)"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "<  (Less than)"
+msgstr "<  (小于)"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "<= (Less or equal to)"
+msgstr "<= (小于或等于)"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Enter value for column filter:"
+msgstr "输入列筛选值:"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Set Column Filter"
+msgstr "设置列筛选"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Clear Column Filter"
+msgstr "清除列筛选"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Edit Message"
+msgstr "编辑消息"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Edit the saved message:"
+msgstr "编辑已保存的消息:"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Add Message"
+msgstr "添加消息"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Enter new message:"
+msgstr "输入新消息:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Log Entry"
+msgstr "日志记录"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Your Call:"
+msgstr "您的呼号:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Your Locator:"
+msgstr "您的网格坐标:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Time (UTC):"
+msgstr "时间 (UTC):"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "DX Call:"
+msgstr "DX 呼号:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "DX Locator:"
+msgstr "DX 网格坐标:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Frequency (Hz):"
+msgstr "频率 (Hz):"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "TX Report:"
+msgstr "发送信号报告:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "59"
+msgstr "59"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "RX Report:"
+msgstr "接收信号报告:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Name:"
+msgstr "姓名:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Comments:"
+msgstr "备注:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Frequency (kHz):"
+msgstr "频率 (kHz):"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Frequency (MHz):"
+msgstr "频率 (MHz):"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Frequency and DX Call must be filled in in order to log the contact."
+msgstr "必须填写频率和 DX 呼号才能记录此次通联。"
+
+#: src/gui/dialogs/log_entry.h
+msgid "Confirm Log Entry"
+msgstr "确认日志记录"
+
+#: src/gui/dialogs/monitor_volume_adj.cpp
+msgid "Monitor volume (dB)"
+msgstr "监听音量 (dB)"
+
+#: src/gui/dialogs/tot_warning.cpp
+msgid "Time-Out Timer Warning"
+msgstr "超时定时器警告"
+
+#: src/gui/dialogs/tot_warning.cpp
+msgid "Transmit time-out is imminent!"
+msgstr "即将达到发射超时！"
+
+#: src/gui/dialogs/tot_warning.cpp
+msgid "Reset Timer"
+msgstr "重置定时器"
+
+#: src/gui/dialogs/tot_warning.cpp
+msgid "Resets the Time-Out Timer to extend transmission."
+msgstr "重置超时定时器以延长发射。"
+
+#: src/gui/dialogs/tot_warning.cpp
+#, c-format
+msgid "%d second remaining"
+msgid_plural "%d seconds remaining"
+msgstr[0] "剩余 %d 秒"
+
+#: src/gui/util/GridSquare.cpp
+msgid "ENE"
+msgstr "东北东"
+
+#: src/gui/util/GridSquare.cpp
+msgid "N"
+msgstr "北"
+
+#: src/gui/util/GridSquare.cpp
+msgid "NE"
+msgstr "东北"
+
+#: src/gui/util/GridSquare.cpp
+msgid "NNE"
+msgstr "北北东"
+
+#: src/gui/util/GridSquare.cpp
+msgid "E"
+msgstr "东"
+
+#: src/gui/util/GridSquare.cpp
+msgid "ESE"
+msgstr "东南东"
+
+#: src/gui/util/GridSquare.cpp
+msgid "SE"
+msgstr "东南"
+
+#: src/gui/util/GridSquare.cpp
+msgid "SSE"
+msgstr "南南东"
+
+#: src/gui/util/GridSquare.cpp
+msgid "S"
+msgstr "南"
+
+#: src/gui/util/GridSquare.cpp
+msgid "SSW"
+msgstr "南南西"
+
+#: src/gui/util/GridSquare.cpp
+msgid "SW"
+msgstr "西南"
+
+#: src/gui/util/GridSquare.cpp
+msgid "WSW"
+msgstr "西南西"
+
+#: src/gui/util/GridSquare.cpp
+msgid "NNW"
+msgstr "北北西"
+
+#: src/gui/util/GridSquare.cpp
+msgid "NW"
+msgstr "西北"
+
+#: src/gui/util/GridSquare.cpp
+msgid "W"
+msgstr "西"
+
+#: src/gui/util/GridSquare.cpp
+msgid "WNW"
+msgstr "西北西"
+
+#: src/main.cpp
+msgid "Use different configuration file instead of the default."
+msgstr "使用其他配置文件而非默认配置文件。"
+
+#: src/main.cpp
+msgid "Application Expired"
+msgstr "应用程序已过期"
+
+#: src/main.cpp
+msgid ""
+"This version of FreeDV has expired. Please download a new version from "
+"freedv.org."
+msgstr "此版本的 FreeDV 已过期。请从 freedv.org 下载新版本。"
+
+#: src/main.cpp src/ongui.cpp
+msgid "Radio Freq. (kHz)"
+msgstr "电台频率 (kHz)"
+
+#: src/main.cpp src/ongui.cpp
+msgid "kHz"
+msgstr "kHz"
+
+#: src/main.cpp src/ongui.cpp src/topFrame.cpp
+msgid "Radio Freq. (MHz)"
+msgstr "电台频率 (MHz)"
+
+#: src/main.cpp src/ongui.cpp
+msgid "MHz"
+msgstr "MHz"
+
+#: src/main.cpp src/ongui.cpp
+msgid "Turn On"
+msgstr "开启"
+
+#: src/main.cpp src/ongui.cpp src/topFrame.cpp
+msgid "Turn Off"
+msgstr "关闭"
+
+#: src/main.cpp src/voicekeyer.cpp
+#, c-format
+msgid "Toggle Voice Keyer using file %s. Right-click for additional options."
+msgstr "切换语音键控器 (使用文件 %s)。右键单击显示更多选项。"
+
+#. TRANSLATORS: %s is the name of the FreeDV mode (e.g. RADEV1, 700D).
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "Mode: %s"
+msgstr "模式: %s"
+
+#. TRANSLATORS: "unk" = unknown. The labels in the Stats box are abbreviated to save space.
+#: src/main.cpp
+msgid "Bits: unk"
+msgstr "比特: 未知"
+
+#: src/main.cpp
+msgid "Errs: unk"
+msgstr "错误: 未知"
+
+#: src/main.cpp
+msgid "BER: unk"
+msgstr "BER: 未知"
+
+#: src/main.cpp
+msgid "FrqOff: unk"
+msgstr "频偏: 未知"
+
+#: src/main.cpp
+msgid "Sync: unk"
+msgstr "同步: 未知"
+
+#: src/main.cpp
+msgid "Var: unk"
+msgstr "方差: 未知"
+
+#: src/main.cpp
+msgid "ClkOff: unk"
+msgstr "时钟偏: 未知"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "Bits: %d"
+msgstr "比特: %d"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "Errs: %d"
+msgstr "错误: %d"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "BER: %4.3f"
+msgstr "BER: %4.3f"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "Resyncs: %d"
+msgstr "重同步: %d"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "FrqOff: %3.1f"
+msgstr "频偏: %3.1f"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "Sync: %3.2f"
+msgstr "同步: %3.2f"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "Var: %4.1f"
+msgstr "方差: %4.1f"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "ClkOff: %+-d"
+msgstr "时钟偏: %+-d"
+
+#: src/main.cpp src/ongui.cpp
+#, c-format
+msgid " [Expires %s]"
+msgstr " [%s 到期]"
+
+#: src/main.cpp
+msgid "&Restore defaults"
+msgstr "恢复默认值(&R)"
+
+#: src/main.cpp
+msgid "Delete config file/keys and restore defaults"
+msgstr "删除配置文件/注册表项并恢复默认值"
+
+#: src/main.cpp
+msgid "Double click to tune, middle click to re-center"
+msgstr "双击以调谐，中键单击重新居中"
+
+#: src/main.cpp
+msgid "Waterfall"
+msgstr "瀑布图"
+
+#: src/main.cpp
+msgid "Spectrum"
+msgstr "频谱"
+
+#: src/main.cpp
+msgid "Frm Radio"
+msgstr "来自电台"
+
+#: src/main.cpp
+msgid "Frm Mic"
+msgstr "来自麦克风"
+
+#: src/main.cpp
+msgid "Frm Decoder"
+msgstr "来自解码器"
+
+#: src/main.cpp
+msgid "AGC dB"
+msgstr "AGC dB"
+
+#: src/main.cpp
+msgid "&Use another voice keyer file..."
+msgstr "使用其他语音键控器文件(&U)..."
+
+#: src/main.cpp
+msgid "&Record new voice keyer file..."
+msgstr "录制新的语音键控器文件(&R)..."
+
+#: src/main.cpp
+msgid "Monitor transmitted audio"
+msgstr "监听发射音频"
+
+#: src/main.cpp
+msgid "Adjust Monitor Volume..."
+msgstr "调整监听音量..."
+
+#: src/main.cpp
+msgid ""
+"Reporting requires a valid callsign and grid square in Tools->Settings. "
+"Reporting will be disabled."
+msgstr ""
+"上报功能需要在“工具->设置”中填写有效的呼号和网格坐标。上报功能将被禁用。"
+
+#: src/main.cpp
+msgid ""
+"Microphone permissions must be granted to FreeDV for it to function properly."
+msgstr "必须授予 FreeDV 麦克风权限才能正常运行。"
+
+#: src/main.cpp
+msgid "&Stop Modem"
+msgstr "停止调制解调器(&S)"
+
+#: src/main.cpp src/topFrame.cpp
+msgid "&Start Modem"
+msgstr "启动调制解调器(&S)"
+
+#: src/main.cpp
+msgid "No Sound Cards configured, use Tools->Settings to configure"
+msgstr "尚未配置声卡，请使用“工具->设置”进行配置"
+
+#: src/main.cpp
+#, c-format
+msgid ""
+"Could not find RX input sound device '%s'. Please check settings and try "
+"again."
+msgstr "找不到接收输入音频设备 '%s'。请检查设置后重试。"
+
+#: src/main.cpp
+#, c-format
+msgid ""
+"Could not find RX output sound device '%s'. Please check settings and try "
+"again."
+msgstr "找不到接收输出音频设备 '%s'。请检查设置后重试。"
+
+#: src/main.cpp
+#, c-format
+msgid ""
+"Could not find TX input sound device '%s'. Please check settings and try "
+"again."
+msgstr "找不到发射输入音频设备 '%s'。请检查设置后重试。"
+
+#: src/main.cpp
+#, c-format
+msgid ""
+"Could not find TX output sound device '%s'. Please check settings and try "
+"again."
+msgstr "找不到发射输出音频设备 '%s'。请检查设置后重试。"
+
+#: src/main.cpp
+#, c-format
+msgid "Error encountered while initializing the audio engine: %s."
+msgstr "初始化音频引擎时出错: %s。"
+
+#: src/main.cpp
+#, c-format
+msgid ""
+"Your %s device cannot be found and may have been removed from your system. "
+"Please reattach this device, close this message box and retry. If this "
+"fails, go to Tools->Settings to check your settings."
+msgstr ""
+"找不到您的 %s 设备，它可能已从系统中移除。请重新连接此设备，关闭此消息框后重"
+"试。如果仍然失败，请前往“工具->设置”检查您的设置。"
+
+#: src/main.cpp
+msgid "Sound Device Not Found"
+msgstr "找不到音频设备"
+
+#: src/main.cpp
+#, c-format
+msgid ""
+"Your %s device is set to use a sample rate of %d, which is less than the "
+"minimum of %d. Please go to Tools->Settings to check your settings."
+msgstr ""
+"您的 %s 设备设置的采样率为 %d，低于最低要求的 %d。请前往“工具->设置”检查您的"
+"设置。"
+
+#: src/main.cpp src/voicekeyer.cpp
+msgid "Sample Rate Too Low"
+msgstr "采样率过低"
+
+#. TRANSLATORS: First %s is a callsign, second %s is a frequency.
+#: src/main.cpp
+#, c-format
+msgid "%s has requested that you QSY to %s kHz."
+msgstr "%s 请求您 QSY 到 %s kHz。"
+
+#. TRANSLATORS: First %s is a callsign, second %s is a frequency.
+#: src/main.cpp
+#, c-format
+msgid "%s has requested that you QSY to %s MHz."
+msgstr "%s 请求您 QSY 到 %s MHz。"
+
+#. TRANSLATORS: %s is the QSY request message.
+#: src/main.cpp
+#, c-format
+msgid "%s Would you like to change to that frequency now?"
+msgstr "%s 要现在切换到该频率吗？"
+
+#: src/main.cpp
+msgid "Change Frequency"
+msgstr "更改频率"
+
+#: src/main.cpp
+#, c-format
+msgid "Error encountered while processing audio: %s"
+msgstr "处理音频时出错: %s"
+
+#. TRANSLATORS: The first two %s are the FreeDV version, the third is the git
+#. commit hash and the fourth is the Hamlib version.
+#: src/ongui.cpp
+#, c-format
+msgid ""
+"FreeDV GUI %s\n"
+"\n"
+"For Help and Support visit: http://freedv.org\n"
+"\n"
+"GNU Public License V2.1\n"
+"\n"
+"Created by David Witten KD0EAG and David Rowe VK5DGR (2012).  Currently "
+"maintained by Mooneer Salem K6AQ and David Rowe VK5DGR.\n"
+"\n"
+"freedv-gui version: %s\n"
+"freedv-gui git hash: %s\n"
+"Using %s\n"
+msgstr ""
+"FreeDV GUI %s\n"
+"\n"
+"如需帮助与支持，请访问: http://freedv.org\n"
+"\n"
+"GNU Public License V2.1\n"
+"\n"
+"由 David Witten KD0EAG 和 David Rowe VK5DGR 创建 (2012)。  目前由 Mooneer "
+"Salem K6AQ 和 David Rowe VK5DGR 维护。\n"
+"\n"
+"freedv-gui 版本: %s\n"
+"freedv-gui git hash: %s\n"
+"使用 %s\n"
+
+#: src/ongui.cpp
+msgid "About"
+msgstr "关于"
+
+#. TRANSLATORS: "unk" = unknown.
+#: src/ongui.cpp src/topFrame.cpp
+msgid "unk"
+msgstr "未知"
+
+#: src/ongui.cpp
+msgid ""
+"The radio's model is empty. This is likely due to changes in Hamlib between "
+"FreeDV releases. Please click Stop Modem, double-check your CAT settings and "
+"push Start Modem again."
+msgstr ""
+"电台型号为空。这通常是因为 FreeDV 版本之间 Hamlib 有所变更。请点击“停止调制解"
+"调器”，再次确认您的 CAT 设置，然后重新点击“启动调制解调器”。"
+
+#. TRANSLATORS: %s is the error message returned by Hamlib.
+#: src/ongui.cpp
+#, c-format
+msgid "Couldn't connect to Radio with hamlib: %s"
+msgstr "无法通过 Hamlib 连接到电台: %s"
+
+#. TRANSLATORS: %s is the error message returned by OmniRig.
+#: src/ongui.cpp
+#, c-format
+msgid "Couldn't connect to Radio with OmniRig: %s"
+msgstr "无法通过 OmniRig 连接到电台: %s"
+
+#: src/ongui.cpp
+msgid "Restore Defaults"
+msgstr "恢复默认值"
+
+#: src/ongui.cpp
+msgid "Would you like to restore configuration to defaults?"
+msgstr "要将配置恢复为默认值吗？"
+
+#: src/ongui.cpp
+msgid "Config file/registry key successfully deleted."
+msgstr "已成功删除配置文件/注册表项。"
+
+#: src/ongui.cpp
+msgid "Deleting config file/registry key failed."
+msgstr "删除配置文件/注册表项失败。"
+
+#: src/ongui.cpp
+#, c-format
+msgid "Disable auto-save of TX atten for %s"
+msgstr "禁用 %s 的发射衰减自动保存"
+
+#: src/ongui.cpp
+#, c-format
+msgid "Enable auto-save of TX atten for %s"
+msgstr "启用 %s 的发射衰减自动保存"
+
+#: src/ongui.cpp
+#, c-format
+msgid "Restore TX atten level for %s"
+msgstr "恢复 %s 的发射衰减电平"
+
+#: src/ongui.cpp
+msgid "Set tune output to minimum (-30 dB)"
+msgstr "将调谐输出设为最小 (-30 dB)"
+
+#: src/ongui.cpp
+#, c-format
+msgid "Disable auto-save of tune atten for %s"
+msgstr "禁用 %s 的调谐衰减自动保存"
+
+#: src/ongui.cpp
+#, c-format
+msgid "Enable auto-save of tune atten for %s"
+msgstr "启用 %s 的调谐衰减自动保存"
+
+#: src/ongui.cpp
+#, c-format
+msgid "Restore tune atten level for %s"
+msgstr "恢复 %s 的调谐衰减电平"
+
+#: src/ongui.cpp
+msgid "TX Ending"
+msgstr "发射结束中"
+
+#: src/ongui.cpp src/topFrame.cpp
+msgid "&XMIT"
+msgstr "发射(&X)"
+
+#: src/ongui.cpp
+msgid "Tune &Attenuation"
+msgstr "调谐衰减(&A)"
+
+#: src/ongui.cpp src/topFrame.cpp
+msgid "TX &Attenuation"
+msgstr "发射衰减(&A)"
+
+#: src/ongui.cpp
+msgid "Switch to Di&gital"
+msgstr "切换到数字(&G)"
+
+#: src/ongui.cpp src/topFrame.cpp
+msgid "Switch to A&nalog"
+msgstr "切换到模拟(&N)"
+
+#: src/ongui.cpp
+#, c-format
+msgid "&Add %s%s to list"
+msgstr "将 %s%s 添加到列表(&A)"
+
+#: src/ongui.cpp
+msgid "&Add frequency to list"
+msgstr "将频率添加到列表(&A)"
+
+#: src/ongui.cpp
+msgid "&Cut"
+msgstr "剪切(&C)"
+
+#: src/ongui.cpp
+msgid "C&opy"
+msgstr "复制(&O)"
+
+#: src/ongui.cpp
+msgid "&Paste"
+msgstr "粘贴(&P)"
+
+#: src/ongui.cpp
+#, c-format
+msgid "&Delete %s%s from list"
+msgstr "从列表中删除 %s%s(&D)"
+
+#: src/ongui.cpp
+msgid "Export FreeDV Configuration"
+msgstr "导出 FreeDV 配置"
+
+#: src/ongui.cpp
+msgid "FreeDV configuration files (*.conf)"
+msgstr "FreeDV 配置文件 (*.conf)"
+
+#: src/ongui.cpp
+msgid "Import FreeDV Configuration"
+msgstr "导入 FreeDV 配置"
+
+#: src/ongui.cpp
+msgid "Import Error"
+msgstr "导入错误"
+
+#: src/ongui.cpp
+msgid "The selected file does not exist."
+msgstr "所选文件不存在。"
+
+#: src/ongui.cpp
+msgid "The selected file could not be parsed as a FreeDV configuration."
+msgstr "无法将所选文件解析为 FreeDV 配置。"
+
+#: src/ongui.cpp
+msgid "This will load the default FreeDV configuration. Are you sure?"
+msgstr "这将加载 FreeDV 的默认配置。确定要继续吗？"
+
+#: src/ongui.cpp
+msgid "Load Default Configuration"
+msgstr "加载默认配置"
+
+#: src/playrec.cpp
+msgid "Loop"
+msgstr "循环播放"
+
+#: src/playrec.cpp
+msgid "When checked file will repeat forever"
+msgstr "勾选后文件将无限循环播放"
+
+#: src/playrec.cpp
+msgid "Start Play File - From Radio..."
+msgstr "开始播放文件 - 来自电台..."
+
+#: src/playrec.cpp
+msgid "Play File - From Radio"
+msgstr "播放文件 - 来自电台"
+
+#: src/playrec.cpp
+msgid "WAV and RAW files (*.wav;*.raw)"
+msgstr "WAV 和 RAW 文件 (*.wav;*.raw)"
+
+#: src/playrec.cpp src/voicekeyer.cpp
+msgid "Couldn't open sound file"
+msgstr "无法打开音频文件"
+
+#: src/playrec.cpp
+#, c-format
+msgid "Playing raw file %s as radio input (assuming Fs=%d)"
+msgstr "正在将 RAW 文件 %s 作为电台输入播放 (假设 Fs=%d)"
+
+#: src/playrec.cpp
+#, c-format
+msgid "Playing file %s as radio input"
+msgstr "正在将文件 %s 作为电台输入播放"
+
+#: src/playrec.cpp
+msgid "Stop Play File - From Radio..."
+msgstr "停止播放文件 - 来自电台..."
+
+#: src/playrec.cpp
+#, c-format
+msgid "Recording file %s from radio and file %s from decoder"
+msgstr "正在录制来自电台的文件 %s 和来自解码器的文件 %s"
+
+#: src/playrec.cpp
+#, c-format
+msgid "Recording file %s from radio"
+msgstr "正在录制来自电台的文件 %s"
+
+#: src/playrec.cpp
+#, c-format
+msgid "Recording file %s from decoder"
+msgstr "正在录制来自解码器的文件 %s"
+
+#. TRANSLATORS: Read aloud by screen readers in place of the "." in the version number.
+#: src/topFrame.cpp
+msgid " point "
+msgstr " 点 "
+
+#: src/topFrame.cpp
+msgid "Always keeps FreeDV above other windows"
+msgstr "始终将 FreeDV 保持在其他窗口之上"
+
+#: src/topFrame.cpp
+msgid "Keep &On Top"
+msgstr "保持置顶(&O)"
+
+#: src/topFrame.cpp
+msgid "E&xit"
+msgstr "退出(&X)"
+
+#: src/topFrame.cpp
+msgid "Exit Program"
+msgstr "退出程序"
+
+#: src/topFrame.cpp
+msgid "&File"
+msgstr "文件(&F)"
+
+#: src/topFrame.cpp
+msgid "&Edit Settings...\tCTRL-,"
+msgstr "编辑设置(&E)...\tCTRL-,"
+
+#: src/topFrame.cpp
+msgid "Miscellaneous FreeDV configuration options"
+msgstr "FreeDV 的其他配置选项"
+
+#: src/topFrame.cpp
+msgid "&Edit Settings..."
+msgstr "编辑设置(&E)..."
+
+#: src/topFrame.cpp
+msgid "Re-run the FreeDV Setup Wizard"
+msgstr "重新运行 FreeDV 设置向导"
+
+#: src/topFrame.cpp
+msgid "Setup &Wizard..."
+msgstr "设置向导(&W)..."
+
+#: src/topFrame.cpp
+msgid "&Export Configuration..."
+msgstr "导出配置(&E)..."
+
+#: src/topFrame.cpp
+msgid "Exports the current FreeDV configuration to a file"
+msgstr "将当前的 FreeDV 配置导出到文件"
+
+#: src/topFrame.cpp
+msgid "&Use Configuration..."
+msgstr "使用配置文件(&U)..."
+
+#: src/topFrame.cpp
+msgid "Loads a FreeDV configuration from a file"
+msgstr "从文件加载 FreeDV 配置"
+
+#: src/topFrame.cpp
+msgid "Load &Default Configuration"
+msgstr "加载默认配置(&D)"
+
+#: src/topFrame.cpp
+msgid "Resets FreeDV to its default configuration"
+msgstr "将 FreeDV 重置为默认配置"
+
+#: src/topFrame.cpp
+msgid "&Settings"
+msgstr "设置(&S)"
+
+#: src/topFrame.cpp
+msgid "FreeDV R&eporter"
+msgstr "FreeDV Reporter(&E)"
+
+#: src/topFrame.cpp
+msgid "Opens browser window and displays FreeDV Reporter service."
+msgstr "打开浏览器窗口并显示 FreeDV Reporter 服务。"
+
+#: src/topFrame.cpp
+msgid "Configures audio filtering"
+msgstr "配置音频滤波"
+
+#: src/topFrame.cpp
+msgid "Filter &Audio..."
+msgstr "音频滤波(&A)..."
+
+#: src/topFrame.cpp
+msgid "Pipes radio sound input from file"
+msgstr "从文件提供电台音频输入"
+
+#: src/topFrame.cpp
+msgid "Start &Play File - From Radio..."
+msgstr "开始播放文件 - 来自电台(&P)..."
+
+#: src/topFrame.cpp
+msgid "&Tools"
+msgstr "工具(&T)"
+
+#: src/topFrame.cpp
+msgid "&Check for Updates"
+msgstr "检查更新(&C)"
+
+#: src/topFrame.cpp
+msgid "Checks for updates to FreeDV"
+msgstr "检查 FreeDV 的更新"
+
+#: src/topFrame.cpp
+msgid "&About FreeDV"
+msgstr "关于 FreeDV(&A)"
+
+#: src/topFrame.cpp
+msgid "About this program"
+msgstr "关于本程序"
+
+#: src/topFrame.cpp
+msgid "&User Manual..."
+msgstr "用户手册(&U)..."
+
+#: src/topFrame.cpp
+msgid "Loads the user manual"
+msgstr "打开用户手册"
+
+#: src/topFrame.cpp
+msgid "&Get Assistance"
+msgstr "获取帮助(&G)"
+
+#: src/topFrame.cpp
+msgid "Gets assistance with FreeDV setup"
+msgstr "获取 FreeDV 设置方面的帮助"
+
+#: src/topFrame.cpp
+msgid "&Help"
+msgstr "帮助(&H)"
+
+#: src/topFrame.cpp
+msgid "Displays signal to noise ratio in dB."
+msgstr "以 dB 显示信噪比。"
+
+#: src/topFrame.cpp
+msgid "Slow"
+msgstr "慢速"
+
+#: src/topFrame.cpp
+msgid "Smooth but slow SNR estimation"
+msgstr "平滑但较慢的 SNR 估计"
+
+#: src/topFrame.cpp
+msgid "Level"
+msgstr "电平"
+
+#: src/topFrame.cpp
+msgid ""
+"RX: Peak level of radio's audio output, TX: Peak level of microphone audio "
+"from the sound card (before noise reduction/AGC/level settings)."
+msgstr ""
+"接收: 电台音频输出的峰值电平；发射: 来自声卡的麦克风音频峰值电平 (在降噪/AGC/"
+"电平设置之前)。"
+
+#: src/topFrame.cpp
+msgid "Sync"
+msgstr "同步"
+
+#: src/topFrame.cpp
+msgid "C&enter RX"
+msgstr "接收居中(&E)"
+
+#: src/topFrame.cpp
+msgid "Audio Recording"
+msgstr "音频录制"
+
+#: src/topFrame.cpp
+msgid "Record"
+msgstr "录音"
+
+#: src/topFrame.cpp
+msgid "Records incoming over the air signals as well as anything transmitted."
+msgstr "录制接收到的空中信号以及所有发射的内容。"
+
+#: src/topFrame.cpp
+msgid "Logging"
+msgstr "日志"
+
+#: src/topFrame.cpp
+msgid "Log QSO"
+msgstr "记录 QSO"
+
+#: src/topFrame.cpp
+msgid "Logs most recent QSO."
+msgstr "记录最近一次 QSO。"
+
+#: src/topFrame.cpp
+msgid "FDV Reporting"
+msgstr "FDV 上报"
+
+#: src/topFrame.cpp
+msgid ""
+"Quick ON/OFF for FreeDV Reporting, when enabled in Tools->Settings-"
+">Reporting."
+msgstr "在“工具->设置->上报”中启用后，可快速开启/关闭 FreeDV 上报。"
+
+#: src/topFrame.cpp
+msgid "Stats"
+msgstr "统计"
+
+#: src/topFrame.cpp
+msgid "&Reset"
+msgstr "重置(&R)"
+
+#: src/topFrame.cpp
+msgid "&Clear"
+msgstr "清除(&C)"
+
+#: src/topFrame.cpp
+msgid "Call Sign of transmitting station will appear here"
+msgstr "发射电台的呼号将显示在这里"
+
+#: src/topFrame.cpp
+msgid "Date/Time"
+msgstr "日期/时间"
+
+#: src/topFrame.cpp
+msgid "Decrease output by 1.0dB"
+msgstr "输出降低 1.0dB"
+
+#: src/topFrame.cpp
+msgid "Decrease output by 0.2dB"
+msgstr "输出降低 0.2dB"
+
+#: src/topFrame.cpp
+msgid "Increase output by 0.2dB"
+msgstr "输出提高 0.2dB"
+
+#: src/topFrame.cpp
+msgid "Increase output by 1.0dB"
+msgstr "输出提高 1.0dB"
+
+#: src/topFrame.cpp
+msgid ""
+"Use mouse scroll wheel to adjust up or down\n"
+"Right click for more options"
+msgstr ""
+"使用鼠标滚轮向上或向下调整\n"
+"右键单击显示更多选项"
+
+#: src/topFrame.cpp
+msgid "Speaker &Level"
+msgstr "扬声器音量(&L)"
+
+#: src/topFrame.cpp
+msgid "Control"
+msgstr "控制"
+
+#: src/topFrame.cpp
+msgid "Begin/End receiving data."
+msgstr "开始/结束接收数据。"
+
+#: src/topFrame.cpp
+msgid "Toggle analog/digital operation."
+msgstr "切换模拟/数字操作。"
+
+#: src/topFrame.cpp
+msgid "&Tune"
+msgstr "调谐(&T)"
+
+#: src/topFrame.cpp
+msgid ""
+"Emits 1500 Hz carrier to enable rig/antenna tuning.\n"
+"Right click for more options"
+msgstr ""
+"发出 1500 Hz 载波以便调谐电台/天线。\n"
+"右键单击显示更多选项"
+
+#: src/topFrame.cpp src/voicekeyer.cpp
+msgid "Start Voice &Keyer"
+msgstr "启动语音键控器(&K)"
+
+#: src/topFrame.cpp
+msgid "Toggle Voice Keyer. Right-click for additional options."
+msgstr "切换语音键控器。右键单击显示更多选项。"
+
+#: src/topFrame.cpp
+msgid ""
+"Switch between Receive and Transmit. Right-click for additional options."
+msgstr "在接收和发射之间切换。右键单击显示更多选项。"
+
+#: src/topFrame.h
+msgid "FreeDV "
+msgstr "FreeDV "
+
+#: src/util.cpp
+#, c-format
+msgid "Could not open serial port %s."
+msgstr "无法打开串口 %s。"
+
+#: src/util.cpp
+msgid "Please ensure that no other applications are accessing the port."
+msgstr "请确保没有其他应用程序正在使用该端口。"
+
+#: src/util.cpp
+msgid ""
+"Please ensure that you have permission to access the port. Adding yourself "
+"to the 'dialout' group (and logging out/back in) along with reattaching your "
+"radio to your PC will typically ensure this."
+msgstr ""
+"请确保您有访问该端口的权限。通常将自己加入 'dialout' 组 (并注销后重新登录)，"
+"然后重新连接电台与电脑即可。"
+
+#: src/util.cpp
+msgid "Please ensure that you have permission to access the port."
+msgstr "请确保您有访问该端口的权限。"
+
+#. TRANSLATORS: %s is the error message returned by the operating system.
+#: src/util.cpp
+#, c-format
+msgid "Couldn't open serial port for PTT output: %s"
+msgstr "无法打开 PTT 输出用的串口: %s"
+
+#. TRANSLATORS: %s is the error message returned by the operating system.
+#: src/util.cpp
+#, c-format
+msgid "Couldn't open PTT input port: %s"
+msgstr "无法打开 PTT 输入端口: %s"
+
+#: src/voicekeyer.cpp
+msgid "Stop Voice &Keyer"
+msgstr "停止语音键控器(&K)"
+
+#: src/voicekeyer.cpp
+msgid "Select Voice Keyer File"
+msgstr "选择语音键控器文件"
+
+#: src/voicekeyer.cpp
+msgid "WAV files (*.wav)"
+msgstr "WAV 文件 (*.wav)"
+
+#: src/voicekeyer.cpp
+#, c-format
+msgid "Recording file %s from microphone"
+msgstr "正在从麦克风录制文件 %s"
+
+#: src/voicekeyer.cpp
+msgid "Sound files (*.wav;*.mp3)"
+msgstr "音频文件 (*.wav;*.mp3)"
+
+#: src/voicekeyer.cpp
+msgid "MP3 files (*.mp3)"
+msgstr "MP3 文件 (*.mp3)"
+
+#: src/voicekeyer.cpp
+#, c-format
+msgid "Couldn't open: %s"
+msgstr "无法打开: %s"
+
+#: src/voicekeyer.cpp
+msgid ""
+"The selected voice keyer file does not have a high enough sample rate to "
+"guarantee acceptable audio quality. Please ensure that your file's sample "
+"rate is 16 kHz or greater."
+msgstr ""
+"所选语音键控器文件的采样率不够高，无法保证可接受的音频质量。请确保文件的采样"
+"率为 16 kHz 或更高。"
+
+#: src/voicekeyer.cpp
+msgid ""
+"The selected voice keyer file must only contain a single channel. Please use "
+"an audio editor to convert the file to a mono file."
+msgstr ""
+"所选语音键控器文件只能包含单个声道。请使用音频编辑器将文件转换为单声道。"
+
+#: src/voicekeyer.cpp
+msgid "Too Many Channels"
+msgstr "声道数过多"
+
+#: src/voicekeyer.cpp
+#, c-format
+msgid "Voice Keyer: Playing file %s to mic input"
+msgstr "语音键控器: 正在将文件 %s 播放到麦克风输入"
