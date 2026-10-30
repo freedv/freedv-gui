@@ -4106,47 +4106,62 @@ bool MainFrame::validateSoundCardSetup(bool silent)
     }
     else
     {
-        const int MIN_SAMPLE_RATE_ANALOG = 16000;
-        const int MIN_SAMPLE_RATE_RADIO = 8000;
-        int failedSampleRate = 0;
-        int expectedSampleRate = 0;
-        int expectedSampleRate1Out = (g_nSoundCards.load(std::memory_order_acquire) == 1 ? MIN_SAMPLE_RATE_ANALOG : MIN_SAMPLE_RATE_RADIO);
-        
-        // Validate sample rates
-        if (wxGetApp().appConfiguration.audioConfiguration.soundCard1In.deviceName != "none" && wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate < MIN_SAMPLE_RATE_RADIO)
+        // Below 8 kHz, FreeDV can't run at all. Mic and speaker devices
+        // below 16 kHz still work (audio is resampled), but they can't carry
+        // the upper half of RADE's 8 kHz audio bandwidth, so warn instead.
+        const int MIN_SAMPLE_RATE = 8000;
+        const int MIN_SAMPLE_RATE_ANALOG_RECOMMENDED = 16000;
+        auto& audioConfig = wxGetApp().appConfiguration.audioConfiguration;
+        bool oneSoundCard = g_nSoundCards.load(std::memory_order_acquire) == 1;
+
+        struct DeviceToCheck
         {
-            failedDeviceName = wxGetApp().appConfiguration.audioConfiguration.soundCard1In.deviceName.get();
-            failedSampleRate = wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate;
-            expectedSampleRate = MIN_SAMPLE_RATE_RADIO;
-            canRun = false;
+            wxString deviceName;
+            int sampleRate;
+            bool isAnalog;
+        };
+        DeviceToCheck devicesToCheck[] = {
+            { audioConfig.soundCard1In.deviceName, audioConfig.soundCard1In.sampleRate, false },
+            { audioConfig.soundCard1Out.deviceName, audioConfig.soundCard1Out.sampleRate, oneSoundCard },
+            { audioConfig.soundCard2In.deviceName, audioConfig.soundCard2In.sampleRate, true },
+            { audioConfig.soundCard2Out.deviceName, audioConfig.soundCard2Out.sampleRate, true },
+        };
+
+        wxString lowRateAnalogDevices;
+        for (auto& device : devicesToCheck)
+        {
+            const wxString& deviceName = device.deviceName;
+            if (deviceName == "none")
+            {
+                continue;
+            }
+
+            if (device.sampleRate < MIN_SAMPLE_RATE)
+            {
+                if (!silent)
+                {
+                    wxMessageBox(wxString::Format(
+                        "Your %s device is set to use a sample rate of %d, which is less than the minimum of %d. Please go to Tools->Audio Config... to check your settings.",
+                        deviceName, device.sampleRate, MIN_SAMPLE_RATE), wxT("Sample Rate Too Low"), wxOK, this);
+                }
+                canRun = false;
+                break;
+            }
+            else if (device.isAnalog && device.sampleRate < MIN_SAMPLE_RATE_ANALOG_RECOMMENDED)
+            {
+                log_warn("%s is using a sample rate of %d; audio above %d Hz will be lost", (const char*)deviceName.ToUTF8(), device.sampleRate, device.sampleRate / 2);
+                lowRateAnalogDevices += wxString::Format("\n%s (%d Hz)", deviceName, device.sampleRate);
+            }
         }
-        else if (wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.deviceName != "none" && wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate < expectedSampleRate1Out)
+
+        // Only warn once per session so that each Start doesn't bring this up again.
+        static bool lowRateWarningShown = false;
+        if (canRun && !silent && !lowRateAnalogDevices.IsEmpty() && !lowRateWarningShown)
         {
-            failedDeviceName = wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.deviceName.get();
-            failedSampleRate = wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate;
-            expectedSampleRate = expectedSampleRate1Out;
-            canRun = false;
-        }
-        else if (wxGetApp().appConfiguration.audioConfiguration.soundCard2In.deviceName != "none" && wxGetApp().appConfiguration.audioConfiguration.soundCard2In.sampleRate < MIN_SAMPLE_RATE_ANALOG)
-        {
-            failedDeviceName = wxGetApp().appConfiguration.audioConfiguration.soundCard2In.deviceName.get();
-            failedSampleRate = wxGetApp().appConfiguration.audioConfiguration.soundCard2In.sampleRate;
-            expectedSampleRate = MIN_SAMPLE_RATE_ANALOG;
-            canRun = false;
-        }
-        else if (wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.deviceName != "none" && wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate < MIN_SAMPLE_RATE_ANALOG)
-        {
-            failedDeviceName = wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.deviceName.get();
-            failedSampleRate = wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate;
-            expectedSampleRate = MIN_SAMPLE_RATE_ANALOG;
-            canRun = false;
-        }
-        
-        if (!canRun && !silent)
-        {
+            lowRateWarningShown = true;
             wxMessageBox(wxString::Format(
-                "Your %s device is set to use a sample rate of %d, which is less than the minimum of %d. Please go to Tools->Audio Config... to check your settings.",
-                failedDeviceName, failedSampleRate, expectedSampleRate), wxT("Sample Rate Too Low"), wxOK, this);
+                "The following microphone/speaker devices are set to a sample rate below the recommended minimum of %d Hz:%s\n\nFreeDV will still work, but speech will sound muffled to you or to other stations, depending on which device it is. Bluetooth headsets often use 8 kHz for calls; if yours supports a wideband (16 kHz) mode, consider enabling it. Go to Tools->Audio Config... to check your settings.",
+                MIN_SAMPLE_RATE_ANALOG_RECOMMENDED, lowRateAnalogDevices), wxT("Low Sample Rate"), wxOK | wxICON_WARNING, this);
         }
     }
     

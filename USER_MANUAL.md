@@ -1027,6 +1027,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Windows: Fix issue preventing audio devices that don't support raw mode from starting. (PR #1594)
     * PlotScalar: draw the trace when the plot is wider than its sample count. (PR #1597) - thanks @barjac!
     * Linux/FreeDV Reporter: fix uninitialized value deciding whether a selection is honored. (PR #1606)
+    * Allow microphone and speaker devices below 16 kHz (such as Bluetooth headsets in call mode) with a warning instead of refusing to start. (PR #1608)
     * FreeDV Reporter: fix possible crash when repeatedly connecting and disconnecting. (freedv-backend PR #44)
     * FreeDV Reporter: fix exiting FreeDV taking up to 60 seconds when the server stalls setting up the secure connection; give up on it after 10 seconds instead. (freedv-backend PR #63)
     * FreeDV Reporter: fix memory leak when FreeDV exits just as FreeDV Reporter connects. (freedv-backend PR #75)
