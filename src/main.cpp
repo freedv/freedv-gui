@@ -4127,6 +4127,7 @@ bool MainFrame::validateSoundCardSetup(bool silent)
             { audioConfig.soundCard2Out.deviceName, audioConfig.soundCard2Out.sampleRate, true },
         };
 
+        std::vector<wxString> lowRateDeviceList;
         wxString lowRateAnalogDevices;
         for (auto& device : devicesToCheck)
         {
@@ -4150,17 +4151,32 @@ bool MainFrame::validateSoundCardSetup(bool silent)
             else if (device.isAnalog && device.sampleRate < MIN_SAMPLE_RATE_ANALOG_RECOMMENDED)
             {
                 log_warn("%s is using a sample rate of %d; audio above %d Hz will be lost", (const char*)deviceName.ToUTF8(), device.sampleRate, device.sampleRate / 2);
-                lowRateAnalogDevices += wxString::Format("\n%s (%d Hz)", deviceName, device.sampleRate);
+                wxString lowRateDeviceString = wxString::Format("%s (%d Hz)", deviceName, device.sampleRate);
+                bool found = false;
+                for (auto& str : lowRateDeviceList)
+                {
+                    if (str == lowRateDeviceString)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) lowRateDeviceList.push_back(lowRateDeviceString);
             }
         }
 
         // Only warn once per session so that each Start doesn't bring this up again.
+        for (auto& str : lowRateDeviceList)
+        {
+            lowRateAnalogDevices += wxString::Format("\n%s", str);
+        }
+
         static bool lowRateWarningShown = false;
         if (canRun && !silent && !lowRateAnalogDevices.IsEmpty() && !lowRateWarningShown)
         {
             lowRateWarningShown = true;
             wxMessageBox(wxString::Format(
-                "The following microphone/speaker devices are set to a sample rate below the recommended minimum of %d Hz:%s\n\nFreeDV will still work, but speech will sound muffled to you or to other stations, depending on which device it is. Bluetooth headsets often use 8 kHz for calls; if yours supports a wideband (16 kHz) mode, consider enabling it. Go to Tools->Audio Config... to check your settings.",
+                "The following microphone/speaker devices are set to a sample rate below the recommended minimum of %d Hz:\n%s\n\nFreeDV will still work, but speech will sound muffled to you or to other stations, depending on which device it is. If your device supports a sample rate higher than 16 kHz, consider enabling it.",
                 MIN_SAMPLE_RATE_ANALOG_RECOMMENDED, lowRateAnalogDevices), wxT("Low Sample Rate"), wxOK | wxICON_WARNING, this);
         }
     }
