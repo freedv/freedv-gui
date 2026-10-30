@@ -1032,6 +1032,12 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * FreeDV Reporter: fix memory leak when FreeDV exits just as FreeDV Reporter connects. (freedv-backend PR #75)
     * Recording: fix up to the last 100 ms of audio being lost when a recording stops, and log when audio has to be dropped. (freedv-backend PR #71, #72)
     * Fix conversion of 16-bit audio to floating point going slightly past full scale. (freedv-backend PR #60)
+    * Fix buffer overruns when one RADE receive call decodes several frames and when resampling 8 kHz audio by large ratios. (freedv-backend PR #78)
+    * Fix the audio pipeline rebuilding its resampler when the sample rate is unchanged but not when it changes, and freeing the kept resampler twice. (freedv-backend PR #78)
+    * FreeDV Reporter: refuse a secure connection if TLS 1.2 or certificate hostname checking can't be enforced. (freedv-backend PR #78)
+    * macOS/FreeDV Reporter: fix endless loop and log spam when the connection closes while sending. (freedv-backend PR #78)
+    * Fix network and threading code continuing after a failed socket or semaphore setup, Linux semaphore waits ending early on a signal, and a macOS crash on an empty background task. (freedv-backend PR #78)
+    * Windows: fix exiting FreeDV taking 20 seconds or more while logging heavily. (freedv-backend PR #78)
 2. Build system:
     * Windows versions are now built with llvm-mingw 20260908 (PR #1489)
     * Ccache support extended to third party dependencies. (PR #1498, #1505))
