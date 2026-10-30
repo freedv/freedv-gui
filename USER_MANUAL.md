@@ -947,7 +947,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
 
 # Release Notes
 
-## V2.4.1 TBD 2026
+## V2.4.1 October 2026
 
 1. Bugfixes:
     * Add logic to prevent FIFO sizes that are too small to allow TX thread to function. (PR #1474)
