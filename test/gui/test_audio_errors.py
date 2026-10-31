@@ -162,10 +162,12 @@ def test_missing_device():
 
 
 def test_low_sample_rate():
-    """Starting with a device set to a sample rate that's too low to use."""
+    """Starting with a device set to a sample rate that's too low to use, or
+    a microphone or speaker set below 16 kHz, which is allowed with a
+    warning."""
     with audio_devices():
-        for card, minimum in [("soundCard1In", 8000), ("soundCard1Out", 8000), ("soundCard2In", 16000),
-                              ("soundCard2Out", 16000)]:
+        for card in CARDS:
+            minimum = 8000
             rate = minimum // 2
             with freedvtest.start(settings=card_settings(**{card + "_rate": rate})) as app:
                 app.wait_for_window("main")
@@ -178,26 +180,41 @@ def test_low_sample_rate():
                 check_not_started(app, "with %s at %d" % (card, rate))
                 check_equal(app.quit(), 0, "FreeDV's exit code")
 
-        # The lowest rates that are allowed.
-        lowest = dict(soundCard1In_rate=8000, soundCard1Out_rate=8000, soundCard2In_rate=16000,
-                      soundCard2Out_rate=16000)
+        # The lowest rates that are allowed. Only the microphone and speaker
+        # are warned about, and only the first time FreeDV starts.
+        lowest = {card + "_rate": 8000 for card in CARDS}
         with freedvtest.start(settings=card_settings(**lowest)) as app:
             app.wait_for_window("main")
+            try_to_start(app)
+            check_low_rate_warning(app, ["soundCard2In", "soundCard2Out"], "with every device at 8000")
+            check_equal(app.state()["running"], True, "Running with every device at 8000")
+            stop_modem(app)
             start_modem(app)
             stop_modem(app)
             quit_and_check_log(app)
 
         # Receiving only, what goes to the radio otherwise goes to the
-        # speaker, which needs more.
+        # speaker, so it's warned about too.
         receive_only = dict(soundCard1Out=SPEAKER, soundCard2In="none", soundCard2Out="none")
         with freedvtest.start(settings=card_settings(soundCard1Out_rate=8000, **receive_only)) as app:
             app.wait_for_window("main")
             try_to_start(app)
             boxes = app.message_boxes(clear=True)
-            check(len(boxes) == 1 and "sample rate of 8000, which is less than the minimum of 16000" in
-                  boxes[0]["message"], "Messages displayed are %r" % boxes)
-            check_not_started(app, "with the speaker at 8000")
-            check_equal(app.quit(), 0, "FreeDV's exit code")
+            check(len(boxes) == 1 and boxes[0]["caption"] == "Low Sample Rate" and
+                  "%s (8000 Hz)" % SPEAKER in boxes[0]["message"], "Messages displayed are %r" % boxes)
+            check_equal(app.state()["running"], True, "Running with the speaker at 8000")
+            stop_modem(app)
+            quit_and_check_log(app)
+
+
+def check_low_rate_warning(app, cards, what):
+    """Checks that the one message displayed is the warning about the given
+    cards' low sample rates."""
+    boxes = app.message_boxes(clear=True)
+    check_equal([box["caption"] for box in boxes], ["Low Sample Rate"], "Messages displayed " + what)
+    for card in CARDS:
+        listed = "%s (8000 Hz)" % CARDS[card] in boxes[0]["message"]
+        check_equal(listed, card in cards, "%s listed in the warning %s" % (card, what))
 
 
 def test_no_devices():
@@ -246,9 +263,10 @@ def test_partly_configured():
                 (dict(soundCard1In="none", soundCard1Out=missing), "Sound Device Not Found"),
                 (dict(soundCard2In="none", soundCard2Out=missing), "Sound Device Not Found"),
                 (dict(soundCard2Out="none", soundCard2In=missing + ".monitor"), "Sound Device Not Found"),
-                (dict(soundCard2In="none", soundCard2Out_rate=8000), "Sample Rate Too Low"),
-                (dict(soundCard2Out="none", soundCard2In_rate=8000), "Sample Rate Too Low"),
-                (dict(soundCard2In="none", soundCard2Out="none", soundCard1Out_rate=8000), "Sample Rate Too Low"),
+                # A microphone or speaker below 16 kHz starts with a warning.
+                (dict(soundCard2In="none", soundCard2Out_rate=8000), "warned"),
+                (dict(soundCard2Out="none", soundCard2In_rate=8000), "warned"),
+                (dict(soundCard2In="none", soundCard2Out="none", soundCard1Out_rate=8000), "warned"),
                 (dict(soundCard2In="none", soundCard2Out="none", soundCard1Out_rate=16000), "started")]:
             what = "with %s" % ", ".join("%s as %s" % item for item in sorted(changes.items()))
             with freedvtest.start(settings=card_settings(**changes)) as app:
@@ -261,8 +279,10 @@ def test_partly_configured():
                     app.wait_for_window_closed("settings")
                 app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="FreeDV to finish starting")
                 time.sleep(0.5)
-                if outcome == "started":
-                    check_equal(app.message_boxes(), [], "Messages displayed " + what)
+                if outcome in ("started", "warned"):
+                    expected = ["Low Sample Rate"] if outcome == "warned" else []
+                    check_equal([box["caption"] for box in app.message_boxes(clear=True)], expected,
+                                "Messages displayed " + what)
                     check_equal(app.state()["running"], True, "Running " + what)
                     check_equal(app.get("main.btnPTT")["enabled"], False, "PTT button enabled " + what)
                     stop_modem(app)

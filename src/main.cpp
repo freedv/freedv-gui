@@ -4006,8 +4006,8 @@ bool MainFrame::validateSoundCardSetup(bool silent)
                 if (!silent)
                 {
                     wxMessageBox(wxString::Format(
-                        "Your %s device is set to use a sample rate of %d, which is less than the minimum of %d. Please go to Tools->Audio Config... to check your settings.",
-                        deviceName, device.sampleRate, MIN_SAMPLE_RATE), wxT("Sample Rate Too Low"), wxOK, this);
+                        _("Your %s device is set to use a sample rate of %d, which is less than the minimum of %d. Please go to Tools->Settings to check your settings."),
+                        deviceName, device.sampleRate, MIN_SAMPLE_RATE), _("Sample Rate Too Low"), wxOK, this);
                 }
                 canRun = false;
                 break;
@@ -4040,8 +4040,8 @@ bool MainFrame::validateSoundCardSetup(bool silent)
         {
             lowRateWarningShown = true;
             wxMessageBox(wxString::Format(
-                "The following microphone/speaker devices are set to a sample rate below the recommended minimum of %d Hz:\n%s\n\nFreeDV will still work, but speech will sound muffled to you or to other stations, depending on which device it is. If your device supports a sample rate higher than 16 kHz, consider enabling it.",
-                MIN_SAMPLE_RATE_ANALOG_RECOMMENDED, lowRateAnalogDevices), wxT("Low Sample Rate"), wxOK | wxICON_WARNING, this);
+                _("The following microphone/speaker devices are set to a sample rate below the recommended minimum of %d Hz:\n%s\n\nFreeDV will still work, but speech will sound muffled to you or to other stations, depending on which device it is. If your device supports a sample rate higher than 16 kHz, consider enabling it."),
+                MIN_SAMPLE_RATE_ANALOG_RECOMMENDED, lowRateAnalogDevices), _("Low Sample Rate"), wxOK | wxICON_WARNING, this);
         }
     }
     
