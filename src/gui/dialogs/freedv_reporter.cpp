@@ -1815,6 +1815,15 @@ void FreeDVReporterDialog::OnLeftClickTooltip(wxMouseEvent& event)
 
 void FreeDVReporterDialog::OnSetFocus(wxFocusEvent& event)
 {
+    // Only select the item under the mouse if the focus came from clicking
+    // on it, not from e.g. the window being brought to the front or a
+    // tooltip closing while the mouse happens to be over the list.
+    if (!wxGetMouseState().ButtonIsDown(wxMOUSE_BTN_ANY))
+    {
+        event.Skip();
+        return;
+    }
+
     CallAfter([this]() {
         const wxPoint pt = wxGetMousePosition();
         int mouseX = pt.x - m_listSpots->GetScreenPosition().x;
