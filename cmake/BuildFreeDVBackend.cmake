@@ -3,7 +3,7 @@ include(FetchContent)
 FetchContent_Declare(
     freedv_backend
     GIT_REPOSITORY https://github.com/freedv/freedv-backend
-    GIT_TAG v1.0.1
+    GIT_TAG main
 )
 
 FetchContent_MakeAvailable(freedv_backend)
