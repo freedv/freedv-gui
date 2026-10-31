@@ -900,7 +900,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
 
 *Note: Legacy FreeDV modes (700D/700E/1600) have been removed due to low use. FreeDV 2.4.x is still available if one wishes to operate these modes.*
 
-## V2.4.1 TBD 2026
+## V2.4.1 October 2026
 
 1. Bugfixes:
     * Add logic to prevent FIFO sizes that are too small to allow TX thread to function. (PR #1474)
@@ -980,6 +980,18 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Windows: Fix issue preventing audio devices that don't support raw mode from starting. (PR #1594)
     * PlotScalar: draw the trace when the plot is wider than its sample count. (PR #1597) - thanks @barjac!
     * Linux/FreeDV Reporter: fix uninitialized value deciding whether a selection is honored. (PR #1606)
+    * Allow microphone and speaker devices below 16 kHz (such as Bluetooth headsets in call mode) with a warning instead of refusing to start. (PR #1608)
+    * FreeDV Reporter: fix possible crash when repeatedly connecting and disconnecting. (freedv-backend PR #44)
+    * FreeDV Reporter: fix exiting FreeDV taking up to 60 seconds when the server stalls setting up the secure connection; give up on it after 10 seconds instead. (freedv-backend PR #63)
+    * FreeDV Reporter: fix memory leak when FreeDV exits just as FreeDV Reporter connects. (freedv-backend PR #75)
+    * Recording: fix up to the last 100 ms of audio being lost when a recording stops, and log when audio has to be dropped. (freedv-backend PR #71, #72)
+    * Fix conversion of 16-bit audio to floating point going slightly past full scale. (freedv-backend PR #60)
+    * Fix buffer overruns when one RADE receive call decodes several frames and when resampling 8 kHz audio by large ratios. (freedv-backend PR #78)
+    * Fix the audio pipeline rebuilding its resampler when the sample rate is unchanged but not when it changes, and freeing the kept resampler twice. (freedv-backend PR #78)
+    * FreeDV Reporter: refuse a secure connection if TLS 1.2 or certificate hostname checking can't be enforced. (freedv-backend PR #78)
+    * macOS/FreeDV Reporter: fix endless loop and log spam when the connection closes while sending. (freedv-backend PR #78)
+    * Fix network and threading code continuing after a failed socket or semaphore setup, Linux semaphore waits ending early on a signal, and a macOS crash on an empty background task. (freedv-backend PR #78)
+    * Windows: fix exiting FreeDV taking 20 seconds or more while logging heavily. (freedv-backend PR #78)
 2. Build system:
     * Windows versions are now built with llvm-mingw 20260908 (PR #1489)
     * Ccache support extended to third party dependencies. (PR #1498, #1505))
@@ -990,12 +1002,17 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Add unit tests for non-GUI code. (PR #1542)
     * Add tests of whole transmissions through the TX/RX threads without sound cards. (PR #1567)
     * Resolve build failure on OpenSUSE Tumbleweed. (PR #1577)
+    * Fix Windows build failures with newer llvm-mingw (clang/libc++) releases. (freedv-backend PR #51)
+    * Fix Windows build with older mingw-w64 headers that don't declare SetThreadDescription. (freedv-backend PR #60)
+    * macOS: fix RNNoise build failure with newer Xcode versions. (freedv-backend PR #59)
+    * Fix build errors with GCC 16 and with OpenSSL 4 deprecations. (freedv-backend PR #41, #73)
 3. Documentation:
     * Update documentation to reflect new repo URL. (PR #1569)
 4. Other:
     * Various GUI performance improvements. (PR #1481, #1521, #1524, #1527, #1531)
     * Windows audio thread timing improvements. (PR #1488)
     * Log when the sound server puts a PulseAudio stream on another device. (PR #1591)
+    * Log from the audio threads without blocking them. (freedv-backend PR #60)
 
 ## V2.4.0 August 2026
 
