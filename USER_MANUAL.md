@@ -947,6 +947,11 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
 
 # Release Notes
 
+## V2.4.2 TBD 2026
+
+1. Bugfixes:
+    * FreeDV Reporter: don't select the station under the mouse when the list gains focus without a click. (PR #1611)
+
 ## V2.4.1 October 2026
 
 1. Bugfixes:
