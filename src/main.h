@@ -663,6 +663,8 @@ class MainFrame : public TopFrame
         void updateReportingFreqList_();
         wxString reportFrequencyListString_(wxString const& text);
         void addReportFrequencyToList_(wxString const& freq);
+        void updateFreqBoxLabel_();
+        void updateFreqBoxTooltip_();
         
         void initializeFreeDVReporter_();
         void updateVoiceKeyerButtonLabel_();

@@ -1490,7 +1490,7 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         m_freedvReporterMsgForegroundColor->SetColour(msgForegroundColor);
 
         // Populate reporting frequency list.
-        for (auto& item : wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyList.get())
+        for (auto& item : wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyListCentred.get())
         {
             m_freqList->Append(item);
         }
@@ -1702,7 +1702,7 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         {
             tmpList.push_back(m_freqList->GetString(index));
         }
-        wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyList = tmpList;
+        wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyListCentred = tmpList;
         
         wxGetApp().appConfiguration.enableSpaceBarForPTT = m_ckboxEnableSpacebarForPTT->GetValue();
         wxGetApp().appConfiguration.pttKeyCode = m_selectedPTTKeyCode;
