@@ -15,7 +15,7 @@ endif()
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum OS X deployment version")
 
 set(PROJECT_NAME FreeDV)
-set(PROJECT_VERSION 2.4.1)
+set(PROJECT_VERSION 2.4.2)
 set(PROJECT_DESCRIPTION "HF Digital Voice for Radio Amateurs")
 set(PROJECT_HOMEPAGE_URL "https://freedv.org")
 
@@ -59,12 +59,12 @@ endif(NOT DEFINED LINUX)
 # Adds a tag to the end of the version string. Leave empty
 # for official release builds.
 if(NOT DEFINED FREEDV_VERSION_TAG)
-set(FREEDV_VERSION_TAG "")
+set(FREEDV_VERSION_TAG "dev")
 
 # Uncomment the below definition to cause the build to expire
 # six months from the day it was built. This should be commented
 # for official releases.
-#add_definitions(-DUNOFFICIAL_RELEASE)
+add_definitions(-DUNOFFICIAL_RELEASE)
 endif(NOT DEFINED FREEDV_VERSION_TAG)
 
 # Prevent in-source builds to protect automake/autoconf config.
