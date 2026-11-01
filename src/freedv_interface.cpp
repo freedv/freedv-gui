@@ -291,6 +291,10 @@ IPipelineStep* FreeDVInterface::createTransmitPipeline(
     // as it has known issues with Bluetooth and macOS (but only with RADE;
     // analog and legacy modes appear to function properly).
     radeTxStep_ = new RADETransmitStep(rade_, lpcnetEncState_);
+
+    // An 8 kHz mic gives RADE nothing above 4 kHz to encode; have the
+    // backend fill in that part of the features instead.
+    radeTxStep_->setNarrowbandInput(inputSampleRate <= 8000);
         
     auto pipeline = new AudioPipeline(inputSampleRate, outputSampleRate);
     pipeline->appendPipelineStep(radeTxStep_);
