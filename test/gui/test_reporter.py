@@ -1100,6 +1100,17 @@ def test_row_actions():
                         "Selected stations after hovering messages")
             check_equal(app.message_boxes(), [], "Messages displayed by hovering")
 
+            # Nor does the list gaining the focus while the pointer happens to
+            # be over a row, as when the window is brought to the front or a
+            # tip window closes, without anything being clicked.
+            for column in [CALLSIGN, MESSAGE]:
+                app.activate("reporter")
+                app.hover_row(LIST, (CALLSIGN, "K1ABC"), column)
+                app.focus(LIST)
+                time.sleep(0.5)
+                check_equal([row[CALLSIGN] for row in app.rows(LIST) if row["selected"]], [],
+                            "Selected stations after the list gained the focus over column %d" % column)
+
             # The website button opens the server's own page.
             app.click("reporter.btnWebsite")
             check_equal(app.browser_urls(clear=True), ["https://%s/" % server.hostname], "Web pages opened")
