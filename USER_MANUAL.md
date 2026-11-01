@@ -618,7 +618,7 @@ As the Tab is dragged into position a faint blue/gray image will show the positi
 
 Tabs can be resized as required by hovering the cursor over the border and clicking and holding the left mouse button and dragging to required size.
 
-By default, the tab layout is not saved. However, by enabling experimental features (see "Advanced/Developer Features"), experimental support for
+By default, the tab layout is not saved. However, by enabling experimental features (see [Experimental Features](#experimental-features)), experimental support for
 saving and restoring the tab layout will be enabled. This has not been well tested and may have hidden bugs or other issues.
 
 ![Multiple Panes](contrib/multiple_panes.png)
@@ -951,6 +951,8 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
 
 1. Bugfixes:
     * FreeDV Reporter: don't select the station under the mouse when the list gains focus without a click. (PR #1611)
+2. Documentation:
+    * User manual: Update reference to Experimental Features section. (PR #1613)
 
 ## V2.4.1 October 2026
 
