@@ -1,14 +1,13 @@
 # FreeDV language translation template
 # Copyright (C) 2026 FreeDV Project
 # This file is distributed under the same license as the FreeDV package.
-# Mooneer Salem <mooneer@gmail.com>, 2026
 #
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: FreeDV 3.0.0\n"
 "Report-Msgid-Bugs-To: mooneer@gmail.com\n"
-"POT-Creation-Date: 2026-10-26 21:25-0700\n"
+"POT-Creation-Date: 2026-10-31 14:25-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1843,6 +1842,22 @@ msgstr ""
 
 #: src/main.cpp src/voicekeyer.cpp
 msgid "Sample Rate Too Low"
+msgstr ""
+
+#: src/main.cpp
+#, c-format
+msgid ""
+"The following microphone/speaker devices are set to a sample rate below the "
+"recommended minimum of %d Hz:\n"
+"%s\n"
+"\n"
+"FreeDV will still work, but speech will sound muffled to you or to other "
+"stations, depending on which device it is. If your device supports a sample "
+"rate higher than 16 kHz, consider enabling it."
+msgstr ""
+
+#: src/main.cpp
+msgid "Low Sample Rate"
 msgstr ""
 
 #. TRANSLATORS: First %s is a callsign, second %s is a frequency.

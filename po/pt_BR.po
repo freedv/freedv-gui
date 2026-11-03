@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FreeDV 3.0.0\n"
 "Report-Msgid-Bugs-To: https://github.com/freedv/freedv-gui/issues\n"
-"POT-Creation-Date: 2026-10-26 21:25-0700\n"
+"POT-Creation-Date: 2026-10-31 14:25-0700\n"
 "PO-Revision-Date: 2026-10-06 14:00+ZONE\n"
 "Last-Translator: manotroll <manotroll@gmail.com>\n"
 "Language-Team: pt-br <LL@li.org>\n"
@@ -1927,6 +1927,23 @@ msgstr ""
 #: src/main.cpp src/voicekeyer.cpp
 msgid "Sample Rate Too Low"
 msgstr "Taxa de amostragem muito baixa"
+
+#: src/main.cpp
+#, c-format
+msgid ""
+"The following microphone/speaker devices are set to a sample rate below the "
+"recommended minimum of %d Hz:\n"
+"%s\n"
+"\n"
+"FreeDV will still work, but speech will sound muffled to you or to other "
+"stations, depending on which device it is. If your device supports a sample "
+"rate higher than 16 kHz, consider enabling it."
+msgstr ""
+
+#: src/main.cpp
+#, fuzzy
+msgid "Low Sample Rate"
+msgstr "Taxa de amostragem padrão"
 
 #. TRANSLATORS: First %s is a callsign, second %s is a frequency.
 #: src/main.cpp
