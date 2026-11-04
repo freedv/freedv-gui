@@ -54,4 +54,36 @@ inline HamlibRigController::Mode GetModeForFrequency(uint64_t frequency, bool us
     return newMode;
 }
 
+// centre = dial + offset. Offset is 0 whenever analogActive is true (SSB
+// analog has no fixed-tone convention to reference), and otherwise depends
+// on sideband only. Callers must derive `mode` via GetModeForFrequency (or
+// equivalent) -- this function intentionally has no band-threshold logic of
+// its own, so any future change to mode selection (e.g. always-USB digital)
+// doesn't require touching this conversion.
+inline int32_t GetCentreFreqOffsetHz(HamlibRigController::Mode mode, bool analogActive)
+{
+    if (analogActive) return 0;
+    switch (mode)
+    {
+        case HamlibRigController::USB:
+        case HamlibRigController::DIGU:
+            return 1500;
+        case HamlibRigController::LSB:
+        case HamlibRigController::DIGL:
+            return -1500;
+        default:
+            return 0;
+    }
+}
+
+inline uint64_t DialToDisplayFreq(uint64_t dialFreq, HamlibRigController::Mode mode, bool analogActive)
+{
+    return (uint64_t)((int64_t)dialFreq + GetCentreFreqOffsetHz(mode, analogActive));
+}
+
+inline uint64_t DisplayToDialFreq(uint64_t displayFreq, HamlibRigController::Mode mode, bool analogActive)
+{
+    return (uint64_t)((int64_t)displayFreq - GetCentreFreqOffsetHz(mode, analogActive));
+}
+
 #endif // FREQUENCY_OPS_H
