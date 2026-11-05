@@ -242,41 +242,50 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
         // size() == NUM_COLS looks fine, but the content is still wrong, so
         // that column can never be created and any lookup for it later
         // asserts/crashes.
-        auto& order = wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnOrder;
-        std::set<int> presentIndices;
-        auto iter = order->begin();
-        while (iter != order->end())
-        {
-            // Strip anything out of range for this build's NUM_COLS, and any
-            // duplicate of an index already kept.
-            if (*iter >= RIGHTMOST_COL || !presentIndices.insert(*iter).second)
+        // The stored vector is shared with other threads: fix it up in one
+        // locked step.
+        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnOrder.update([&](std::vector<int>& order) {
+            std::set<int> presentIndices;
+            auto iter = order.begin();
+            while (iter != order.end())
             {
-                iter = order->erase(iter);
-            }
-            else
-            {
-                iter++;
-            }
-        }
-
-        if ((int)order->size() != NUM_COLS)
-        {
-            log_info("Generating missing column ordering");
-            for (auto index = 0; index < NUM_COLS; index++)
-            {
-                if (presentIndices.find(index) == presentIndices.end())
+                // Strip anything out of range for this build's NUM_COLS, and any
+                // duplicate of an index already kept.
+                if (*iter >= RIGHTMOST_COL || !presentIndices.insert(*iter).second)
                 {
-                    order->push_back(index);
+                    iter = order.erase(iter);
+                }
+                else
+                {
+                    iter++;
                 }
             }
-        }
+
+            if ((int)order.size() != NUM_COLS)
+            {
+                log_info("Generating missing column ordering");
+                for (auto index = 0; index < NUM_COLS; index++)
+                {
+                    if (presentIndices.find(index) == presentIndices.end())
+                    {
+                        order.push_back(index);
+                    }
+                }
+            }
+        });
     }
 
-    while (wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->size() < NUM_COLS)
-    {
-        // Generate default column visibility
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->push_back(true);
-    }
+    // Pad the stored visibility with defaults, keeping a copy for creating
+    // the columns and the Show menu below.
+    std::vector<bool> visibility;
+    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility.update([&](std::vector<bool>& stored) {
+        while ((int)stored.size() < NUM_COLS)
+        {
+            // Generate default column visibility
+            stored.push_back(true);
+        }
+        visibility = stored;
+    });
 
     // Windows seems to have the model column ID equal to the actual column ID regardless of the 
     // actual ordering, so we just use wxHeaderCtrl to save/restore the column ordering.
@@ -289,7 +298,7 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
         if (col < NUM_COLS)
         {
             log_info("Creating col %d", col);
-            auto visible = (bool)wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->at(col);
+            auto visible = (bool)visibility.at(col);
             createColumn_(col, visible);
         }
     }
@@ -432,7 +441,7 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
     for (auto& item : menus)
     {
         auto menuItem = showMenu_->Append(wxID_HIGHEST + 100 + item.first, item.second, wxEmptyString, wxITEM_CHECK);
-        menuItem->Check(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->at(item.first));
+        menuItem->Check(visibility.at(item.first));
         this->Connect(wxID_HIGHEST + 100 + item.first, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(FreeDVReporterDialog::OnShowColumn));
     }
 
@@ -886,11 +895,11 @@ void FreeDVReporterDialog::OnShowColumn(wxCommandEvent& event)
 {
     // Invert visibility value
     auto columnId = event.GetId() - wxID_HIGHEST - 100;
-    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->at(columnId) = 
-        !wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->at(columnId);
-
-    auto newColValue =
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->at(columnId);
+    bool newColValue = false;
+    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility.update([&](std::vector<bool>& visibility) {
+        visibility.at(columnId) = !visibility.at(columnId);
+        newColValue = visibility.at(columnId);
+    });
 
     // Note: the event's object is the menu, not the item that was chosen.
     wxMenuItem* menuItem = showMenu_->FindItem(event.GetId());
@@ -949,7 +958,7 @@ void FreeDVReporterDialog::OnIdleFilter(wxCommandEvent& event)
                 // No changes needed, other than putting the check marks back to
                 // reflect what's in effect (selecting "Custom..." changed them).
                 bool filterEnabled = wxGetApp().appConfiguration.reportingConfiguration.freedvReporterEnableMaxIdleFilter;
-                auto currentMinutes = wxGetApp().appConfiguration.reportingConfiguration.freedvReporterMaxIdleMinutes;
+                auto currentMinutes = wxGetApp().appConfiguration.reportingConfiguration.freedvReporterMaxIdleMinutes.get();
                 auto menuItems = idleLongerThanMenu_->GetMenuItems();
                 bool found = false;
                 for (auto& item : menuItems)
@@ -1143,7 +1152,8 @@ void FreeDVReporterDialog::OnSendQSY(wxCommandEvent&)
 
 void FreeDVReporterDialog::OnOpenWebsite(wxCommandEvent&)
 {
-    std::string url = std::string("https://") + (const char*)wxGetApp().appConfiguration.reportingConfiguration.freedvReporterHostname->utf8_str() + "/";
+    auto hostname = wxGetApp().appConfiguration.reportingConfiguration.freedvReporterHostname.get();
+    std::string url = std::string("https://") + (const char*)hostname.utf8_str() + "/";
     LaunchBrowser(url);
     DeselectItem();
 }
@@ -1671,16 +1681,17 @@ void FreeDVReporterDialog::OnItemDoubleClick(wxDataViewEvent& event)
     {
         FreeDVReporterDataModel* model = (FreeDVReporterDataModel*)spotsDataModel_.get();
         auto frequency = model->getFrequency(event.GetItem());
-        if (wxGetApp().rigFrequencyController && 
+        auto rigController = snapshotRigFrequencyController();
+        if (rigController && 
             (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges || 
             wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly))
         {
-            wxGetApp().rigFrequencyController->setFrequency(frequency);
+            rigController->setFrequency(frequency);
 
             if (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
             {
                 bool useAnalog = g_analog.load(std::memory_order_relaxed);
-                wxGetApp().rigFrequencyController->setMode(
+                rigController->setMode(
                     GetModeForFrequency(
                         frequency, 
                         wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes, 
@@ -2245,11 +2256,7 @@ void FreeDVReporterDialog::OnStatusTextSend(wxCommandEvent&)
         popup->SetSelection(popup->FindString(statusMsg, true));
 
         // Preserve current state of the MRU list.
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
-        for (unsigned int index = 0; index < popup->GetCount(); index++)
-        {
-            wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->push_back(popup->GetString(index));
-        }
+        syncRecentStatusTexts_();
     }
 
     DeselectItem();
@@ -2290,11 +2297,7 @@ void FreeDVReporterDialog::OnStatusTextSaveMessage(wxCommandEvent&)
         popup->SetSelection(popup->FindString(statusMsg, true));
 
         // Preserve current state of the MRU list.
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
-        for (unsigned int index = 0; index < popup->GetCount(); index++)
-        {
-            wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->push_back(popup->GetString(index));
-        }
+        syncRecentStatusTexts_();
     }
 }
 
@@ -2326,24 +2329,35 @@ void FreeDVReporterDialog::OnStatusTextClearSelected(wxCommandEvent&)
             popup->Delete(location);
         }
 
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
-        for (unsigned int index = 0; index < popup->GetCount(); index++)
-        {
-            wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->push_back(popup->GetString(index));
-        }
+        syncRecentStatusTexts_();
     }
 }
 
 void FreeDVReporterDialog::OnStatusTextClearAll(wxCommandEvent&)
 {
     getMsgPopup()->Clear();
-    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
+    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts.setWithoutProcessing({});
 }
 
 wxListBox* FreeDVReporterDialog::getMsgPopup() const
 {
     auto ctrl = m_statusMessage->GetPopupControl();
     return ctrl ? static_cast<wxListBox*>(ctrl->GetControl()) : nullptr;
+}
+
+void FreeDVReporterDialog::syncRecentStatusTexts_()
+{
+    // Copies the popup list and hands it to the config element in one swap:
+    // the element is shared with other threads, so the stored vector must
+    // never be mutated in place.
+    auto popup = getMsgPopup();
+    std::vector<wxString> recent;
+    recent.reserve(popup->GetCount());
+    for (unsigned int index = 0; index < popup->GetCount(); index++)
+    {
+        recent.push_back(popup->GetString(index));
+    }
+    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts.setWithoutProcessing(recent);
 }
 
 void FreeDVReporterDialog::ShowMsgItemContextMenu(int itemIdx)
@@ -2384,11 +2398,7 @@ void FreeDVReporterDialog::OnStatusMessageContextMenuEdit(wxCommandEvent&)
     popup->Append(newText);
     contextMenuSelectedIndex_ = wxNOT_FOUND;
 
-    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
-    for (unsigned int index = 0; index < popup->GetCount(); index++)
-    {
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->push_back(popup->GetString(index));
-    }
+    syncRecentStatusTexts_();
     wxGetApp().appConfiguration.save(pConfig);
 }
 
@@ -2404,11 +2414,7 @@ void FreeDVReporterDialog::OnStatusMessageContextMenuDelete(wxCommandEvent&)
     popup->Delete(contextMenuSelectedIndex_);
     contextMenuSelectedIndex_ = wxNOT_FOUND;
 
-    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
-    for (unsigned int index = 0; index < popup->GetCount(); index++)
-    {
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->push_back(popup->GetString(index));
-    }
+    syncRecentStatusTexts_();
     wxGetApp().appConfiguration.save(pConfig);
 }
 
@@ -2432,11 +2438,7 @@ void FreeDVReporterDialog::OnStatusMessageContextMenuAdd(wxCommandEvent&)
 
     popup->Append(newText);
 
-    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
-    for (unsigned int index = 0; index < popup->GetCount(); index++)
-    {
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->push_back(popup->GetString(index));
-    }
+    syncRecentStatusTexts_();
     wxGetApp().appConfiguration.save(pConfig);
 }
 

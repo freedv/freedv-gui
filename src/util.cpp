@@ -6,6 +6,9 @@
 
 #include "main.h"
 
+#include <mutex>
+#include <utility>
+
 #ifdef _WIN32
 #include <strsafe.h>
 #endif
@@ -16,6 +19,98 @@ extern std::atomic<float> g_RxFreqOffsetHz;
 extern std::atomic<float> g_TxFreqOffsetHz;
 extern FreeDVInterface freedvInterface;
 extern std::atomic<bool>             g_tx;
+
+// Guard the handles behind the accessors below (see main.h). Defined here
+// (not main.cpp) so the test targets that link util.cpp also get them.
+static std::mutex g_mutexProtectingRigControllers;
+static std::mutex g_mutexProtectingSoundDevices;
+
+namespace
+{
+
+// The one implementation behind the accessors below (see main.h).
+template<typename T>
+std::shared_ptr<T> SnapshotHandle_(std::mutex& mtx, std::shared_ptr<T> const& handle)
+{
+    std::lock_guard<std::mutex> lk(mtx);
+    return handle;
+}
+
+template<typename T>
+std::shared_ptr<T> TakeHandle_(std::mutex& mtx, std::shared_ptr<T>& handle)
+{
+    std::lock_guard<std::mutex> lk(mtx);
+    return std::exchange(handle, nullptr);
+}
+
+template<typename T>
+void PublishHandle_(std::mutex& mtx, std::shared_ptr<T>& handle, std::shared_ptr<T> ptr)
+{
+    std::lock_guard<std::mutex> lk(mtx);
+    handle = std::move(ptr);
+}
+
+}
+
+std::shared_ptr<IRigPttController> snapshotRigPttController()
+{
+    return SnapshotHandle_(g_mutexProtectingRigControllers, wxGetApp().rigPttController);
+}
+
+std::shared_ptr<IRigPttController> takeRigPttController()
+{
+    return TakeHandle_(g_mutexProtectingRigControllers, wxGetApp().rigPttController);
+}
+
+void publishRigPttController(std::shared_ptr<IRigPttController> ptr)
+{
+    PublishHandle_(g_mutexProtectingRigControllers, wxGetApp().rigPttController, std::move(ptr));
+}
+
+std::shared_ptr<IRigFrequencyController> snapshotRigFrequencyController()
+{
+    return SnapshotHandle_(g_mutexProtectingRigControllers, wxGetApp().rigFrequencyController);
+}
+
+std::shared_ptr<IRigFrequencyController> takeRigFrequencyController()
+{
+    return TakeHandle_(g_mutexProtectingRigControllers, wxGetApp().rigFrequencyController);
+}
+
+void publishRigFrequencyController(std::shared_ptr<IRigFrequencyController> ptr)
+{
+    PublishHandle_(g_mutexProtectingRigControllers, wxGetApp().rigFrequencyController, std::move(ptr));
+}
+
+std::shared_ptr<SerialPortInRigController> snapshotPTTInSerialPort()
+{
+    return SnapshotHandle_(g_mutexProtectingRigControllers, wxGetApp().m_pttInSerialPort);
+}
+
+std::shared_ptr<SerialPortInRigController> takePTTInSerialPort()
+{
+    return TakeHandle_(g_mutexProtectingRigControllers, wxGetApp().m_pttInSerialPort);
+}
+
+void publishPTTInSerialPort(std::shared_ptr<SerialPortInRigController> ptr)
+{
+    PublishHandle_(g_mutexProtectingRigControllers, wxGetApp().m_pttInSerialPort, std::move(ptr));
+}
+
+std::shared_ptr<IAudioDevice> snapshotSoundDevice(std::shared_ptr<IAudioDevice> const& device)
+{
+    return SnapshotHandle_(g_mutexProtectingSoundDevices, device);
+}
+
+std::shared_ptr<IAudioDevice> takeSoundDevice(std::shared_ptr<IAudioDevice>& device)
+{
+    return TakeHandle_(g_mutexProtectingSoundDevices, device);
+}
+
+void publishSoundDevice(std::shared_ptr<IAudioDevice>& device, std::shared_ptr<IAudioDevice> ptr)
+{
+    PublishHandle_(g_mutexProtectingSoundDevices, device, std::move(ptr));
+}
 
 void clickTune(float freq) {
 
@@ -129,19 +224,19 @@ bool MainFrame::isReceiveOnly()
 
 void MainFrame::OpenSerialPort(void)
 {
-    if(!wxGetApp().appConfiguration.rigControlConfiguration.serialPTTPort->IsEmpty()) 
+    wxString pttPortName = wxGetApp().appConfiguration.rigControlConfiguration.serialPTTPort.get();
+    if(!pttPortName.IsEmpty())
     {
-        if (wxGetApp().CanAccessSerialPort((const char*)wxGetApp().appConfiguration.rigControlConfiguration.serialPTTPort->ToUTF8()))
+        if (wxGetApp().CanAccessSerialPort((const char*)pttPortName.ToUTF8()))
         {
-            wxGetApp().rigPttController = std::make_shared<SerialPortOutRigController>(
-                    (const char*)wxGetApp().appConfiguration.rigControlConfiguration.serialPTTPort->c_str(),
+            auto pttController = std::make_shared<SerialPortOutRigController>(
+                    (const char*)pttPortName.ToUTF8(),
                     wxGetApp().appConfiguration.rigControlConfiguration.serialPTTUseRTS,
                     wxGetApp().appConfiguration.rigControlConfiguration.serialPTTPolarityRTS,
                     wxGetApp().appConfiguration.rigControlConfiguration.serialPTTUseDTR,
                     wxGetApp().appConfiguration.rigControlConfiguration.serialPTTPolarityDTR);
-            wxGetApp().rigFrequencyController = nullptr;
             
-            wxGetApp().rigPttController->onRigError += [&](IRigController*, std::string const& err) {
+            pttController->onRigError += [&](IRigController*, std::string const& err) {
                 CallAfter([&, err]() 
                 {
                     // TRANSLATORS: %s is the error message returned by the operating system.
@@ -150,11 +245,16 @@ void MainFrame::OpenSerialPort(void)
                 });
             };
 
-            wxGetApp().rigPttController->onPttChange += [&](IRigPttController*, bool state) {
+            pttController->onPttChange += [&](IRigPttController*, bool state) {
                 onRigPttChange_(state);
             };
 
-            wxGetApp().rigPttController->connect();
+            // Publish once wired, before connecting (as OpenHamlibRig()
+            // does): this runs on either the UI thread (Settings) or the
+            // "TurningOn" worker.
+            publishRigPttController(pttController);
+            publishRigFrequencyController(nullptr);
+            pttController->connect();
         }
     }
 }
@@ -165,15 +265,16 @@ void MainFrame::OpenSerialPort(void)
 
 void MainFrame::OpenPTTInPort(void)
 {
-    if(!wxGetApp().appConfiguration.rigControlConfiguration.serialPTTInputPort->IsEmpty()) 
+    wxString pttInPortName = wxGetApp().appConfiguration.rigControlConfiguration.serialPTTInputPort.get();
+    if(!pttInPortName.IsEmpty())
     {
-        if (wxGetApp().CanAccessSerialPort((const char*)wxGetApp().appConfiguration.rigControlConfiguration.serialPTTInputPort->ToUTF8()))
+        if (wxGetApp().CanAccessSerialPort((const char*)pttInPortName.ToUTF8()))
         {
-            wxGetApp().m_pttInSerialPort = std::make_shared<SerialPortInRigController>(
-                (const char*)wxGetApp().appConfiguration.rigControlConfiguration.serialPTTInputPort->c_str(),
+            auto pttInPort = std::make_shared<SerialPortInRigController>(
+                (const char*)pttInPortName.ToUTF8(),
                 wxGetApp().appConfiguration.rigControlConfiguration.serialPTTInputPolarityCTS);
             
-            wxGetApp().m_pttInSerialPort->onRigError += [&](IRigController*, std::string const& err)
+            pttInPort->onRigError += [&](IRigController*, std::string const& err)
             {
                 CallAfter([&, err]() 
                 {
@@ -183,7 +284,7 @@ void MainFrame::OpenPTTInPort(void)
                 });
             };
 
-            wxGetApp().m_pttInSerialPort->onPttChange += [&](IRigController*, bool pttState)
+            pttInPort->onPttChange += [&](IRigController*, bool pttState)
             {
                 log_info("PTT input state is now %d", pttState);
                 GetEventHandler()->CallAfter([this, pttState]() {
@@ -195,7 +296,10 @@ void MainFrame::OpenPTTInPort(void)
                 });
             };
 
-            wxGetApp().m_pttInSerialPort->connect();
+            // Publish under the handle lock (see main.h), before connecting
+            // (as OpenHamlibRig() does).
+            publishPTTInSerialPort(pttInPort);
+            pttInPort->connect();
         }
     }
 }
@@ -207,10 +311,12 @@ void MainFrame::OpenPTTInPort(void)
 
 void MainFrame::ClosePTTInPort(void)
 {
-    if (wxGetApp().m_pttInSerialPort)
+    // Detach under the handle lock (see main.h); the local copy keeps the
+    // controller alive while it disconnects.
+    auto portToClose = takePTTInSerialPort();
+    if (portToClose != nullptr)
     {
-        wxGetApp().m_pttInSerialPort->disconnect();
-        wxGetApp().m_pttInSerialPort = nullptr;
+        portToClose->disconnect();
     }
 }
 
