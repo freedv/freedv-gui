@@ -105,7 +105,7 @@ more information.
  
 ## Testing
 
-The ```wav``` directory contains test files of modulated audio that you can use to test FreeDV (see the [USER_MANUAL](USER_MANUAL.md)).
+The `wav` directory contains test files of modulated audio that you can use to test FreeDV (see the [USER_MANUAL](USER_MANUAL.md)).
 
 ## Building for Windows
 
