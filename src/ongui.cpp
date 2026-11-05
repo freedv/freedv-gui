@@ -25,10 +25,7 @@
 
 #if defined(WIN32)
 #include "rig_control/omnirig/OmniRigController.h"
-
 #endif // defined(WIN32)
-
-extern std::mutex g_mutexProtectingSoundDevices;
 
 extern std::atomic<int>   g_analog;
 extern std::atomic<bool>   g_tx;
@@ -645,12 +642,13 @@ bool MainFrame::OpenHamlibRig() {
         tmp->onPttChange += [&](IRigPttController*, bool state) {
             onRigPttChange_(state);
         };
-        tmp->connect();
-
-        // Publish only after the controller is fully wired: this runs on
-        // either the UI thread (Settings) or the "TurningOn" worker.
+        // Publish once the handlers are wired but before connecting: this
+        // runs on either the UI thread (Settings) or the "TurningOn" worker,
+        // and onRadioConnected_() (on the rig's thread, possibly right after
+        // connect()) looks the controller up.
         publishRigFrequencyController(tmp);
         publishRigPttController(tmp);
+        tmp->connect();
         return true;
     }
     else
@@ -701,8 +699,9 @@ void MainFrame::OpenOmniRig()
         publishRigPttController(tmp);
     }
 
-    tmp->connect();
+    // Before connecting, as onRadioConnected_() looks the controller up.
     publishRigFrequencyController(tmp);
+    tmp->connect();
 }
 #endif // defined(WIN32)
 
@@ -806,20 +805,20 @@ void MainFrame::autoSaveCurrentBandLevels_(bool writeConfig)
     if (bandName.IsEmpty())
         return;
     bool changed = false;
-    auto txAtten = wxGetApp().appConfiguration.txAttenByBand.get();
-    if (txAtten.find(bandName) != txAtten.end())
-    {
-        txAtten.insert_or_assign(bandName, g_txLevel);
-        wxGetApp().appConfiguration.txAttenByBand.setWithoutProcessing(txAtten);
-        changed = true;
-    }
-    auto tuneAtten = wxGetApp().appConfiguration.tuneAttenByBand.get();
-    if (tuneAtten.find(bandName) != tuneAtten.end())
-    {
-        tuneAtten.insert_or_assign(bandName, g_tuneLevel);
-        wxGetApp().appConfiguration.tuneAttenByBand.setWithoutProcessing(tuneAtten);
-        changed = true;
-    }
+    wxGetApp().appConfiguration.txAttenByBand.update([&](auto& txAtten) {
+        if (txAtten.find(bandName) != txAtten.end())
+        {
+            txAtten.insert_or_assign(bandName, g_txLevel);
+            changed = true;
+        }
+    });
+    wxGetApp().appConfiguration.tuneAttenByBand.update([&](auto& tuneAtten) {
+        if (tuneAtten.find(bandName) != tuneAtten.end())
+        {
+            tuneAtten.insert_or_assign(bandName, g_tuneLevel);
+            changed = true;
+        }
+    });
     if (changed && writeConfig)
         wxGetApp().appConfiguration.save(pConfig);
 }
@@ -927,16 +926,16 @@ void MainFrame::OnTxLevelContextMenu( wxContextMenuEvent& )
     menu.Bind(wxEVT_MENU, [this, bandName, hasSaved](wxCommandEvent&) {
         if (hasSaved)
         {
-            auto atten = wxGetApp().appConfiguration.txAttenByBand.get();
-            atten.erase(bandName);
-            wxGetApp().appConfiguration.txAttenByBand.setWithoutProcessing(atten);
+            wxGetApp().appConfiguration.txAttenByBand.update([&](auto& atten) {
+                atten.erase(bandName);
+            });
         }
         else
         {
             txLoadedLevel_ = g_txLevel; // record restore point at Enable time
-            auto atten = wxGetApp().appConfiguration.txAttenByBand.get();
-            atten.insert_or_assign(bandName, g_txLevel);
-            wxGetApp().appConfiguration.txAttenByBand.setWithoutProcessing(atten);
+            wxGetApp().appConfiguration.txAttenByBand.update([&](auto& atten) {
+                atten.insert_or_assign(bandName, g_txLevel);
+            });
         }
         wxGetApp().appConfiguration.save(pConfig);
     }, toggleItem->GetId());
@@ -982,16 +981,16 @@ void MainFrame::OnTuneAttenContextMenu( wxContextMenuEvent& )
         menu.Bind(wxEVT_MENU, [this, bandName, hasSaved](wxCommandEvent&) {
             if (hasSaved)
             {
-                auto atten = wxGetApp().appConfiguration.tuneAttenByBand.get();
-                atten.erase(bandName);
-                wxGetApp().appConfiguration.tuneAttenByBand.setWithoutProcessing(atten);
+                wxGetApp().appConfiguration.tuneAttenByBand.update([&](auto& atten) {
+                    atten.erase(bandName);
+                });
             }
             else
             {
                 tuneLoadedLevel_ = g_tuneLevel;
-                auto atten = wxGetApp().appConfiguration.tuneAttenByBand.get();
-                atten.insert_or_assign(bandName, g_tuneLevel);
-                wxGetApp().appConfiguration.tuneAttenByBand.setWithoutProcessing(atten);
+                wxGetApp().appConfiguration.tuneAttenByBand.update([&](auto& atten) {
+                    atten.insert_or_assign(bandName, g_tuneLevel);
+                });
             }
             wxGetApp().appConfiguration.save(pConfig);
         }, toggleItem->GetId());
@@ -1500,12 +1499,7 @@ void MainFrame::togglePTT(void) {
         
         // Wait for a minimum amount of time before stopping TX to ensure that
         // remaining audio gets piped to the radio from the operating system.
-        std::shared_ptr<IAudioDevice> txOutDevice;
-        {
-            std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-            txOutDevice = txOutSoundDevice;
-        }
-        int latency = (int)GetPlausibleLatencyUs_(txOutDevice, "TX output");
+        int latency = (int)GetPlausibleLatencyUs_(snapshotSoundDevice(txOutSoundDevice), "TX output");
 
         log_info(
             "Pausing for a minimum of %d us before TX->RX to allow remaining audio to go out", 
@@ -1549,12 +1543,7 @@ void MainFrame::togglePTT(void) {
         auto rigPtt = snapshotRigPttController();
         if (rigPtt != nullptr && rigPtt->isConnected())
         {
-            std::shared_ptr<IAudioDevice> rxInDevice;
-            {
-                std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-                rxInDevice = rxInSoundDevice;
-            }
-            g_rxInputLatencyUs.store(GetPlausibleLatencyUs_(rxInDevice, "RX input"), std::memory_order_release);
+            g_rxInputLatencyUs.store(GetPlausibleLatencyUs_(snapshotSoundDevice(rxInSoundDevice), "RX input"), std::memory_order_release);
             g_rxMutedUntilNs.store(
                 std::chrono::duration_cast<std::chrono::nanoseconds>(
                     (std::chrono::steady_clock::now() + RX_MUTE_MAX_WAIT_FOR_RADIO).time_since_epoch()).count(),

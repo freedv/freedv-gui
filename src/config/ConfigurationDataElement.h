@@ -51,6 +51,13 @@ public:
     UnderlyingDataType get();
     UnderlyingDataType getWithoutProcessing();
     void setWithoutProcessing(UnderlyingDataType const& val);
+
+    // Read-modify-write in one step: calls fn(value&) on the stored value
+    // under the lock (with no load/save processing, as operator-> did), so
+    // two threads updating it can't lose each other's changes. fn must not
+    // use this element itself.
+    template<typename Fn>
+    void update(Fn&& fn);
     
     void setSaveProcessor(std::function<UnderlyingDataType(UnderlyingDataType)> fn);
     void setLoadProcessor(std::function<UnderlyingDataType(UnderlyingDataType)> fn);
@@ -115,6 +122,14 @@ void ConfigurationDataElement<UnderlyingDataType>::setWithoutProcessing(Underlyi
 {
     std::lock_guard<std::mutex> lock(dataMutex_);
     data_ = val;
+}
+
+template<typename UnderlyingDataType>
+template<typename Fn>
+void ConfigurationDataElement<UnderlyingDataType>::update(Fn&& fn)
+{
+    std::lock_guard<std::mutex> lock(dataMutex_);
+    fn(data_);
 }
 
 template<typename UnderlyingDataType>

@@ -242,48 +242,50 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
         // size() == NUM_COLS looks fine, but the content is still wrong, so
         // that column can never be created and any lookup for it later
         // asserts/crashes.
-        // The stored vector is shared with other threads, so work on a copy
-        // and hand the result back through the element's accessors.
-        auto& orderElem = wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnOrder;
-        auto order = orderElem.get();
-        std::set<int> presentIndices;
-        auto iter = order.begin();
-        while (iter != order.end())
-        {
-            // Strip anything out of range for this build's NUM_COLS, and any
-            // duplicate of an index already kept.
-            if (*iter >= RIGHTMOST_COL || !presentIndices.insert(*iter).second)
+        // The stored vector is shared with other threads: fix it up in one
+        // locked step.
+        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnOrder.update([&](std::vector<int>& order) {
+            std::set<int> presentIndices;
+            auto iter = order.begin();
+            while (iter != order.end())
             {
-                iter = order.erase(iter);
-            }
-            else
-            {
-                iter++;
-            }
-        }
-
-        if ((int)order.size() != NUM_COLS)
-        {
-            log_info("Generating missing column ordering");
-            for (auto index = 0; index < NUM_COLS; index++)
-            {
-                if (presentIndices.find(index) == presentIndices.end())
+                // Strip anything out of range for this build's NUM_COLS, and any
+                // duplicate of an index already kept.
+                if (*iter >= RIGHTMOST_COL || !presentIndices.insert(*iter).second)
                 {
-                    order.push_back(index);
+                    iter = order.erase(iter);
+                }
+                else
+                {
+                    iter++;
                 }
             }
-        }
-        orderElem.setWithoutProcessing(order);
+
+            if ((int)order.size() != NUM_COLS)
+            {
+                log_info("Generating missing column ordering");
+                for (auto index = 0; index < NUM_COLS; index++)
+                {
+                    if (presentIndices.find(index) == presentIndices.end())
+                    {
+                        order.push_back(index);
+                    }
+                }
+            }
+        });
     }
 
-    auto& visibilityElem = wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility;
-    auto visibility = visibilityElem.get();
-    while ((int)visibility.size() < NUM_COLS)
-    {
-        // Generate default column visibility
-        visibility.push_back(true);
-    }
-    visibilityElem.setWithoutProcessing(visibility);
+    // Pad the stored visibility with defaults, keeping a copy for creating
+    // the columns and the Show menu below.
+    std::vector<bool> visibility;
+    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility.update([&](std::vector<bool>& stored) {
+        while ((int)stored.size() < NUM_COLS)
+        {
+            // Generate default column visibility
+            stored.push_back(true);
+        }
+        visibility = stored;
+    });
 
     // Windows seems to have the model column ID equal to the actual column ID regardless of the 
     // actual ordering, so we just use wxHeaderCtrl to save/restore the column ordering.
@@ -296,7 +298,7 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
         if (col < NUM_COLS)
         {
             log_info("Creating col %d", col);
-            auto visible = (bool)wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility.get().at(col);
+            auto visible = (bool)visibility.at(col);
             createColumn_(col, visible);
         }
     }
@@ -439,7 +441,7 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
     for (auto& item : menus)
     {
         auto menuItem = showMenu_->Append(wxID_HIGHEST + 100 + item.first, item.second, wxEmptyString, wxITEM_CHECK);
-        menuItem->Check(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility.get().at(item.first));
+        menuItem->Check(visibility.at(item.first));
         this->Connect(wxID_HIGHEST + 100 + item.first, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(FreeDVReporterDialog::OnShowColumn));
     }
 
@@ -893,12 +895,11 @@ void FreeDVReporterDialog::OnShowColumn(wxCommandEvent& event)
 {
     // Invert visibility value
     auto columnId = event.GetId() - wxID_HIGHEST - 100;
-    auto& visibilityElem = wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility;
-    auto visibility = visibilityElem.get();
-    visibility.at(columnId) = !visibility.at(columnId);
-    visibilityElem.setWithoutProcessing(visibility);
-
-    auto newColValue = (bool)visibility.at(columnId);
+    bool newColValue = false;
+    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility.update([&](std::vector<bool>& visibility) {
+        visibility.at(columnId) = !visibility.at(columnId);
+        newColValue = visibility.at(columnId);
+    });
 
     // Note: the event's object is the menu, not the item that was chosen.
     wxMenuItem* menuItem = showMenu_->FindItem(event.GetId());

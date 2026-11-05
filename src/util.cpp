@@ -6,6 +6,9 @@
 
 #include "main.h"
 
+#include <mutex>
+#include <utility>
+
 #ifdef _WIN32
 #include <strsafe.h>
 #endif
@@ -17,66 +20,96 @@ extern std::atomic<float> g_TxFreqOffsetHz;
 extern FreeDVInterface freedvInterface;
 extern std::atomic<bool>             g_tx;
 
-// See main.h. Defined here (not main.cpp) so the test targets that link
-// util.cpp also resolve these symbols.
-std::mutex g_mutexProtectingRigControllers;
-std::mutex g_mutexProtectingSoundDevices;
+// Guard the handles behind the accessors below (see main.h). Defined here
+// (not main.cpp) so the test targets that link util.cpp also get them.
+static std::mutex g_mutexProtectingRigControllers;
+static std::mutex g_mutexProtectingSoundDevices;
+
+namespace
+{
+
+// The one implementation behind the accessors below (see main.h).
+template<typename T>
+std::shared_ptr<T> SnapshotHandle_(std::mutex& mtx, std::shared_ptr<T> const& handle)
+{
+    std::lock_guard<std::mutex> lk(mtx);
+    return handle;
+}
+
+template<typename T>
+std::shared_ptr<T> TakeHandle_(std::mutex& mtx, std::shared_ptr<T>& handle)
+{
+    std::lock_guard<std::mutex> lk(mtx);
+    return std::exchange(handle, nullptr);
+}
+
+template<typename T>
+void PublishHandle_(std::mutex& mtx, std::shared_ptr<T>& handle, std::shared_ptr<T> ptr)
+{
+    std::lock_guard<std::mutex> lk(mtx);
+    handle = std::move(ptr);
+}
+
+}
 
 std::shared_ptr<IRigPttController> snapshotRigPttController()
 {
-    std::lock_guard<std::mutex> lk(g_mutexProtectingRigControllers);
-    return wxGetApp().rigPttController;
+    return SnapshotHandle_(g_mutexProtectingRigControllers, wxGetApp().rigPttController);
 }
 
 std::shared_ptr<IRigPttController> takeRigPttController()
 {
-    std::lock_guard<std::mutex> lk(g_mutexProtectingRigControllers);
-    auto ptr = std::move(wxGetApp().rigPttController);
-    return ptr;
+    return TakeHandle_(g_mutexProtectingRigControllers, wxGetApp().rigPttController);
 }
 
 void publishRigPttController(std::shared_ptr<IRigPttController> ptr)
 {
-    std::lock_guard<std::mutex> lk(g_mutexProtectingRigControllers);
-    wxGetApp().rigPttController = std::move(ptr);
+    PublishHandle_(g_mutexProtectingRigControllers, wxGetApp().rigPttController, std::move(ptr));
 }
 
 std::shared_ptr<IRigFrequencyController> snapshotRigFrequencyController()
 {
-    std::lock_guard<std::mutex> lk(g_mutexProtectingRigControllers);
-    return wxGetApp().rigFrequencyController;
+    return SnapshotHandle_(g_mutexProtectingRigControllers, wxGetApp().rigFrequencyController);
 }
 
 std::shared_ptr<IRigFrequencyController> takeRigFrequencyController()
 {
-    std::lock_guard<std::mutex> lk(g_mutexProtectingRigControllers);
-    auto ptr = std::move(wxGetApp().rigFrequencyController);
-    return ptr;
+    return TakeHandle_(g_mutexProtectingRigControllers, wxGetApp().rigFrequencyController);
 }
 
 void publishRigFrequencyController(std::shared_ptr<IRigFrequencyController> ptr)
 {
-    std::lock_guard<std::mutex> lk(g_mutexProtectingRigControllers);
-    wxGetApp().rigFrequencyController = std::move(ptr);
+    PublishHandle_(g_mutexProtectingRigControllers, wxGetApp().rigFrequencyController, std::move(ptr));
 }
 
 std::shared_ptr<SerialPortInRigController> snapshotPTTInSerialPort()
 {
-    std::lock_guard<std::mutex> lk(g_mutexProtectingRigControllers);
-    return wxGetApp().m_pttInSerialPort;
+    return SnapshotHandle_(g_mutexProtectingRigControllers, wxGetApp().m_pttInSerialPort);
 }
 
 std::shared_ptr<SerialPortInRigController> takePTTInSerialPort()
 {
-    std::lock_guard<std::mutex> lk(g_mutexProtectingRigControllers);
-    auto ptr = std::move(wxGetApp().m_pttInSerialPort);
-    return ptr;
+    return TakeHandle_(g_mutexProtectingRigControllers, wxGetApp().m_pttInSerialPort);
 }
 
 void publishPTTInSerialPort(std::shared_ptr<SerialPortInRigController> ptr)
 {
-    std::lock_guard<std::mutex> lk(g_mutexProtectingRigControllers);
-    wxGetApp().m_pttInSerialPort = std::move(ptr);
+    PublishHandle_(g_mutexProtectingRigControllers, wxGetApp().m_pttInSerialPort, std::move(ptr));
+}
+
+std::shared_ptr<IAudioDevice> snapshotSoundDevice(std::shared_ptr<IAudioDevice> const& device)
+{
+    return SnapshotHandle_(g_mutexProtectingSoundDevices, device);
+}
+
+std::shared_ptr<IAudioDevice> takeSoundDevice(std::shared_ptr<IAudioDevice>& device)
+{
+    return TakeHandle_(g_mutexProtectingSoundDevices, device);
+}
+
+void publishSoundDevice(std::shared_ptr<IAudioDevice>& device, std::shared_ptr<IAudioDevice> ptr)
+{
+    PublishHandle_(g_mutexProtectingSoundDevices, device, std::move(ptr));
 }
 
 void clickTune(float freq) {
@@ -216,12 +249,12 @@ void MainFrame::OpenSerialPort(void)
                 onRigPttChange_(state);
             };
 
-            pttController->connect();
-
-            // Publish only after the controller is fully wired: this runs
-            // on either the UI thread (Settings) or the "TurningOn" worker.
-            publishRigPttController(std::move(pttController));
+            // Publish once wired, before connecting (as OpenHamlibRig()
+            // does): this runs on either the UI thread (Settings) or the
+            // "TurningOn" worker.
+            publishRigPttController(pttController);
             publishRigFrequencyController(nullptr);
+            pttController->connect();
         }
     }
 }
@@ -263,10 +296,10 @@ void MainFrame::OpenPTTInPort(void)
                 });
             };
 
+            // Publish under the handle lock (see main.h), before connecting
+            // (as OpenHamlibRig() does).
+            publishPTTInSerialPort(pttInPort);
             pttInPort->connect();
-
-            // Publish under the handle lock (see main.h).
-            publishPTTInSerialPort(std::move(pttInPort));
         }
     }
 }

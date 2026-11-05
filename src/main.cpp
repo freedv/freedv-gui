@@ -234,16 +234,9 @@ wxMutex g_mutexProtectingCallbackData(wxMUTEX_RECURSIVE);
 // g_mutexProtectingCallbackData first.
 std::mutex g_mutexProtectingPlayFiles;
 
-// g_mutexProtectingRigControllers guards the shared_ptr objects
-// rigPttController, rigFrequencyController and m_pttInSerialPort on
-// MainApp; g_mutexProtectingSoundDevices guards the rxIn/rxOut/txIn/
-// txOutSoundDevice members on MainFrame. Both are written by the
-// "TurningOn"/"TurningOff" threads spawned by OnTogBtnOnOff() and read
-// from the UI thread. The accessors declared in main.h (and defined in
-// util.cpp, so the unit-test targets that link util.cpp also get them)
-// are the only way in.
-extern std::mutex g_mutexProtectingRigControllers;
-extern std::mutex g_mutexProtectingSoundDevices;
+// The rig controller and sound device handles are guarded by the mutexes
+// behind the accessors declared at the end of main.h (defined in util.cpp,
+// so the unit-test targets that link util.cpp also get them).
 
 // End of TX state control
 std::atomic<bool> endingTx;
@@ -1891,15 +1884,7 @@ MainFrame::~MainFrame()
     // disconnecting on the threads started by performFreeDVOff_(), and will
     // call back into this object when it's done. Give that a bounded chance
     // to finish first, as OnTogBtnOnOff() does when closing while running.
-    auto rigDisconnectDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    if (rigPttDisconnectFuture_.valid())
-    {
-        rigPttDisconnectFuture_.wait_until(rigDisconnectDeadline);
-    }
-    if (rigFreqDisconnectFuture_.valid())
-    {
-        rigFreqDisconnectFuture_.wait_until(rigDisconnectDeadline);
-    }
+    waitForRigDisconnect_();
 
     takeRigPttController();
     takeRigFrequencyController();
@@ -2677,6 +2662,11 @@ void MainFrame::performFreeDVOn_()
         g_levelMeterTxRawFifo.reset();
         g_plotSpeechInFifoAfterAGC.reset();
 
+        // m_callsign/m_pcallsign are also written by UI handlers (callsign
+        // clear/edit controls stay live while this worker runs), so reset
+        // them here, on the UI thread.
+        memset(m_callsign, 0, sizeof(m_callsign));
+        m_pcallsign = m_callsign;
         m_txtCtrlCallSign->SetValue(wxT(""));
         m_lastReportedCallsignListView->DeleteAllItems();
         restoreCallsignListFromCsv_();
@@ -2686,14 +2676,6 @@ void MainFrame::performFreeDVOn_()
         m_logQSO->Disable();
     });
     
-    // m_callsign/m_pcallsign are also written by UI handlers (callsign
-    // clear/edit controls stay live while this worker runs), so mutate
-    // them there.
-    executeOnUiThreadAndWait_([&]() {
-        memset(m_callsign, 0, MAX_CALLSIGN);
-        m_pcallsign = m_callsign;
-    });
-
     freedvInterface.resetReliableText();
     
     //
@@ -2753,11 +2735,6 @@ void MainFrame::performFreeDVOn_()
     g_snr = 0.0;
     g_half_duplex.store(wxGetApp().appConfiguration.halfDuplexMode, std::memory_order_release);
 
-    executeOnUiThreadAndWait_([&]() {
-        m_pcallsign = m_callsign;
-        memset(m_callsign, 0, sizeof(m_callsign));
-    });
-
     m_maxLevel = 0;
     m_maxLevelDbTx = -LEVEL_GAUGE_MIN_DB;
     executeOnUiThreadAndWait_([&]() 
@@ -2809,6 +2786,11 @@ void MainFrame::performFreeDVOn_()
                     });
                 }
 
+                // A quick Stop then Start can get here while the last
+                // session's rig is still disconnecting (see
+                // performFreeDVOff_()), and still holding its serial port.
+                waitForRigDisconnect_();
+
                 // attempt to start PTT ......            
                 if (wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseForPTT)
                 {
@@ -2856,7 +2838,7 @@ void MainFrame::performFreeDVOn_()
                 // Initialize PSK Reporter reporting.
                 if (wxGetApp().appConfiguration.reportingConfiguration.reportingEnabled)
                 {        
-        if (wxGetApp().appConfiguration.reportingConfiguration.reportingCallsign.get().ToStdString() == "" || wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare.get().ToStdString() == "")
+                    if (wxGetApp().appConfiguration.reportingConfiguration.reportingCallsign.get().ToStdString() == "" || wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare.get().ToStdString() == "")
                     {
                         executeOnUiThreadAndWait_([&]() 
                         {
@@ -3009,6 +2991,20 @@ void MainFrame::performFreeDVOff_()
     std::shared_ptr<IRigPttController> pttControllerToClose = takeRigPttController();
     std::shared_ptr<IRigFrequencyController> freqControllerToClose = takeRigFrequencyController();
 
+    // Queue PTT off and the disconnects here, before the audio is shut
+    // down below: these only enqueue onto each controller's own thread, so
+    // they don't block, and the radio is told to unkey before it stops
+    // getting audio.
+    if (pttControllerToClose != nullptr && pttControllerToClose->isConnected())
+    {
+        pttControllerToClose->ptt(false);
+        pttControllerToClose->disconnect();
+    }
+    if (freqControllerToClose != nullptr && freqControllerToClose->isConnected())
+    {
+        freqControllerToClose->disconnect();
+    }
+
     // Dropping the last shared_ptr reference below runs the controller's
     // destructor, which blocks until the rig actually finishes
     // disconnecting. Against an unresponsive radio (e.g. powered off, via
@@ -3026,11 +3022,6 @@ void MainFrame::performFreeDVOff_()
     std::thread([ptr = std::move(pttControllerToClose), prom = std::move(pttDisconnectProm)]() mutable
     {
         SetThreadName("RigPttDisconnect");
-        if (ptr != nullptr && ptr->isConnected())
-        {
-            ptr->ptt(false);
-            ptr->disconnect();
-        }
         ptr = nullptr;
         prom.set_value();
     }).detach();
@@ -3040,10 +3031,6 @@ void MainFrame::performFreeDVOff_()
     std::thread([ptr = std::move(freqControllerToClose), prom = std::move(freqDisconnectProm)]() mutable
     {
         SetThreadName("RigFreqDisconnect");
-        if (ptr != nullptr && ptr->isConnected())
-        {
-            ptr->disconnect();
-        }
         ptr = nullptr;
         prom.set_value();
     }).detach();
@@ -3189,15 +3176,7 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
                 // might never reach the radio. Give them a bounded chance to
                 // finish first; an unresponsive rig still can't hang shutdown
                 // indefinitely, it just gets abandoned after the grace period.
-                auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-                if (rigPttDisconnectFuture_.valid())
-                {
-                    rigPttDisconnectFuture_.wait_until(deadline);
-                }
-                if (rigFreqDisconnectFuture_.valid())
-                {
-                    rigFreqDisconnectFuture_.wait_until(deadline);
-                }
+                waitForRigDisconnect_();
             }
 
             // On/Off actions complete, re-enable button.
@@ -3241,17 +3220,18 @@ void MainFrame::stopRxStream()
             m_txThread->stop();
             
             {
-                std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-                if (txInSoundDevice)
+                // Out from under the lock before stopping: stop() can block
+                // for a while, and togglePTT() on the UI thread takes it.
+                auto txIn = takeSoundDevice(txInSoundDevice);
+                auto txOut = takeSoundDevice(txOutSoundDevice);
+                if (txIn)
                 {
-                    txInSoundDevice->stop();
-                    txInSoundDevice.reset();
+                    txIn->stop();
                 }
                 
-                if (txOutSoundDevice)
+                if (txOut)
                 {
-                    txOutSoundDevice->stop();
-                    txOutSoundDevice.reset();
+                    txOut->stop();
                 }
             }
             
@@ -3283,17 +3263,17 @@ void MainFrame::stopRxStream()
             m_rxThread->stop();
             
             {
-                std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-                if (rxInSoundDevice)
+                // As for the TX devices above.
+                auto rxIn = takeSoundDevice(rxInSoundDevice);
+                auto rxOut = takeSoundDevice(rxOutSoundDevice);
+                if (rxIn)
                 {
-                    rxInSoundDevice->stop();
-                    rxInSoundDevice.reset();
+                    rxIn->stop();
                 }
             
-                if (rxOutSoundDevice)
+                if (rxOut)
                 {
-                    rxOutSoundDevice->stop();
-                    rxOutSoundDevice.reset();
+                    rxOut->stop();
                 }
             }
             
@@ -3314,6 +3294,27 @@ void MainFrame::stopRxStream()
         engine->stop();
         engine->setOnEngineError(nullptr, nullptr);
     }
+}
+
+void MainFrame::waitForRigDisconnect_()
+{
+    auto rigDisconnectDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    if (rigPttDisconnectFuture_.valid())
+    {
+        rigPttDisconnectFuture_.wait_until(rigDisconnectDeadline);
+    }
+    if (rigFreqDisconnectFuture_.valid())
+    {
+        rigFreqDisconnectFuture_.wait_until(rigDisconnectDeadline);
+    }
+}
+
+void MainFrame::releaseSoundDevices_()
+{
+    auto rxIn = takeSoundDevice(rxInSoundDevice);
+    auto rxOut = takeSoundDevice(rxOutSoundDevice);
+    auto txIn = takeSoundDevice(txInSoundDevice);
+    auto txOut = takeSoundDevice(txOutSoundDevice);
 }
 
 void MainFrame::destroy_fifos(void)
@@ -3488,11 +3489,8 @@ void MainFrame::startRxStream()
         {
             // RX-only setup.
             // Note: we assume 2 channels, but IAudioEngine will automatically downgrade to 1 channel if needed.
-            {
-                std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-                rxInSoundDevice = engine->getAudioDevice(wxGetApp().appConfiguration.audioConfiguration.soundCard1In.deviceName, IAudioEngine::AUDIO_ENGINE_IN, wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate, 2);
-                rxOutSoundDevice = engine->getAudioDevice(wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.deviceName, IAudioEngine::AUDIO_ENGINE_OUT, wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate, 2);
-            }
+            publishSoundDevice(rxInSoundDevice, engine->getAudioDevice(wxGetApp().appConfiguration.audioConfiguration.soundCard1In.deviceName, IAudioEngine::AUDIO_ENGINE_IN, wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate, 2));
+            publishSoundDevice(rxOutSoundDevice, engine->getAudioDevice(wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.deviceName, IAudioEngine::AUDIO_ENGINE_OUT, wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate, 2));
             
             bool failed = false;
             if (!rxInSoundDevice)
@@ -3529,18 +3527,7 @@ void MainFrame::startRxStream()
  
             if (failed)
             {
-                {
-                    std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-                    if (rxInSoundDevice)
-                    {
-                        rxInSoundDevice.reset();
-                    }
-                    
-                    if (rxOutSoundDevice)
-                    {
-                        rxOutSoundDevice.reset();
-                    }
-                }
+                releaseSoundDevices_();
                 
                 m_RxRunning.store(false, std::memory_order_release);
             
@@ -3565,10 +3552,7 @@ void MainFrame::startRxStream()
             // Note: TX devices are started here as RX device sample rates could change as a result (e.g. Bluetooth on macOS).
             bool failed = false;
             
-            {
-                std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-                txInSoundDevice = engine->getAudioDevice(wxGetApp().appConfiguration.audioConfiguration.soundCard2In.deviceName, IAudioEngine::AUDIO_ENGINE_IN, wxGetApp().appConfiguration.audioConfiguration.soundCard2In.sampleRate, 2);
-            }
+            publishSoundDevice(txInSoundDevice, engine->getAudioDevice(wxGetApp().appConfiguration.audioConfiguration.soundCard2In.deviceName, IAudioEngine::AUDIO_ENGINE_IN, wxGetApp().appConfiguration.audioConfiguration.soundCard2In.sampleRate, 2));
             
             if (!txInSoundDevice)
             {
@@ -3600,10 +3584,7 @@ void MainFrame::startRxStream()
                 txInSoundDevice->start();
             }
 
-            {
-                std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-                txOutSoundDevice = engine->getAudioDevice(wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.deviceName, IAudioEngine::AUDIO_ENGINE_OUT, wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate, 2);
-            }
+            publishSoundDevice(txOutSoundDevice, engine->getAudioDevice(wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.deviceName, IAudioEngine::AUDIO_ENGINE_OUT, wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate, 2));
             
             if (!txOutSoundDevice && !failed)
             {
@@ -3635,12 +3616,9 @@ void MainFrame::startRxStream()
                 txOutSoundDevice->start();
             }
             
-            {
-                std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-                rxInSoundDevice = engine->getAudioDevice(wxGetApp().appConfiguration.audioConfiguration.soundCard1In.deviceName, IAudioEngine::AUDIO_ENGINE_IN, wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate, 2);
+            publishSoundDevice(rxInSoundDevice, engine->getAudioDevice(wxGetApp().appConfiguration.audioConfiguration.soundCard1In.deviceName, IAudioEngine::AUDIO_ENGINE_IN, wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate, 2));
 
-                rxOutSoundDevice = engine->getAudioDevice(wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.deviceName, IAudioEngine::AUDIO_ENGINE_OUT, wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate, 2);
-            }
+            publishSoundDevice(rxOutSoundDevice, engine->getAudioDevice(wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.deviceName, IAudioEngine::AUDIO_ENGINE_OUT, wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate, 2));
             
             if (!rxInSoundDevice && !failed)
             {
@@ -3676,30 +3654,16 @@ void MainFrame::startRxStream()
  
             if (failed)
             {
+                if (txInSoundDevice)
                 {
-                    std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-                    if (rxInSoundDevice)
-                    {
-                        rxInSoundDevice.reset();
-                    }
-                    
-                    if (rxOutSoundDevice)
-                    {
-                        rxOutSoundDevice.reset();
-                    }
-                    
-                    if (txInSoundDevice)
-                    {
-                        txInSoundDevice->stop();
-                        txInSoundDevice.reset();
-                    }
-                    
-                    if (txOutSoundDevice)
-                    {
-                        txOutSoundDevice->stop();
-                        txOutSoundDevice.reset();
-                    }
+                    txInSoundDevice->stop();
                 }
+                
+                if (txOutSoundDevice)
+                {
+                    txOutSoundDevice->stop();
+                }
+                releaseSoundDevices_();
                 
                 m_RxRunning.store(false, std::memory_order_release);
             
@@ -3874,11 +3838,7 @@ void MainFrame::startRxStream()
             
             if (!txInSoundDevice->isRunning())
             {
-                std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-                rxInSoundDevice.reset();
-                rxOutSoundDevice.reset();
-                txInSoundDevice.reset();
-                txOutSoundDevice.reset();
+                releaseSoundDevices_();
                 m_RxRunning.store(false, std::memory_order_release);
                 return;
             }
@@ -3887,13 +3847,7 @@ void MainFrame::startRxStream()
             {
                 txInSoundDevice->stop();
 
-                {
-                    std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-                    rxInSoundDevice.reset();
-                    rxOutSoundDevice.reset();
-                    txInSoundDevice.reset();
-                    txOutSoundDevice.reset();
-                }
+                releaseSoundDevices_();
                 m_RxRunning.store(false, std::memory_order_release);
                 return;
             }
@@ -3907,13 +3861,7 @@ void MainFrame::startRxStream()
             if (txInSoundDevice) txInSoundDevice->stop();
             if (txOutSoundDevice) txOutSoundDevice->stop();
             
-            {
-                std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-                rxInSoundDevice.reset();
-                rxOutSoundDevice.reset();
-                txInSoundDevice.reset();
-                txOutSoundDevice.reset();
-            }
+            releaseSoundDevices_();
             m_RxRunning.store(false, std::memory_order_release);
             return;
         }
@@ -3925,13 +3873,7 @@ void MainFrame::startRxStream()
             if (txOutSoundDevice) txOutSoundDevice->stop();
             rxInSoundDevice->stop();
 
-            {
-                std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
-                rxInSoundDevice.reset();
-                rxOutSoundDevice.reset();
-                txInSoundDevice.reset();
-                txOutSoundDevice.reset();
-            }
+            releaseSoundDevices_();
             m_RxRunning.store(false, std::memory_order_release);
             return;
         }

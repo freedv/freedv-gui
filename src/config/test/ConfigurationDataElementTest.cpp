@@ -86,6 +86,31 @@ bool concurrentGetAndSetIsSerialized()
     return true;
 }
 
+// Two writers each add their own keys with update(). If the
+// read-modify-write weren't done in one locked step, one writer could
+// overwrite the other's copy and keys would go missing.
+bool concurrentUpdatesAreNotLost()
+{
+    ConfigurationDataElement<std::map<int, int> > element("/Test/Map", std::map<int, int>());
+
+    const int kIterations = 2000;
+    auto addKeys = [&](int first) {
+        for (int i = 0; i < kIterations; i++)
+        {
+            element.update([&](std::map<int, int>& value) {
+                value.insert_or_assign(first + i, i);
+            });
+        }
+    };
+
+    std::thread writer1(addKeys, 0);
+    std::thread writer2(addKeys, kIterations);
+    writer1.join();
+    writer2.join();
+
+    return (int)element.get().size() == 2 * kIterations;
+}
+
 bool saveProcessorAppliesOnAssignment()
 {
     ConfigurationDataElement<int> element("/Test/Value", 1);
@@ -367,6 +392,7 @@ int main()
     executeTestCase("changingDefaultDoesNotChangeValue", changingDefaultDoesNotChangeValue);
     executeTestCase("getAndAssignReplaceUnderlyingValue", getAndAssignReplaceUnderlyingValue);
     executeTestCase("concurrentGetAndSetIsSerialized", concurrentGetAndSetIsSerialized);
+    executeTestCase("concurrentUpdatesAreNotLost", concurrentUpdatesAreNotLost);
     executeTestCase("saveProcessorAppliesOnAssignment", saveProcessorAppliesOnAssignment);
     executeTestCase("loadProcessorAppliesOnRead", loadProcessorAppliesOnRead);
     executeTestCase("processorsRoundTrip", processorsRoundTrip);

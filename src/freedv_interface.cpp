@@ -169,12 +169,13 @@ void FreeDVInterface::stop()
         radeTextPtr_ = nullptr;
     }
     
-    auto rade = rade_.load();
+    // Clear rade_ before closing so isRunning() is false (and the getters
+    // see nullptr) before the handle goes away.
+    auto rade = rade_.exchange(nullptr);
     if (rade != nullptr)
     {
         rade_close(rade);
     }
-    rade_ = nullptr;
 
     if (lpcnetEncState_ != nullptr)
     {
