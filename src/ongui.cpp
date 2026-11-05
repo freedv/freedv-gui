@@ -25,7 +25,10 @@
 
 #if defined(WIN32)
 #include "rig_control/omnirig/OmniRigController.h"
+
 #endif // defined(WIN32)
+
+extern std::mutex g_mutexProtectingSoundDevices;
 
 extern std::atomic<int>   g_analog;
 extern std::atomic<bool>   g_tx;
@@ -138,7 +141,7 @@ void MainFrame::OnToolsFreeDVReporter(wxCommandEvent&)
 //-------------------------------------------------------------------------
 void MainFrame::OnToolsFreeDVReporterUI(wxUpdateUIEvent& event)
 {
-    event.Enable(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterHostname->ToStdString() != "");
+    event.Enable(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterHostname.get().ToStdString() != "");
 }
 
 //-------------------------------------------------------------------------
@@ -472,8 +475,9 @@ void MainFrame::onFrequencyModeChange_(IRigFrequencyController*, uint64_t freq, 
         // radio before the frequency FreeDV last asked for was set: that would
         // put FreeDV back where it was for a moment (and anything done in that
         // moment, e.g. switching to analog, would go by the old frequency).
-        bool staleFrequency = wxGetApp().rigFrequencyController != nullptr &&
-            wxGetApp().rigFrequencyController->isFrequencyChangePending(freq);
+        auto rigController = snapshotRigFrequencyController();
+        bool staleFrequency = rigController != nullptr &&
+            rigController->isFrequencyChangePending(freq);
         if (!suppressFreqModeUpdates_ && !staleFrequency && (
             !wxGetApp().appConfiguration.reportingConfiguration.reportingEnabled ||
             !wxGetApp().appConfiguration.reportingConfiguration.manualFrequencyReporting))
@@ -494,7 +498,7 @@ void MainFrame::onFrequencyModeChange_(IRigFrequencyController*, uint64_t freq, 
             // on the radio side). Note that this also causes reporting to not fire 
             // by m_cboReportFrequency's change handler, so we should fire off reporting
             // here.
-            auto oldFreq = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency;
+            auto oldFreq = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency.get();
             wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = newFreq;
             if (oldFreq != newFreq)
             {
@@ -526,7 +530,8 @@ void MainFrame::onRadioConnected_(IRigController*)
     // If the user doesn't want frequencies saved and restored, the radio
     // keeps its current frequency (and FreeDV picks it up from the radio).
     bool saveRestoreFrequency = wxGetApp().appConfiguration.rigControlConfiguration.hamlibSaveRestoreFrequency;
-    if (wxGetApp().rigFrequencyController && 
+    auto rigController = snapshotRigFrequencyController();
+    if (rigController && 
         (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges || wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly) &&
         (!saveRestoreFrequency || wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency > 0))
     {
@@ -537,12 +542,12 @@ void MainFrame::onRadioConnected_(IRigController*)
             firstFreqUpdateOnConnect_ = true;
 
             // Set frequency/mode to the one pre-selected by the user before start.
-            wxGetApp().rigFrequencyController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+            rigController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
         }
         
         if (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
         {
-            wxGetApp().rigFrequencyController->setMode(getCurrentMode_());
+            rigController->setMode(getCurrentMode_());
         }
     }
 }
@@ -615,10 +620,8 @@ bool MainFrame::OpenHamlibRig() {
 
         // Hamlib also controls PTT.
         firstFreqUpdateOnConnect_ = false;
-        wxGetApp().rigFrequencyController = tmp;
-        wxGetApp().rigPttController = tmp;
         
-        wxGetApp().rigFrequencyController->onRigError += [this](IRigController*, std::string const& err)
+        tmp->onRigError += [this](IRigController*, std::string const& err)
         {
             CallAfter([&, err]() {
                 // TRANSLATORS: %s is the error message returned by Hamlib.
@@ -627,22 +630,27 @@ bool MainFrame::OpenHamlibRig() {
             });
         };
 
-        wxGetApp().rigFrequencyController->onRigConnected += [&](IRigController* ptr) {
+        tmp->onRigConnected += [&](IRigController* ptr) {
             onRadioConnected_(ptr);
         };
 
-        wxGetApp().rigFrequencyController->onRigDisconnected += [&](IRigController* ptr) {
+        tmp->onRigDisconnected += [&](IRigController* ptr) {
             onRadioDisconnected_(ptr);
         };
 
-        wxGetApp().rigFrequencyController->onFreqModeChange += [&](IRigFrequencyController* ptr, uint64_t freq, IRigFrequencyController::Mode mode) {
+        tmp->onFreqModeChange += [&](IRigFrequencyController* ptr, uint64_t freq, IRigFrequencyController::Mode mode) {
             onFrequencyModeChange_(ptr, freq, mode);
         };
         
-        wxGetApp().rigPttController->onPttChange += [&](IRigPttController*, bool state) {
+        tmp->onPttChange += [&](IRigPttController*, bool state) {
             onRigPttChange_(state);
         };
-        wxGetApp().rigFrequencyController->connect();
+        tmp->connect();
+
+        // Publish only after the controller is fully wired: this runs on
+        // either the UI thread (Settings) or the "TurningOn" worker.
+        publishRigFrequencyController(tmp);
+        publishRigPttController(tmp);
         return true;
     }
     else
@@ -661,17 +669,10 @@ void MainFrame::OpenOmniRig()
             wxGetApp().appConfiguration.rigControlConfiguration.hamlibSaveRestoreFrequency,
         wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly);
 
-    // OmniRig also controls PTT.
-    wxGetApp().rigFrequencyController = tmp;
-    if (!wxGetApp().rigPttController)
-    {
-        wxGetApp().rigPttController = tmp;
-        wxGetApp().rigPttController->onPttChange += [&](IRigPttController*, bool state) {
-            onRigPttChange_(state);
-        };
-    }
-
-    wxGetApp().rigFrequencyController->onRigError += [this](IRigController*, std::string err)
+    // OmniRig also controls PTT. Wire handlers on the local object first,
+    // then publish under the handle lock; this runs on either the UI
+    // thread (Settings) or the "TurningOn" worker.
+    tmp->onRigError += [this](IRigController*, std::string err)
     {
         CallAfter([&, err]() {
             // TRANSLATORS: %s is the error message returned by OmniRig.
@@ -680,19 +681,28 @@ void MainFrame::OpenOmniRig()
         });
     };
 
-    wxGetApp().rigFrequencyController->onRigConnected += [&](IRigController* ptr) {
+    tmp->onRigConnected += [&](IRigController* ptr) {
         onRadioConnected_(ptr);
     };
 
-    wxGetApp().rigFrequencyController->onRigDisconnected += [&](IRigController* ptr) {
+    tmp->onRigDisconnected += [&](IRigController* ptr) {
         onRadioDisconnected_(ptr);
     };
 
-    wxGetApp().rigFrequencyController->onFreqModeChange += [&](IRigFrequencyController* ptr, uint64_t freq, IRigFrequencyController::Mode mode) {
+    tmp->onFreqModeChange += [&](IRigFrequencyController* ptr, uint64_t freq, IRigFrequencyController::Mode mode) {
         onFrequencyModeChange_(ptr, freq, mode);
     };
 
-    wxGetApp().rigFrequencyController->connect();
+    if (!snapshotRigPttController())
+    {
+        tmp->onPttChange += [&](IRigPttController*, bool state) {
+            onRigPttChange_(state);
+        };
+        publishRigPttController(tmp);
+    }
+
+    tmp->connect();
+    publishRigFrequencyController(tmp);
 }
 #endif // defined(WIN32)
 
@@ -796,16 +806,18 @@ void MainFrame::autoSaveCurrentBandLevels_(bool writeConfig)
     if (bandName.IsEmpty())
         return;
     bool changed = false;
-    auto& txAtten = wxGetApp().appConfiguration.txAttenByBand;
-    if (txAtten->find(bandName) != txAtten->end())
+    auto txAtten = wxGetApp().appConfiguration.txAttenByBand.get();
+    if (txAtten.find(bandName) != txAtten.end())
     {
-        txAtten->insert_or_assign(bandName, g_txLevel);
+        txAtten.insert_or_assign(bandName, g_txLevel);
+        wxGetApp().appConfiguration.txAttenByBand.setWithoutProcessing(txAtten);
         changed = true;
     }
-    auto& tuneAtten = wxGetApp().appConfiguration.tuneAttenByBand;
-    if (tuneAtten->find(bandName) != tuneAtten->end())
+    auto tuneAtten = wxGetApp().appConfiguration.tuneAttenByBand.get();
+    if (tuneAtten.find(bandName) != tuneAtten.end())
     {
-        tuneAtten->insert_or_assign(bandName, g_tuneLevel);
+        tuneAtten.insert_or_assign(bandName, g_tuneLevel);
+        wxGetApp().appConfiguration.tuneAttenByBand.setWithoutProcessing(tuneAtten);
         changed = true;
     }
     if (changed && writeConfig)
@@ -817,9 +829,9 @@ void MainFrame::autoSaveCurrentBandLevels_(bool writeConfig)
 void MainFrame::loadTxAttenForBand_(FilterFrequency band)
 {
     wxString bandName = bandNameForFilter(band);
-    auto& atten = wxGetApp().appConfiguration.txAttenByBand;
-    auto it = atten->find(bandName);
-    g_txLevel = (it != atten->end()) ? it->second : (int)wxGetApp().appConfiguration.transmitLevel;
+    auto atten = wxGetApp().appConfiguration.txAttenByBand.get();
+    auto it = atten.find(bandName);
+    g_txLevel = (it != atten.end()) ? it->second : (int)wxGetApp().appConfiguration.transmitLevel;
     txLoadedLevel_ = g_txLevel; // snapshot for Restore
     // Caller is responsible for calling applyTxLevel() after all band values are loaded.
 }
@@ -829,9 +841,9 @@ void MainFrame::loadTxAttenForBand_(FilterFrequency band)
 void MainFrame::loadTuneAttenForBand_(FilterFrequency band)
 {
     wxString bandName = bandNameForFilter(band);
-    auto& atten = wxGetApp().appConfiguration.tuneAttenByBand;
-    auto it = atten->find(bandName);
-    g_tuneLevel = (it != atten->end()) ? it->second : (int)wxGetApp().appConfiguration.tuneLevel;
+    auto atten = wxGetApp().appConfiguration.tuneAttenByBand.get();
+    auto it = atten.find(bandName);
+    g_tuneLevel = (it != atten.end()) ? it->second : (int)wxGetApp().appConfiguration.tuneLevel;
     tuneLoadedLevel_ = g_tuneLevel; // snapshot for Restore
     // Caller is responsible for calling applyTxLevel() after all band values are loaded.
 }
@@ -866,12 +878,14 @@ void MainFrame::applyTxLevel()
         wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency));
     if (isTuning)
     {
-        if (bandName.IsEmpty() || wxGetApp().appConfiguration.tuneAttenByBand->find(bandName) == wxGetApp().appConfiguration.tuneAttenByBand->end())
+        auto tuneMap = wxGetApp().appConfiguration.tuneAttenByBand.get();
+        if (bandName.IsEmpty() || tuneMap.find(bandName) == tuneMap.end())
             wxGetApp().appConfiguration.tuneLevel = g_tuneLevel;
     }
     else
     {
-        if (bandName.IsEmpty() || wxGetApp().appConfiguration.txAttenByBand->find(bandName) == wxGetApp().appConfiguration.txAttenByBand->end())
+        auto txMap = wxGetApp().appConfiguration.txAttenByBand.get();
+        if (bandName.IsEmpty() || txMap.find(bandName) == txMap.end())
             wxGetApp().appConfiguration.transmitLevel = g_txLevel;
     }
 }
@@ -897,8 +911,8 @@ void MainFrame::OnTxLevelContextMenu( wxContextMenuEvent& )
     if (bandName.IsEmpty())
         return;
 
-    auto& atten = wxGetApp().appConfiguration.txAttenByBand;
-    bool hasSaved = (atten->find(bandName) != atten->end());
+    auto attenMap = wxGetApp().appConfiguration.txAttenByBand.get();
+    bool hasSaved = (attenMap.find(bandName) != attenMap.end());
 
     wxMenu menu;
     wxString toggleLabel = hasSaved
@@ -912,11 +926,17 @@ void MainFrame::OnTxLevelContextMenu( wxContextMenuEvent& )
     // Disable removes the entry so the band reverts to the global default.
     menu.Bind(wxEVT_MENU, [this, bandName, hasSaved](wxCommandEvent&) {
         if (hasSaved)
-            wxGetApp().appConfiguration.txAttenByBand->erase(bandName);
+        {
+            auto atten = wxGetApp().appConfiguration.txAttenByBand.get();
+            atten.erase(bandName);
+            wxGetApp().appConfiguration.txAttenByBand.setWithoutProcessing(atten);
+        }
         else
         {
             txLoadedLevel_ = g_txLevel; // record restore point at Enable time
-            wxGetApp().appConfiguration.txAttenByBand->insert_or_assign(bandName, g_txLevel);
+            auto atten = wxGetApp().appConfiguration.txAttenByBand.get();
+            atten.insert_or_assign(bandName, g_txLevel);
+            wxGetApp().appConfiguration.txAttenByBand.setWithoutProcessing(atten);
         }
         wxGetApp().appConfiguration.save(pConfig);
     }, toggleItem->GetId());
@@ -949,8 +969,8 @@ void MainFrame::OnTuneAttenContextMenu( wxContextMenuEvent& )
     if (!bandName.IsEmpty())
     {
         menu.AppendSeparator();
-        auto& atten = wxGetApp().appConfiguration.tuneAttenByBand;
-        bool hasSaved = (atten->find(bandName) != atten->end());
+        auto attenMap = wxGetApp().appConfiguration.tuneAttenByBand.get();
+        bool hasSaved = (attenMap.find(bandName) != attenMap.end());
 
         wxString toggleLabel = hasSaved
             ? wxString::Format(_("Disable auto-save of tune atten for %s"), bandName)
@@ -961,11 +981,17 @@ void MainFrame::OnTuneAttenContextMenu( wxContextMenuEvent& )
 
         menu.Bind(wxEVT_MENU, [this, bandName, hasSaved](wxCommandEvent&) {
             if (hasSaved)
-                wxGetApp().appConfiguration.tuneAttenByBand->erase(bandName);
+            {
+                auto atten = wxGetApp().appConfiguration.tuneAttenByBand.get();
+                atten.erase(bandName);
+                wxGetApp().appConfiguration.tuneAttenByBand.setWithoutProcessing(atten);
+            }
             else
             {
                 tuneLoadedLevel_ = g_tuneLevel;
-                wxGetApp().appConfiguration.tuneAttenByBand->insert_or_assign(bandName, g_tuneLevel);
+                auto atten = wxGetApp().appConfiguration.tuneAttenByBand.get();
+                atten.insert_or_assign(bandName, g_tuneLevel);
+                wxGetApp().appConfiguration.tuneAttenByBand.setWithoutProcessing(atten);
             }
             wxGetApp().appConfiguration.save(pConfig);
         }, toggleItem->GetId());
@@ -1404,9 +1430,10 @@ void MainFrame::togglePTT(void) {
         stopTotBeep_();
 
         // If PTT input is enabled, suspend further changes until after EOO is sent.
-        if (wxGetApp().m_pttInSerialPort)
+        auto pttInPortSuspend = snapshotPTTInSerialPort();
+        if (pttInPortSuspend)
         {
-            wxGetApp().m_pttInSerialPort->suspendChanges(true);
+            pttInPortSuspend->suspendChanges(true);
         }
         
         // Sleep for long enough that we get the remaining [blocksize] ms of audio.
@@ -1473,7 +1500,12 @@ void MainFrame::togglePTT(void) {
         
         // Wait for a minimum amount of time before stopping TX to ensure that
         // remaining audio gets piped to the radio from the operating system.
-        int latency = (int)GetPlausibleLatencyUs_(txOutSoundDevice, "TX output");
+        std::shared_ptr<IAudioDevice> txOutDevice;
+        {
+            std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
+            txOutDevice = txOutSoundDevice;
+        }
+        int latency = (int)GetPlausibleLatencyUs_(txOutDevice, "TX output");
 
         log_info(
             "Pausing for a minimum of %d us before TX->RX to allow remaining audio to go out", 
@@ -1514,9 +1546,15 @@ void MainFrame::togglePTT(void) {
         // The radio keeps transmitting until it has processed the PTT-off
         // request below, so keep RX muted until it confirms (see
         // onRigPttChange_()). If it never does, give up after a timeout.
-        if (wxGetApp().rigPttController != nullptr && wxGetApp().rigPttController->isConnected())
+        auto rigPtt = snapshotRigPttController();
+        if (rigPtt != nullptr && rigPtt->isConnected())
         {
-            g_rxInputLatencyUs.store(GetPlausibleLatencyUs_(rxInSoundDevice, "RX input"), std::memory_order_release);
+            std::shared_ptr<IAudioDevice> rxInDevice;
+            {
+                std::lock_guard<std::mutex> deviceLock(g_mutexProtectingSoundDevices);
+                rxInDevice = rxInSoundDevice;
+            }
+            g_rxInputLatencyUs.store(GetPlausibleLatencyUs_(rxInDevice, "RX input"), std::memory_order_release);
             g_rxMutedUntilNs.store(
                 std::chrono::duration_cast<std::chrono::nanoseconds>(
                     (std::chrono::steady_clock::now() + RX_MUTE_MAX_WAIT_FOR_RADIO).time_since_epoch()).count(),
@@ -1526,9 +1564,10 @@ void MainFrame::togglePTT(void) {
         g_tx.store(false, std::memory_order_release);
         endingTx.store(false, std::memory_order_release);
         
-        if (wxGetApp().m_pttInSerialPort)
+        auto pttInPortResume = snapshotPTTInSerialPort();
+        if (pttInPortResume)
         {
-            wxGetApp().m_pttInSerialPort->suspendChanges(false);
+            pttInPortResume->suspendChanges(false);
         }
         
         // tx-> rx transition, swap to the page we were on for last rx
@@ -1561,9 +1600,10 @@ void MainFrame::togglePTT(void) {
         wxGetApp().Yield(true);
 
         // If PTT input is enabled, suspend further changes until we actually start TX.
-        if (wxGetApp().m_pttInSerialPort)
+        auto pttInPort = snapshotPTTInSerialPort();
+        if (pttInPort)
         {
-            wxGetApp().m_pttInSerialPort->suspendChanges(true);
+            pttInPort->suspendChanges(true);
         }
         
         // rx-> tx transition, swap to Mic In page to monitor speech
@@ -1597,9 +1637,10 @@ void MainFrame::togglePTT(void) {
     // Use wasInTx to determine direction: don't let a stray click during the drain
     // flip newTx and leave the radio keyed with the pipeline in the wrong state.
     auto newTx = !wasInTx;
-    if (wxGetApp().rigPttController != nullptr && wxGetApp().rigPttController->isConnected())
+    auto rigPtt = snapshotRigPttController();
+    if (rigPtt != nullptr && rigPtt->isConnected())
     {
-        wxGetApp().rigPttController->ptt(newTx);
+        rigPtt->ptt(newTx);
     }
 
     // reset level gauge
@@ -1669,9 +1710,10 @@ void MainFrame::togglePTT(void) {
             m_totWarningTimer.Start(500, wxTIMER_CONTINUOUS);
         }
 
-        if (wxGetApp().m_pttInSerialPort)
+        auto pttInPort = snapshotPTTInSerialPort();
+        if (pttInPort)
         {
-            wxGetApp().m_pttInSerialPort->suspendChanges(false);
+            pttInPort->suspendChanges(false);
         }
     }
     
@@ -1721,9 +1763,10 @@ void MainFrame::OnTogBtnTune(wxCommandEvent&)
     m_btnTogTune->SetBackgroundColour(newTx ? *wxRED : wxNullColour);
 
     // Update PTT state
-    if (wxGetApp().rigPttController != nullptr && wxGetApp().rigPttController->isConnected()) 
+    auto rigPtt = snapshotRigPttController();
+    if (rigPtt != nullptr && rigPtt->isConnected()) 
     {
-        wxGetApp().rigPttController->ptt(newTx);
+        rigPtt->ptt(newTx);
     }
 
     // Disable actual TX controls if needed
@@ -1794,7 +1837,8 @@ void MainFrame::OnTogBtnAnalogClick (wxCommandEvent& event)
         }
     }
     
-    if (wxGetApp().rigFrequencyController != nullptr && 
+    auto rigController = snapshotRigFrequencyController();
+    if (rigController != nullptr && 
         wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency > 0 &&
         wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
     {
@@ -1809,17 +1853,17 @@ void MainFrame::OnTogBtnAnalogClick (wxCommandEvent& event)
             // previously prior to the analog switch.
             wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = 
                 wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency + LSB_USB_FREQ_SHIFT_HZ;
-            wxGetApp().rigFrequencyController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+            rigController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
         }
         else if (oldMode == HamlibRigController::LSB && !g_analog)
         {
             // Revert previous mode shift.
             wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = 
                 wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency - LSB_USB_FREQ_SHIFT_HZ;
-            wxGetApp().rigFrequencyController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+            rigController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
         }
 
-        wxGetApp().rigFrequencyController->setMode(currentMode);
+        rigController->setMode(currentMode);
     }
 
     g_State.store(0, std::memory_order_release);
@@ -1996,7 +2040,7 @@ void MainFrame::OnBerReset(wxCommandEvent&)
 
 void MainFrame::OnChangeReportFrequencyVerify( wxCommandEvent& event )
 {
-    if (wxGetApp().rigFrequencyController != nullptr && suppressFreqModeUpdates_)
+    if (snapshotRigFrequencyController() != nullptr && suppressFreqModeUpdates_)
     {
         return;
     }
@@ -2007,7 +2051,7 @@ void MainFrame::OnChangeReportFrequencyVerify( wxCommandEvent& event )
 void MainFrame::OnChangeReportFrequency( wxCommandEvent& )
 {    
     wxString freqStr = m_cboReportFrequency->GetValue();
-    auto oldFreq = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency;
+    auto oldFreq = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency.get();
 
     wxString oldFreqString;            
     if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
@@ -2069,15 +2113,16 @@ void MainFrame::OnChangeReportFrequency( wxCommandEvent& )
             ptr->freqChange(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
         }
         
-        if (wxGetApp().rigFrequencyController != nullptr && 
+        auto rigController = snapshotRigFrequencyController();
+        if (rigController != nullptr && 
             wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency > 0 && 
             (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges || wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly))
         {
             // Request frequency/mode change on the radio side
-            wxGetApp().rigFrequencyController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+            rigController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
             if (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
             {
-                wxGetApp().rigFrequencyController->setMode(getCurrentMode_());
+                rigController->setMode(getCurrentMode_());
             }
         }
     }

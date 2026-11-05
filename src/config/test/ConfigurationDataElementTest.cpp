@@ -1,8 +1,9 @@
+#include <atomic>
 #include <cstdint>
 #include <map>
 #include <string>
+#include <thread>
 #include <vector>
-
 #include <wx/string.h>
 
 #include "../ConfigurationDataElement.h"
@@ -38,13 +39,51 @@ bool changingDefaultDoesNotChangeValue()
     return element.getDefaultVal() == 99 && element.get() == 42;
 }
 
-bool arrowOperatorAccessesUnderlyingValue()
+bool getAndAssignReplaceUnderlyingValue()
 {
     ConfigurationDataElement<std::string> element("/Test/Value", "abc");
-    if (element->size() != 3) return false;
+    if (element.get().size() != 3) return false;
 
-    element->append("def");
+    std::string value = element.get();
+    value.append("def");
+    element = value;
     return element.get() == "abcdef";
+}
+
+// A writer thread does get/modify/set read-modify-write cycles while a
+// reader thread continuously reads through the load processor. Built with
+// ThreadSanitizer this test fails if the element ever stops serializing
+// access to its stored value.
+bool concurrentGetAndSetIsSerialized()
+{
+    ConfigurationDataElement<std::vector<int> > element("/Test/Vec", std::vector<int>());
+
+    const int kIterations = 2000;
+    std::atomic<size_t> totalRead{0};
+
+    std::thread writer([&]() {
+        for (int i = 0; i < kIterations; i++)
+        {
+            auto value = element.get();
+            value.push_back(i);
+            element.setWithoutProcessing(value);
+        }
+    });
+
+    std::thread reader([&]() {
+        for (int i = 0; i < kIterations * 2; i++)
+        {
+            totalRead.fetch_add(element.get().size());
+        }
+    });
+
+    writer.join();
+    reader.join();
+
+    auto finalValue = element.get();
+    if ((int)finalValue.size() != kIterations) return false;
+    if (finalValue.back() != kIterations - 1) return false;
+    return true;
 }
 
 bool saveProcessorAppliesOnAssignment()
@@ -326,7 +365,8 @@ int main()
     executeTestCase("startsWithDefaultValue", startsWithDefaultValue);
     executeTestCase("assignmentChangesValueButNotDefault", assignmentChangesValueButNotDefault);
     executeTestCase("changingDefaultDoesNotChangeValue", changingDefaultDoesNotChangeValue);
-    executeTestCase("arrowOperatorAccessesUnderlyingValue", arrowOperatorAccessesUnderlyingValue);
+    executeTestCase("getAndAssignReplaceUnderlyingValue", getAndAssignReplaceUnderlyingValue);
+    executeTestCase("concurrentGetAndSetIsSerialized", concurrentGetAndSetIsSerialized);
     executeTestCase("saveProcessorAppliesOnAssignment", saveProcessorAppliesOnAssignment);
     executeTestCase("loadProcessorAppliesOnRead", loadProcessorAppliesOnRead);
     executeTestCase("processorsRoundTrip", processorsRoundTrip);

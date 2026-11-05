@@ -741,5 +741,20 @@ void my_put_next_rx_char(void *callback_state, char c);
 
 // helper complex freq shift function
 
+// Accessors for the shared_ptr handles that the UI thread and the
+// Start/Stop worker threads mutate concurrently (wxGetApp().rigPttController,
+// rigFrequencyController and m_pttInSerialPort; see
+// g_mutexProtectingRigControllers in main.cpp). snapshot*() copies the
+// handle, take*() copies and clears the global, publish*() stores a new
+// handle. Never touch those members directly outside these helpers.
+std::shared_ptr<IRigPttController> snapshotRigPttController();
+std::shared_ptr<IRigPttController> takeRigPttController();
+void publishRigPttController(std::shared_ptr<IRigPttController> ptr);
+std::shared_ptr<IRigFrequencyController> snapshotRigFrequencyController();
+std::shared_ptr<IRigFrequencyController> takeRigFrequencyController();
+void publishRigFrequencyController(std::shared_ptr<IRigFrequencyController> ptr);
+std::shared_ptr<SerialPortInRigController> snapshotPTTInSerialPort();
+std::shared_ptr<SerialPortInRigController> takePTTInSerialPort();
+void publishPTTInSerialPort(std::shared_ptr<SerialPortInRigController> ptr);
 
 #endif //__FDMDV2_MAIN__
