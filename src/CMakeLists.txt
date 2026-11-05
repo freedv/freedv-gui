@@ -52,6 +52,12 @@ macro(DefineFreeDVUnitTest prefix utName)
     target_link_libraries(${utName} PRIVATE ${ARGN})
     target_compile_options(${utName} PRIVATE ${WARNINGS_AS_ERRORS_FLAGS})
 
+    # Statically built libraries (e.g. libsndfile on Windows) must be installed
+    # before tests that include their headers are compiled.
+    if(FREEDV_STATIC_DEPS)
+        add_dependencies(${utName} ${FREEDV_STATIC_DEPS})
+    endif(FREEDV_STATIC_DEPS)
+
     # Needed to find codec2/RADE when they're built as part of FreeDV.
     set_target_properties(
         ${utName}

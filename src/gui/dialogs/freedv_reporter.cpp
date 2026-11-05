@@ -2352,6 +2352,7 @@ void FreeDVReporterDialog::syncRecentStatusTexts_()
     // never be mutated in place.
     auto popup = getMsgPopup();
     std::vector<wxString> recent;
+    recent.reserve(popup->GetCount());
     for (unsigned int index = 0; index < popup->GetCount(); index++)
     {
         recent.push_back(popup->GetString(index));
