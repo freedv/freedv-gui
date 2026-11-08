@@ -2648,7 +2648,14 @@ void MainFrame::topFrame_OnClose( wxCloseEvent& event )
 
         if (onOffInProgress_)
         {
-            log_warn("On/Off still running after 10s; closing regardless");
+            // Going on anyway, as the close can't be refused, but it can't
+            // be done cleanly either. With the session up, the Stop asked
+            // for below can't begin while the On/Off button is disabled:
+            // the window then goes only once a Stop that's already running
+            // finishes (a Start's worker doesn't close it). With m_RxRunning
+            // already clear, the window is destroyed while the worker may
+            // still be using it.
+            log_warn("On/Off still running after 10s; going on with the close without it finishing");
         }
     }
 
