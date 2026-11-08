@@ -1032,7 +1032,7 @@ void MacAudioDevice::runNotificationThread_(std::function<void()> work)
     }
 
     auto done = std::make_shared<std::atomic<bool>>(false);
-    std::thread worker([work, done]() {
+    std::thread worker([work = std::move(work), done]() {
         work();
         done->store(true, std::memory_order_release);
     });
