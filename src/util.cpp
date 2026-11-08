@@ -352,6 +352,15 @@ void resample_for_plot(GenericFIFO<short> *plotFifo, short buf[], short* dec_sam
 
 void MainFrame::executeOnUiThreadAndWait_(std::function<void()> fn)
 {
+    // Already on the UI thread: run it here. Queuing it and waiting would
+    // deadlock -- what's queued only runs when the UI thread next turns
+    // round the loop, and this call is what's keeping it from doing that.
+    if (wxIsMainThread())
+    {
+        fn();
+        return;
+    }
+
     std::mutex funcMutex;
     std::condition_variable funcConditionVariable;
     std::unique_lock<std::mutex> funcLock(funcMutex);

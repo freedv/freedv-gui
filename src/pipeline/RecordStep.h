@@ -70,10 +70,17 @@ private:
     // once per drop event (start + duration) rather than once per audio callback.
     int consecutiveWriteDrops_;
 
+    // The file the samples currently in inputFifo_ were queued for. Set by
+    // execute() on the pipeline thread; used only to notice when the file
+    // being recorded to has changed, so it's never dereferenced -- it can
+    // outlive the SNDFILE it names.
+    SNDFILE* queuedForFile_ = nullptr;
+
     void fileIoThreadEntry_();
 
-    // Writes whatever's currently queued to the record file. Must only be called from
-    // the file I/O thread; takes g_mutexProtectingCallbackData itself.
+    // Writes whatever's currently queued to the record file. Must only be
+    // called from the file I/O thread; takes g_mutexProtectingRecordFiles
+    // itself.
     void drainFifoToFile_(short* buf);
 };
 

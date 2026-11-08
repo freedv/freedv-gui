@@ -28,6 +28,12 @@
 #include <dispatch/dispatch.h>
 #include <CoreAudio/CoreAudio.h>
 #include <AudioUnit/AudioUnit.h>
+#include <atomic>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <utility>
+#include <vector>
 
 #include "../util/ThreadedObject.h"
 #include "freedv_sanitizers.h"
@@ -84,7 +90,9 @@ private:
     MacAudioEngine* parent_;
     AudioComponentInstance auHAL_;
     AudioBufferList* bufferList_;
-    bool running_;
+    // Read by isRunning() on the application's threads while start()/stop()
+    // set it on the device's worker thread.
+    std::atomic<bool> running_;
     int chosenFrameSize_;
     std::atomic<int> numRealTimeWorkers_;
 
@@ -99,6 +107,17 @@ private:
     void stopImpl_();
     void joinWorkgroup_();
     void leaveWorkgroup_();
+
+    // CoreAudio's notifications can't do their own work: they'd have to
+    // wait for this device's worker thread while holding CoreAudio's lock.
+    // They hand it to a thread instead -- a thread that uses this object, so
+    // the object holds on to it and waits for it rather than letting it
+    // outlive the device.
+    void runNotificationThread_(std::function<void()> work);
+
+    std::mutex notificationMtx_;
+    std::vector<std::pair<std::thread, std::shared_ptr<std::atomic<bool>>>> notificationThreads_;
+    bool beingDestroyed_ = false;
     
     UInt32 nextPowerOfTwo_(UInt32 val);
 

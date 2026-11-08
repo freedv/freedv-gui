@@ -65,3 +65,10 @@ if(UNITTEST AND LINUX AND NATIVE_AUDIO_AVAILABLE)
     target_include_directories(PulseAudioDeviceTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/.. ${CMAKE_CURRENT_BINARY_DIR}/..)
     FreeDVUnitTestUsesWxWidgets(PulseAudioDeviceTest)
 endif()
+
+# The factory itself is built on every platform; only the engine it makes
+# differs.
+if(UNITTEST)
+    DefineFreeDVUnitTest(audio AudioEngineFactoryTest fdv_audio fdv_util ${FREEDV_LINK_LIBS})
+    FreeDVUnitTestUsesWxWidgets(AudioEngineFactoryTest)
+endif()

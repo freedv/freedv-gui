@@ -35,6 +35,7 @@
 #include "RecordStep.h"
 
 #include <chrono>
+#include <mutex>
 #include "wx/thread.h"
 
 #if defined(__APPLE__)
@@ -44,7 +45,7 @@
 #include "../os/os_interface.h"
 #include "../util/logging/ulog.h"
 
-extern wxMutex g_mutexProtectingCallbackData;
+extern std::mutex g_mutexProtectingRecordFiles;
 
 using namespace std::chrono_literals;
 
@@ -83,6 +84,21 @@ int RecordStep::getOutputSampleRate() const FREEDV_NONBLOCKING
 
 short* RecordStep::execute(short* inputSamples, int numInputSamples, int* numOutputSamples) FREEDV_NONBLOCKING
 {
+    // What's queued here belongs to the file being recorded to. If that has
+    // changed since the last block was queued -- one recording stopped, or
+    // another started while the first's samples were still waiting to be
+    // written -- what's left in the queue is the tail of the recording that
+    // just ended and can no longer be written to its file, so it goes here
+    // rather than turning up at the front of the next recording. A file that
+    // has only just appeared doesn't count as a change: audio queued before
+    // it was opened is meant to be recorded.
+    auto recordFile = getSndFileFn_();
+    if (queuedForFile_ != nullptr && recordFile != queuedForFile_)
+    {
+        inputFifo_.reset();
+    }
+    queuedForFile_ = recordFile;
+
     // write() is all-or-nothing, so a full FIFO means this entire chunk is missing from
     // the resulting file. That silently makes the recording an unfaithful record of what
     // actually flowed through the pipeline, so say so rather than dropping it quietly.
@@ -119,7 +135,12 @@ void RecordStep::reset() FREEDV_NONBLOCKING
 
 void RecordStep::drainFifoToFile_(short* buf)
 {
-    g_mutexProtectingCallbackData.Lock();
+    // The mutex the application takes when it detaches a record file, so
+    // that a close can't leave this writing into a freed SNDFILE. It's
+    // deliberately not g_mutexProtectingCallbackData: the write below blocks
+    // on the disk, and that mutex is what the UI thread takes to touch the
+    // callback data, so holding it here lets a slow disk stall the window.
+    std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
     auto recordFile = getSndFileFn_();
     if (recordFile != nullptr)
     {
@@ -142,7 +163,6 @@ void RecordStep::drainFifoToFile_(short* buf)
             }
         }
     }
-    g_mutexProtectingCallbackData.Unlock();
 }
 
 void RecordStep::fileIoThreadEntry_()

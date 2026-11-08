@@ -234,6 +234,13 @@ wxMutex g_mutexProtectingCallbackData(wxMUTEX_RECURSIVE);
 // g_mutexProtectingCallbackData first.
 std::mutex g_mutexProtectingPlayFiles;
 
+// Protects the lifetime of the SNDFILE handles written by RecordStep
+// (g_sfRecFile, g_sfRecFileFromModulator, g_sfRecDecoderFile and
+// g_sfRecMicFile). Kept separate from g_mutexProtectingCallbackData so that
+// slow writes on the recording thread can't stall the UI thread. If both
+// are needed, take g_mutexProtectingCallbackData first.
+std::mutex g_mutexProtectingRecordFiles;
+
 // The rig controller and sound device handles are guarded by the mutexes
 // behind the accessors declared at the end of main.h (defined in util.cpp,
 // so the unit-test targets that link util.cpp also get them).
@@ -553,17 +560,19 @@ void MainApp::UnitTest_()
             std::this_thread::sleep_for(5s + std::chrono::milliseconds(distrib(gen)));
         }
 
-        // Null out the handle (under the same mutex RecordStep's drain
-        // takes around sf_write_short) before closing it, so no pending
-        // drain can write into a closed SNDFILE.
-        g_mutexProtectingCallbackData.Lock();
-        g_recFileFromModulator = false;
-        auto modulatorRecFile = g_sfRecFileFromModulator.exchange(NULL, std::memory_order_acq_rel);
-        if (g_sfRecFile.load(std::memory_order_acquire) == modulatorRecFile)
+        // Null out the handle (under the mutex RecordStep's drain takes
+        // around sf_write_short) before closing it, so no pending drain can
+        // write into a closed SNDFILE.
+        SNDFILE* modulatorRecFile = NULL;
         {
-            g_sfRecFile.store(NULL, std::memory_order_release);
+            std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+            g_recFileFromModulator = false;
+            modulatorRecFile = g_sfRecFileFromModulator.exchange(NULL, std::memory_order_acq_rel);
+            if (g_sfRecFile.load(std::memory_order_acquire) == modulatorRecFile)
+            {
+                g_sfRecFile.store(NULL, std::memory_order_release);
+            }
         }
-        g_mutexProtectingCallbackData.Unlock();
         if (modulatorRecFile != NULL)
         {
             sf_close(modulatorRecFile);
@@ -623,10 +632,12 @@ void MainApp::UnitTest_()
         }
 
         // Same drain-safe close as the modulator record file above.
-        g_mutexProtectingCallbackData.Lock();
-        g_recFileFromDecoder.store(false, std::memory_order_release);
-        auto decoderRecFile = g_sfRecDecoderFile.exchange(NULL, std::memory_order_acq_rel);
-        g_mutexProtectingCallbackData.Unlock();
+        SNDFILE* decoderRecFile = NULL;
+        {
+            std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+            g_recFileFromDecoder.store(false, std::memory_order_release);
+            decoderRecFile = g_sfRecDecoderFile.exchange(NULL, std::memory_order_acq_rel);
+        }
         if (decoderRecFile != NULL)
         {
             sf_close(decoderRecFile);
@@ -1915,22 +1926,27 @@ MainFrame::~MainFrame()
             g_sfPlayFileReader = nullptr;
         }
     }
-    auto recFile = g_sfRecFile.load(std::memory_order_acquire);
-    auto recFileFromModulator = g_sfRecFileFromModulator.load(std::memory_order_acquire);
-    if (recFile != NULL)
+    // Detached from the pipeline the same way as everywhere else: the
+    // handles go null under the mutex RecordStep's drain takes around
+    // sf_write_short, and only then are the files closed.
+    std::vector<SNDFILE*> recordFilesToClose;
     {
-        sf_close(g_sfRecFile.load(std::memory_order_acquire));
-        g_sfRecFile.store(NULL, std::memory_order_release);
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+        recordFilesToClose.push_back(g_sfRecFile.exchange(NULL, std::memory_order_acq_rel));
+        recordFilesToClose.push_back(g_sfRecFileFromModulator.exchange(NULL, std::memory_order_acq_rel));
+        recordFilesToClose.push_back(g_sfRecDecoderFile.exchange(NULL, std::memory_order_acq_rel));
     }
-    if (recFileFromModulator != NULL && recFileFromModulator != recFile)
+    for (size_t fileIndex = 0; fileIndex < recordFilesToClose.size(); fileIndex++)
     {
-        sf_close(recFileFromModulator);
-        g_sfRecFileFromModulator = NULL;
-    }
-    if (g_sfRecDecoderFile.load(std::memory_order_acquire) != NULL)
-    {
-        sf_close(g_sfRecDecoderFile.load(std::memory_order_acquire));
-        g_sfRecDecoderFile = NULL;
+        auto recordFile = recordFilesToClose[fileIndex];
+        // The modulator's file is the same SNDFILE as the radio's when both
+        // are being recorded, so close each one only once.
+        if (recordFile != NULL &&
+            std::find(recordFilesToClose.begin(), recordFilesToClose.begin() + fileIndex, recordFile)
+                == recordFilesToClose.begin() + fileIndex)
+        {
+            sf_close(recordFile);
+        }
     }
 #ifdef _USE_TIMER
     if(m_pskReporterTimer.IsRunning())
@@ -3209,9 +3225,17 @@ void MainFrame::stopRxStream()
 {
     std::unique_lock<std::recursive_mutex> lk(stoppingMutex);
 
-    if(m_RxRunning.load(std::memory_order_acquire))
+    // What's up has to come down even when the flag says nothing is: a
+    // start that got as far as starting the processing threads and then
+    // found a device that wasn't running leaves m_RxRunning false with the
+    // threads still turning and the devices still open.
+    if (m_RxRunning.load(std::memory_order_acquire) ||
+        m_txThread != nullptr || m_rxThread != nullptr)
     {
-        StopLowLatencyActivity();
+        if (m_RxRunning.load(std::memory_order_acquire))
+        {
+            StopLowLatencyActivity();
+        }
 
         m_RxRunning.store(false, std::memory_order_release);
 
@@ -3248,14 +3272,14 @@ void MainFrame::stopRxStream()
                 wxGetApp().appConfiguration.save(pConfig);
                 pConfig->Flush();
             };
-            if (wxIsMainThread())
-            {
-                saveConfig();
-            }
-            else
-            {
-                executeOnUiThreadAndWait_(saveConfig);
-            }
+
+            // Out from under stoppingMutex for the hop to the UI thread:
+            // OnExit() takes that mutex on the UI thread, so waiting for
+            // the UI thread while holding it can leave the two of them
+            // waiting for each other.
+            lk.unlock();
+            executeOnUiThreadAndWait_(saveConfig);
+            lk.lock();
         }
 
         if (m_rxThread)
@@ -3278,6 +3302,14 @@ void MainFrame::stopRxStream()
             }
             
             m_rxThread = nullptr;
+        }
+
+        // Another stop may have taken everything down while we were on the
+        // UI thread (stoppingMutex is let go there, so OnExit can reach this
+        // from the UI thread's own stop): what's left belongs to that one.
+        if (g_rxUserdata == nullptr)
+        {
+            return;
         }
 
         wxGetApp().linkStep = nullptr;
@@ -3319,6 +3351,8 @@ void MainFrame::releaseSoundDevices_()
 
 void MainFrame::destroy_fifos(void)
 {
+    if (g_rxUserdata == nullptr) return;
+
     if (g_rxUserdata->infifo1) delete g_rxUserdata->infifo1;
     if (g_rxUserdata->outfifo1) delete g_rxUserdata->outfifo1;
     if (g_rxUserdata->infifo2) delete g_rxUserdata->infifo2;
@@ -3838,17 +3872,19 @@ void MainFrame::startRxStream()
             
             if (!txInSoundDevice->isRunning())
             {
-                releaseSoundDevices_();
-                m_RxRunning.store(false, std::memory_order_release);
+                // A device that didn't come up: bring the half-started
+                // session down the way a Stop would, so the engine, the
+                // FIFOs and the thread objects don't linger on a start that
+                // failed -- and so the engine isn't left with this window
+                // registered as its error handler.
+                stopRxStream();
                 return;
             }
 
             if (!txOutSoundDevice->isRunning())
             {
-                txInSoundDevice->stop();
-
-                releaseSoundDevices_();
-                m_RxRunning.store(false, std::memory_order_release);
+                // As above.
+                stopRxStream();
                 return;
             }
         }
@@ -3858,23 +3894,16 @@ void MainFrame::startRxStream()
         rxInSoundDevice->start();
         if (!rxInSoundDevice->isRunning())
         {
-            if (txInSoundDevice) txInSoundDevice->stop();
-            if (txOutSoundDevice) txOutSoundDevice->stop();
-            
-            releaseSoundDevices_();
-            m_RxRunning.store(false, std::memory_order_release);
+            // As above.
+            stopRxStream();
             return;
         }
 
         rxOutSoundDevice->start();
         if (!rxOutSoundDevice->isRunning())
         {
-            if (txInSoundDevice) txInSoundDevice->stop();
-            if (txOutSoundDevice) txOutSoundDevice->stop();
-            rxInSoundDevice->stop();
-
-            releaseSoundDevices_();
-            m_RxRunning.store(false, std::memory_order_release);
+            // Same as the device failures above.
+            stopRxStream();
             return;
         }
 

@@ -50,6 +50,7 @@ std::string utTxFeatureFile;
 std::string utRxFeatureFile;
 wxString utFreeDVMode;
 std::mutex g_mutexProtectingPlayFiles;
+std::mutex g_mutexProtectingRecordFiles;
 
 paCallBackData* g_rxUserdata = nullptr;
 

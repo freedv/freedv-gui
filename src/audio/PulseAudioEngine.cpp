@@ -210,7 +210,7 @@ void PulseAudioEngine::DestroyConnection(pa_threaded_mainloop* mainloop, pa_cont
 
 void PulseAudioEngine::start()
 {
-    std::unique_lock<std::mutex> lk(startStopMtx_);
+    std::unique_lock<std::recursive_mutex> lk(startStopMtx_);
 
     // Ensure we haven't already initialized.
     if (initializedCount_.fetch_add(1, std::memory_order_acq_rel) > 0)
@@ -240,7 +240,7 @@ void PulseAudioEngine::stop()
 
 void PulseAudioEngine::stopImpl_()
 {
-    std::unique_lock<std::mutex> lk(startStopMtx_);
+    std::unique_lock<std::recursive_mutex> lk(startStopMtx_);
 
     // Ensure there still aren't users of this engine.
     if (initializedCount_.fetch_sub(1, std::memory_order_acq_rel) > 1)
@@ -266,6 +266,13 @@ struct PulseAudioDeviceListTemp
 
 std::vector<AudioDeviceSpecification> PulseAudioEngine::getAudioDeviceList(AudioDirection direction)
 {
+    // The connection asked below belongs to start()/stop(). Without this
+    // lock, a stop() on another thread can free the main loop and context
+    // while a query is still using them. The lock is recursive because
+    // getAudioDevice()/getSupportedSampleRates()/getDefaultAudioDevice()
+    // come through here as well.
+    std::unique_lock<std::recursive_mutex> lk(startStopMtx_);
+
     PulseAudioDeviceListTemp tempObj;
     tempObj.thisPtr = this;
     
@@ -397,6 +404,9 @@ std::vector<AudioDeviceSpecification> PulseAudioEngine::getAudioDeviceList(Audio
 
 std::vector<int> PulseAudioEngine::getSupportedSampleRates(wxString deviceName, AudioDirection direction)
 {
+    // Goes through getAudioDeviceList(), which takes the start/stop lock.
+    std::unique_lock<std::recursive_mutex> lk(startStopMtx_);
+
     std::vector<int> result;
     
 #if 0
@@ -433,6 +443,9 @@ struct PaDefaultAudioDeviceTemp
 
 AudioDeviceSpecification PulseAudioEngine::getDefaultAudioDevice(AudioDirection direction)
 {
+    // Asks the connection start()/stop() own; see getAudioDeviceList().
+    std::unique_lock<std::recursive_mutex> lk(startStopMtx_);
+
     PaDefaultAudioDeviceTemp tempData;
     tempData.mainloop = mainloop_;
 
@@ -476,6 +489,9 @@ AudioDeviceSpecification PulseAudioEngine::getDefaultAudioDevice(AudioDirection 
 
 std::shared_ptr<IAudioDevice> PulseAudioEngine::getAudioDevice(wxString deviceName, AudioDirection direction, int sampleRate, int numChannels)
 {
+    // Everything here asks the connection that start()/stop() own.
+    std::unique_lock<std::recursive_mutex> lk(startStopMtx_);
+
     auto deviceList = getAudioDeviceList(direction);
     
     auto supportedSampleRates = getSupportedSampleRates(deviceName, direction);
