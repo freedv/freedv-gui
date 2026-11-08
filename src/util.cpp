@@ -7,7 +7,9 @@
 #include "main.h"
 
 #include <mutex>
+#include <chrono>
 #include <utility>
+#include "util/logging/ulog.h"
 
 #ifdef _WIN32
 #include <strsafe.h>
@@ -373,5 +375,16 @@ void MainFrame::executeOnUiThreadAndWait_(std::function<void()> fn)
         funcConditionVariable.notify_one();
     });
     
-    funcConditionVariable.wait(funcLock);
+    // Waited out rather than timed out: this wx's CallAfter reports nothing,
+    // so there's no way to learn the work was dropped (a window destroyed
+    // with it still queued, say), and returning while it's still queued would
+    // pull the ground out from under it -- the work refers to the caller's
+    // locals. Say when it's taking that long, which is what such a stall
+    // looks like from the outside.
+    if (funcConditionVariable.wait_for(funcLock, std::chrono::seconds(5)) ==
+        std::cv_status::timeout)
+    {
+        log_warn("Still waiting for the UI thread to run work handed to it");
+        funcConditionVariable.wait(funcLock);
+    }
 }
