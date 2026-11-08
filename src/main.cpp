@@ -4275,10 +4275,16 @@ void MainFrame::onQsyRequestUIThread_(QsyRequestArgs* args)
 
 void MainFrame::onAudioEngineError_(IAudioEngine&, std::string const& error, void*)
 {
-     executeOnUiThreadAndWait_([&, error]() {
+     // Reported without waiting for the UI thread, as the device errors are:
+     // this runs on whichever thread the engine reported from, which can be
+     // one the UI thread is itself waiting on (the engine's COM thread on
+     // Windows), or one holding a lock the UI thread wants (PulseAudio's
+     // start/stop lock, held around its error reports).
+     log_error("%s", error.c_str());
+     CallAfter([this, error]() {
          wxMessageBox(wxString::Format(
-                          _("Error encountered while initializing the audio engine: %s."), 
-                          error), _("Error"), wxOK, this); 
+                          _("Error encountered while initializing the audio engine: %s."),
+                          error), _("Error"), wxOK, this);
      });
 }
 
