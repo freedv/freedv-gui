@@ -234,6 +234,13 @@ wxMutex g_mutexProtectingCallbackData(wxMUTEX_RECURSIVE);
 // g_mutexProtectingCallbackData first.
 std::mutex g_mutexProtectingPlayFiles;
 
+// Protects the lifetime of the SNDFILE handles written by RecordStep
+// (g_sfRecFile, g_sfRecFileFromModulator, g_sfRecDecoderFile and
+// g_sfRecMicFile). Kept separate from g_mutexProtectingCallbackData so that
+// slow writes on the recording thread can't stall the UI thread. If both
+// are needed, take g_mutexProtectingCallbackData first.
+std::mutex g_mutexProtectingRecordFiles;
+
 // End of TX state control
 std::atomic<bool> endingTx;
 
@@ -504,10 +511,22 @@ void MainApp::UnitTest_()
             std::this_thread::sleep_for(5s + std::chrono::milliseconds(distrib(gen)));
         }
 
-        if (g_sfRecFileFromModulator)
+        // Null out the handle (under the mutex RecordStep's drain takes
+        // around sf_write_short) before closing it, so no pending drain can
+        // write into a closed SNDFILE.
+        SNDFILE* modulatorRecFile = NULL;
         {
+            std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
             g_recFileFromModulator = false;
-            sf_close(g_sfRecFileFromModulator);
+            modulatorRecFile = g_sfRecFileFromModulator.exchange(NULL, std::memory_order_acq_rel);
+            if (g_sfRecFile.load(std::memory_order_acquire) == modulatorRecFile)
+            {
+                g_sfRecFile.store(NULL, std::memory_order_release);
+            }
+        }
+        if (modulatorRecFile != NULL)
+        {
+            sf_close(modulatorRecFile);
         }
     }
     else
@@ -562,10 +581,16 @@ void MainApp::UnitTest_()
             } 
         }
 
-        if (g_recFileFromDecoder.load(std::memory_order_acquire))
+        // Same drain-safe close as the modulator record file above.
+        SNDFILE* decoderRecFile = NULL;
         {
+            std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
             g_recFileFromDecoder.store(false, std::memory_order_release);
-            sf_close(g_sfRecDecoderFile.load(std::memory_order_acquire));
+            decoderRecFile = g_sfRecDecoderFile.exchange(NULL, std::memory_order_acq_rel);
+        }
+        if (decoderRecFile != NULL)
+        {
+            sf_close(decoderRecFile);
         }
     }
     
@@ -1863,15 +1888,32 @@ MainFrame::~MainFrame()
             g_sfPlayFileReader = nullptr;
         }
     }
-    if (g_sfRecFile.load(std::memory_order_acquire) != NULL)
+    // Detached from the pipeline the same way as everywhere else: the
+    // handles go null under the mutex RecordStep's drain takes around
+    // sf_write_short, and only then are the files closed.
+    std::vector<SNDFILE*> recordFilesToClose;
     {
-        sf_close(g_sfRecFile.load(std::memory_order_acquire));
-        g_sfRecFile.store(NULL, std::memory_order_release);
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+        recordFilesToClose.push_back(g_sfRecFile.exchange(NULL, std::memory_order_acq_rel));
+        recordFilesToClose.push_back(g_sfRecFileFromModulator.exchange(NULL, std::memory_order_acq_rel));
+        recordFilesToClose.push_back(g_sfRecDecoderFile.exchange(NULL, std::memory_order_acq_rel));
+        // The voice keyer/mic recording too: without this the file is never
+        // finalized (sf_close writes the lengths the header still owes) and
+        // RecordStep's file thread keeps writing into a handle that dies
+        // with the process.
+        recordFilesToClose.push_back(g_sfRecMicFile.exchange(NULL, std::memory_order_acq_rel));
     }
-    if (g_sfRecFileFromModulator != NULL)
+    for (size_t fileIndex = 0; fileIndex < recordFilesToClose.size(); fileIndex++)
     {
-        sf_close(g_sfRecFileFromModulator);
-        g_sfRecFileFromModulator = NULL;
+        auto recordFile = recordFilesToClose[fileIndex];
+        // The modulator's file is the same SNDFILE as the radio's when both
+        // are being recorded, so close each one only once.
+        if (recordFile != NULL &&
+            std::find(recordFilesToClose.begin(), recordFilesToClose.begin() + fileIndex, recordFile)
+                == recordFilesToClose.begin() + fileIndex)
+        {
+            sf_close(recordFile);
+        }
     }
 #ifdef _USE_TIMER
     if(m_pskReporterTimer.IsRunning())

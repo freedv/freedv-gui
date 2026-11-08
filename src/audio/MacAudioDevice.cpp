@@ -115,6 +115,7 @@ static OSStatus SetCurrentIOBufferFrameSize(AudioObjectID inDeviceID,
 MacAudioDevice::MacAudioDevice(MacAudioEngine* parent, std::string deviceName, int coreAudioId, IAudioEngine::AudioDirection direction, int numChannels, int sampleRate)
     : ThreadedObject("MacDevice")
     , coreAudioId_(coreAudioId)
+    , rtCoreAudioId_(coreAudioId)
     , direction_(direction)
     , numChannels_(numChannels)
     , sampleRate_(sampleRate)
@@ -133,10 +134,29 @@ MacAudioDevice::MacAudioDevice(MacAudioEngine* parent, std::string deviceName, i
 
 MacAudioDevice::~MacAudioDevice()
 {
+    // First the threads CoreAudio's notifications started: they use this
+    // object, so they have to be finished with it before it goes.
+    std::vector<std::pair<std::thread, std::shared_ptr<std::atomic<bool>>>> workers;
+    {
+        std::lock_guard<std::mutex> lk(notificationMtx_);
+        beingDestroyed_ = true;
+        workers.swap(notificationThreads_);
+    }
+    for (auto& worker : workers)
+    {
+        if (worker.first.joinable())
+        {
+            worker.first.join();
+        }
+    }
+
     // Also cleans up after a start() that failed partway through.
     stopImpl_();
     
+    // Tasks this object put on its own queue have to finish while the rest
+    // of the device is still there for them.
     waitForAllTasksComplete_();
+    
     dispatch_release(sem_);
 }
     
@@ -877,12 +897,14 @@ void MacAudioDevice::joinWorkgroup_()
         .mElement = kAudioObjectPropertyElementMain
     };
 
+    // Runs on the real-time thread, so it has the ID that thread can read.
+    int coreAudioId = rtCoreAudioId_.load(std::memory_order_acquire);
     OSStatus osResult = AudioObjectGetPropertyData(
-              coreAudioId_, 
-              &propertyAddress, 
+              coreAudioId,
+              &propertyAddress,
               0,
-              nullptr, 
-              &size, 
+              nullptr,
+              &size,
               wgMem);
     if (osResult != noErr)
     {
@@ -898,7 +920,7 @@ void MacAudioDevice::joinWorkgroup_()
     {
         Workgroup_ = wgMem;
         JoinToken_ = wgToken;
-        CurrentCoreAudioId_ = coreAudioId_;
+        CurrentCoreAudioId_ = coreAudioId;
     }
   
     auto workgroupResult = os_workgroup_join(*wgMem, wgToken);
@@ -917,7 +939,7 @@ void MacAudioDevice::startRealTimeWork()
     startTime_ = std::chrono::steady_clock::now();
 
     // If the audio ID changes on us, join the new workgroup
-    if (CurrentCoreAudioId_ != 0 && CurrentCoreAudioId_ != coreAudioId_ && Workgroup_ != nullptr)
+    if (CurrentCoreAudioId_ != 0 && CurrentCoreAudioId_ != rtCoreAudioId_.load(std::memory_order_acquire) && Workgroup_ != nullptr)
     {
         leaveWorkgroup_();
         joinWorkgroup_();
@@ -978,6 +1000,57 @@ void MacAudioDevice::leaveWorkgroup_()
     }
 }
 
+// Runs work that one of CoreAudio's notifications can't do itself, on a
+// thread the device keeps: the work uses the device, so the device has to
+// outlive it (see ~MacAudioDevice).
+void MacAudioDevice::runNotificationThread_(std::function<void()> work)
+{
+    std::unique_lock<std::mutex> lk(notificationMtx_);
+
+    if (beingDestroyed_)
+    {
+        // Nothing left for the notification to tell anyone about.
+        return;
+    }
+
+    // Tidy up the ones that are done, so a run of notifications doesn't
+    // leave a thread behind each time.
+    for (auto finished = notificationThreads_.begin(); finished != notificationThreads_.end();)
+    {
+        if (finished->second->load(std::memory_order_acquire))
+        {
+            if (finished->first.joinable())
+            {
+                finished->first.join();
+            }
+            finished = notificationThreads_.erase(finished);
+        }
+        else
+        {
+            ++finished;
+        }
+    }
+
+    auto done = std::make_shared<std::atomic<bool>>(false);
+    std::thread worker([work = std::move(work), done]() {
+        work();
+        done->store(true, std::memory_order_release);
+    });
+    notificationThreads_.push_back(std::make_pair(std::move(worker), done));
+}
+
+void MacAudioDevice::setCoreAudioId_(int coreAudioId)
+{
+    auto prom = std::make_shared<std::promise<void> >();
+    auto fut = prom->get_future();
+    enqueue_([this, coreAudioId, prom]() {
+        coreAudioId_ = coreAudioId;
+        rtCoreAudioId_.store(coreAudioId, std::memory_order_release);
+        prom->set_value();
+    });
+    fut.wait();
+}
+
 int MacAudioDevice::DeviceIsAliveCallback_(
         AudioObjectID,
         UInt32,
@@ -1002,17 +1075,16 @@ int MacAudioDevice::DeviceIsAliveCallback_(
         AudioObjectGetPropertyData(kAudioObjectSystemObject, &defaultAddr, 0, NULL, &defaultSize, &defaultDevice); 
 
         // Stop/start device with new ID in a separate thread to avoid deadlocks
-        std::thread tmpThread = std::thread([thisObj, defaultDevice]() {
+        thisObj->runNotificationThread_([thisObj, defaultDevice]() {
             thisObj->stop();
-            thisObj->coreAudioId_ = defaultDevice;
+            thisObj->setCoreAudioId_(defaultDevice);
             thisObj->start();
         });
-        tmpThread.detach();
     } 
     else 
     {
         // Possible GUI stuff really shouldn't be happening on the audio thread.
-        std::thread tmpThread = std::thread([thisObj]() {
+        thisObj->runNotificationThread_([thisObj]() {
             std::stringstream ss;
             ss << "The device " << thisObj->deviceName_ << " may have been removed from the system. Press 'Stop' and then verify your audio settings.";
             if (thisObj->onAudioErrorFunction)
@@ -1020,7 +1092,6 @@ int MacAudioDevice::DeviceIsAliveCallback_(
                 thisObj->onAudioErrorFunction(*thisObj, ss.str(), thisObj->onAudioErrorState);
             }
         });
-        tmpThread.detach();
     }
 
     return noErr;
@@ -1037,13 +1108,12 @@ int MacAudioDevice::DeviceOverloadCallback_(
     MacAudioDevice* thisObj = (MacAudioDevice*)inClientData;
 
     // Possible GUI stuff really shouldn't be happening on the audio thread.
-    std::thread tmpThread = std::thread([thisObj]() {
+    thisObj->runNotificationThread_([thisObj]() {
         if (thisObj->onAudioUnderflowFunction)
         {
             thisObj->onAudioUnderflowFunction(*thisObj, thisObj->onAudioUnderflowState);
         }
     });
-    tmpThread.detach();
 
     return noErr;
 }
