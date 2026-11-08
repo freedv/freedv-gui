@@ -162,6 +162,18 @@ void RecordStep::drainFifoToFile_(short* buf)
                 log_warn("Could not read %d samples from record FIFO; recording is missing audio", numInputSamples);
             }
         }
+
+        drainHadFile_ = true;
+    }
+    else if (drainHadFile_)
+    {
+        // The recording this thread was writing has ended. What's still
+        // queued is its tail, and can't go to its file any more. execute()
+        // can't always tell -- the next recording's SNDFILE can land at the
+        // same address as the last one's -- so it's dropped here instead,
+        // rather than turning up at the front of the next recording.
+        inputFifo_.reset();
+        drainHadFile_ = false;
     }
 }
 
@@ -182,7 +194,11 @@ void RecordStep::fileIoThreadEntry_()
     while (!fileIoThreadEnding_.load(std::memory_order_acquire))
     {
         drainFifoToFile_(buf);
-        fileIoThreadSem_.wait();
+
+        // Woken by execute(), and also every so often without it: once a
+        // recording stops, execute() isn't called again until the next one
+        // starts, and this has to notice the file going away before then.
+        fileIoThreadSem_.waitFor(FILE_CHECK_INTERVAL_MS);
     }
 
     // Record whatever's left in the FIFO, if anything.

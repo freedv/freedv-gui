@@ -76,6 +76,15 @@ public:
         activeFile_ = available ? file_ : nullptr;
     }
 
+    // Queues samples and then stops recording before the file thread can
+    // write them out: it's held at the record-file lock throughout.
+    void recordThenStop(std::vector<short> samples)
+    {
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+        record(std::move(samples));
+        activeFile_ = nullptr;
+    }
+
     // Returns true if the step behaved as a pipeline sink.
     bool record(std::vector<short> samples)
     {
@@ -415,6 +424,35 @@ bool staleAudioFromAPreviousRecordingIsLeftOutOfTheNextOne()
     return samplesAre(actual, expected);
 }
 
+// As above, but the next recording's SNDFILE lands at the address the last
+// one had -- as sf_open() after sf_close() is apt to do, since it asks for a
+// block of the same size. The two can't be told apart by their handles.
+bool staleAudioIsLeftOutEvenWhenTheNextFileHasTheSameHandle()
+{
+    Recording recording;
+
+    // Recorded and written out while the first recording is going.
+    auto first = ramp(BLOCK_SIZE * 3, 1);
+    recording.record(first);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // The tail of that recording, still queued when it stops.
+    recording.recordThenStop(ramp(BLOCK_SIZE * 3, 5000));
+
+    // Between recordings: nothing calls execute(), as in the application,
+    // where the tap is switched off while there's no file.
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // The next recording, with the same handle.
+    recording.setFileAvailable(true);
+    auto second = ramp(BLOCK_SIZE * 3, 10000);
+    recording.record(second);
+
+    std::vector<short> expected = first;
+    expected.insert(expected.end(), second.begin(), second.end());
+    return samplesAre(recording.finish(), expected);
+}
+
 // Recording doesn't take the mutex the UI thread uses for the callback
 // data: the write to disk it does would otherwise hold up the window for as
 // long as the disk takes. The recording has to keep going while the UI
@@ -487,6 +525,8 @@ int main()
     executeTestCase("stopsWritingWhenFileGoesAway", stopsWritingWhenFileGoesAway);
     executeTestCase("staleAudioFromAPreviousRecordingIsLeftOutOfTheNextOne",
                     staleAudioFromAPreviousRecordingIsLeftOutOfTheNextOne);
+    executeTestCase("staleAudioIsLeftOutEvenWhenTheNextFileHasTheSameHandle",
+                    staleAudioIsLeftOutEvenWhenTheNextFileHasTheSameHandle);
     executeTestCase("recordingDoesNotWaitForTheUiCallbackMutex", recordingDoesNotWaitForTheUiCallbackMutex);
     executeTestCase("destroysCleanly", destroysCleanly);
     return testResult();

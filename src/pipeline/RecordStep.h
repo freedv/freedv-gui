@@ -76,6 +76,15 @@ private:
     // outlive the SNDFILE it names.
     SNDFILE* queuedForFile_ = nullptr;
 
+    // Whether the file thread found a file to write to the last time it
+    // looked, so it can tell when a recording has ended. Only touched by the
+    // file thread.
+    bool drainHadFile_ = false;
+
+    // How long the file thread waits for execute() before checking on the
+    // file by itself.
+    static constexpr int FILE_CHECK_INTERVAL_MS = 50;
+
     void fileIoThreadEntry_();
 
     // Writes whatever's currently queued to the record file. Must only be

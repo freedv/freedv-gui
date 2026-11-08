@@ -78,7 +78,12 @@ protected:
     MacAudioDevice(MacAudioEngine* parent, std::string deviceName, int coreAudioId, IAudioEngine::AudioDirection direction, int numChannels, int sampleRate);
     
 private:
+    // Only used on the device's worker thread (see setCoreAudioId_()).
     int coreAudioId_;
+
+    // The same ID, for the real-time thread: its workgroup follows the
+    // device, which can change to the new default device while it runs.
+    std::atomic<int> rtCoreAudioId_;
     IAudioEngine::AudioDirection direction_;
     int numChannels_;
     int sampleRate_;
@@ -114,6 +119,10 @@ private:
     // the object holds on to it and waits for it rather than letting it
     // outlive the device.
     void runNotificationThread_(std::function<void()> work);
+
+    // Changes the device this object uses, on its worker thread, where
+    // start() and stop() use it.
+    void setCoreAudioId_(int coreAudioId);
 
     std::mutex notificationMtx_;
     std::vector<std::pair<std::thread, std::shared_ptr<std::atomic<bool>>>> notificationThreads_;

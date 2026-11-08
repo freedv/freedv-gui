@@ -632,6 +632,7 @@ class MainFrame : public TopFrame
 
         bool terminating_; // used for terminating FreeDV
         bool closingReporterDialog_; // set while closing waits for the Reporter dialog's last messages
+        bool onOffInProgress_ = false; // set while a Start/Stop worker runs; UI thread only
         bool realigned_; // used to inhibit resize hack once already done
         bool syncState_; // GUI copy of current sync state
 

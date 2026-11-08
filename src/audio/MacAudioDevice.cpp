@@ -115,6 +115,7 @@ static OSStatus SetCurrentIOBufferFrameSize(AudioObjectID inDeviceID,
 MacAudioDevice::MacAudioDevice(MacAudioEngine* parent, std::string deviceName, int coreAudioId, IAudioEngine::AudioDirection direction, int numChannels, int sampleRate)
     : ThreadedObject("MacDevice")
     , coreAudioId_(coreAudioId)
+    , rtCoreAudioId_(coreAudioId)
     , direction_(direction)
     , numChannels_(numChannels)
     , sampleRate_(sampleRate)
@@ -896,12 +897,14 @@ void MacAudioDevice::joinWorkgroup_()
         .mElement = kAudioObjectPropertyElementMain
     };
 
+    // Runs on the real-time thread, so it has the ID that thread can read.
+    int coreAudioId = rtCoreAudioId_.load(std::memory_order_acquire);
     OSStatus osResult = AudioObjectGetPropertyData(
-              coreAudioId_, 
-              &propertyAddress, 
+              coreAudioId,
+              &propertyAddress,
               0,
-              nullptr, 
-              &size, 
+              nullptr,
+              &size,
               wgMem);
     if (osResult != noErr)
     {
@@ -917,7 +920,7 @@ void MacAudioDevice::joinWorkgroup_()
     {
         Workgroup_ = wgMem;
         JoinToken_ = wgToken;
-        CurrentCoreAudioId_ = coreAudioId_;
+        CurrentCoreAudioId_ = coreAudioId;
     }
   
     auto workgroupResult = os_workgroup_join(*wgMem, wgToken);
@@ -936,7 +939,7 @@ void MacAudioDevice::startRealTimeWork()
     startTime_ = std::chrono::steady_clock::now();
 
     // If the audio ID changes on us, join the new workgroup
-    if (CurrentCoreAudioId_ != 0 && CurrentCoreAudioId_ != coreAudioId_ && Workgroup_ != nullptr)
+    if (CurrentCoreAudioId_ != 0 && CurrentCoreAudioId_ != rtCoreAudioId_.load(std::memory_order_acquire) && Workgroup_ != nullptr)
     {
         leaveWorkgroup_();
         joinWorkgroup_();
@@ -1029,11 +1032,23 @@ void MacAudioDevice::runNotificationThread_(std::function<void()> work)
     }
 
     auto done = std::make_shared<std::atomic<bool>>(false);
-    std::thread worker([this, work, done]() {
+    std::thread worker([work, done]() {
         work();
         done->store(true, std::memory_order_release);
     });
     notificationThreads_.push_back(std::make_pair(std::move(worker), done));
+}
+
+void MacAudioDevice::setCoreAudioId_(int coreAudioId)
+{
+    auto prom = std::make_shared<std::promise<void> >();
+    auto fut = prom->get_future();
+    enqueue_([this, coreAudioId, prom]() {
+        coreAudioId_ = coreAudioId;
+        rtCoreAudioId_.store(coreAudioId, std::memory_order_release);
+        prom->set_value();
+    });
+    fut.wait();
 }
 
 int MacAudioDevice::DeviceIsAliveCallback_(
@@ -1062,7 +1077,7 @@ int MacAudioDevice::DeviceIsAliveCallback_(
         // Stop/start device with new ID in a separate thread to avoid deadlocks
         thisObj->runNotificationThread_([thisObj, defaultDevice]() {
             thisObj->stop();
-            thisObj->coreAudioId_ = defaultDevice;
+            thisObj->setCoreAudioId_(defaultDevice);
             thisObj->start();
         });
     } 

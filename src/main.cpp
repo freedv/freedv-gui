@@ -2564,6 +2564,21 @@ void MainFrame::topFrame_OnClose( wxCloseEvent& event )
         return;
     }
 
+    if (onOffInProgress_)
+    {
+        // A Start or Stop is still being carried out on its own thread, and
+        // closing now would destroy this window under it: stopRxStream()
+        // lets go of stoppingMutex while it waits for the UI thread, and the
+        // flag the close would check (m_RxRunning) has already been cleared
+        // by then, so nothing here would wait for it to finish. The user
+        // can close once the On/Off button is back.
+        if (event.CanVeto())
+        {
+            event.Veto();
+        }
+        return;
+    }
+
     if (closingReporterDialog_)
     {
         // Another request to close (say, a second click on the close button)
@@ -2626,6 +2641,12 @@ void MainFrame::topFrame_OnClose( wxCloseEvent& event )
 //-------------------------------------------------------------------------
 void MainFrame::OnExit(wxCommandEvent&)
 {
+    if (onOffInProgress_)
+    {
+        // As in topFrame_OnClose().
+        return;
+    }
+
     if (m_RxRunning.load(std::memory_order_acquire))
     {
         if (m_btnTogPTT->GetValue())
@@ -3127,7 +3148,12 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
     m_togBtnAnalog->Enable(false);
     m_togBtnVoiceKeyer->Enable(false);
     m_btnTogPTT->Enable(false);
-        
+
+    // Until the worker below is done; closing the window waits for it (see
+    // topFrame_OnClose()). A Start counts too, as one that fails is undone
+    // by the same Stop.
+    onOffInProgress_ = true;
+
     // we are attempting to start
 
     if (!m_RxRunning.load(std::memory_order_acquire))
@@ -3165,6 +3191,7 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
                 }
                 m_togBtnOnOff->SetValue(m_RxRunning.load(std::memory_order_acquire));
                 m_togBtnOnOff->Enable(true);
+                onOffInProgress_ = false;
 
                 // On some systems the Report Frequency box ends up getting
                 // focus after clicking on Start. This causes the frequency
@@ -3207,6 +3234,7 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
                 m_togBtnOnOff->SetValue(m_RxRunning.load(std::memory_order_acquire));
                 m_togBtnOnOff->SetLabel(_("&Start Modem"));
                 m_togBtnOnOff->Enable(true);
+                onOffInProgress_ = false;
 
                 if (terminating_)
                 {
@@ -3303,6 +3331,12 @@ void MainFrame::stopRxStream()
             
             m_rxThread = nullptr;
         }
+
+        // A start that failed before the RX thread was made (a TX device
+        // didn't come up) leaves the RX devices with no thread above to take
+        // them down with it. They were never started, so letting go of them
+        // is all that's left.
+        releaseSoundDevices_();
 
         // Another stop may have taken everything down while we were on the
         // UI thread (stoppingMutex is let go there, so OnExit can reach this
