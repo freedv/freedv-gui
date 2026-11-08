@@ -3184,6 +3184,23 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
         {
             SetThreadName("TurningOn");
 
+            // Anything a start that threw left running comes down with it, as
+            // it would on any other failed start, whatever it threw.
+            auto stopAfterThrow = [this]() {
+                try
+                {
+                    performFreeDVOff_();
+                }
+                catch (const std::exception& offEx)
+                {
+                    log_error("Stopping after that threw too: %s", offEx.what());
+                }
+                catch (...)
+                {
+                    log_error("Stopping after that threw too.");
+                }
+            };
+
             try
             {
                 performFreeDVOn_();
@@ -3198,26 +3215,14 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
             {
                 // Logged, and the code below still runs: with onOffInProgress_
                 // set the window refuses to close, so a start that dies on the
-                // way out would leave the app impossible to quit. Anything the
-                // throw left running comes down with it, as it would on any
-                // other failed start.
+                // way out would leave the app impossible to quit.
                 log_error("Turning FreeDV on threw: %s", ex.what());
-                try
-                {
-                    performFreeDVOff_();
-                }
-                catch (const std::exception& offEx)
-                {
-                    log_error("Stopping after that threw too: %s", offEx.what());
-                }
-                catch (...)
-                {
-                    log_error("Stopping after that threw too.");
-                }
+                stopAfterThrow();
             }
             catch (...)
             {
                 log_error("Turning FreeDV on threw an unknown error.");
+                stopAfterThrow();
             }
 
             // On/Off actions complete, re-enable button.
