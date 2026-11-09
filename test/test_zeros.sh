@@ -45,7 +45,9 @@ if [ "$OPERATING_SYSTEM" == "Linux" ]; then
     waitForCableUp FreeDV_Microphone_To_Computer
     DRIVER_INDEX_FREEDV_COMPUTER_TO_RADIO=$(createVirtualAudioCable FreeDV_Computer_To_Radio)
     waitForCableUp FreeDV_Computer_To_Radio
+    echo "PROBE_SH loopback_load_begin epoch_ms=$(date +%s%3N)"
     DRIVER_INDEX_LOOPBACK=`pactl load-module module-loopback source="FreeDV_Computer_To_Radio.monitor" sink="FreeDV_Radio_To_Computer"`
+    echo "PROBE_SH loopback_load_end epoch_ms=$(date +%s%3N) index=$DRIVER_INDEX_LOOPBACK"
 fi
 
 # For debugging--list sink info
@@ -59,6 +61,7 @@ if [ "$FREEDV_TEST" == "txrx" ]; then
 
     # Generate sine wave for input
     if [ "$OPERATING_SYSTEM" == "Linux" ]; then
+        echo "PROBE_SH mic_paplay_start epoch_ms=$(date +%s%3N)"
         sox -r 48000 -n -b 16 -c 1 -t wav - synth 120 sin 1000 vol -10dB | paplay -d "$FREEDV_MICROPHONE_TO_COMPUTER_DEVICE" &
     else
         sox --buffer 32768 -r 48000 -n -b 16 -c 1 -t $SOX_DRIVER "$FREEDV_MICROPHONE_TO_COMPUTER_DEVICE" - synth 120 sin 1000 vol -10dB &
@@ -110,6 +113,7 @@ if [ "$FREEDV_TEST" == "tx" ]; then
 fi
 
 # Start FreeDV in test mode
+echo "PROBE_SH freedv_launch epoch_ms=$(date +%s%3N)"
 ($FREEDV_BINARY -f $(pwd)/$FREEDV_CONF_FILE -ut $FREEDV_TEST -utmode $FREEDV_MODE 2>&1 | tee tmp.log) &
 
 FDV_PID=$!
@@ -124,6 +128,11 @@ FDV_PID=$!
 #pw-top -b -n 5
 wait $FDV_PID
 FREEDV_EXIT_STATUS=$?
+echo "PROBE_SH freedv_exit epoch_ms=$(date +%s%3N) status=$FREEDV_EXIT_STATUS"
+if [ "$OPERATING_SYSTEM" == "Linux" ]; then
+    pactl list sinks | grep -E "Name:|Latency:|Sample Spec" | sed 's/^/PROBE_SH sink /'
+    pactl list sources | grep -E "Name:|Latency:" | sed 's/^/PROBE_SH source /'
+fi
 #cat tmp.log
 
 # Stop recording/playback and process data
