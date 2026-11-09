@@ -4,6 +4,7 @@ on:
   push:
     branches-ignore:
     - 'dr-render-manual'
+    - 'ms-repro-700d-*'
     paths-ignore:
     - "**.md"
     - "**/README"

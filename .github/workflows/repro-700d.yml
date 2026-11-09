@@ -1,0 +1,85 @@
+# TEMPORARY: reproduces the fullduplex_700D flake on ubuntu-22.04-arm
+# (native audio, no sanitizer) to check whether it comes from #1579.
+# Run on ms-repro-700d-control (master as-is) and ms-repro-700d-eager
+# (OptionsDlg created at startup again). Not for merging.
+name: Repro fullduplex_700D
+
+on:
+  push:
+    branches:
+    - 'ms-repro-700d-*'
+  workflow_dispatch:
+
+jobs:
+  repro:
+    strategy:
+      fail-fast: false
+      matrix:
+        run: [1, 2, 3, 4, 5, 6, 7, 8]
+
+    runs-on: ubuntu-22.04-arm
+
+    env:
+      LLVM_ARCH: arm64
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: ./.github/actions/install-llvm-apt-pool
+      with:
+        arch: ${{ env.LLVM_ARCH }}
+
+    - uses: ./.github/actions/setup-rtkit-linux
+      with:
+        fix-ports-mirror: 'false'
+
+    - name: Install common packages
+      shell: bash
+      run: |
+           sudo apt-get install libpulse-dev libspeexdsp-dev sox git portaudio19-dev libhamlib-dev libasound2-dev libao-dev libgsm1-dev libsndfile-dev xvfb pulseaudio-utils metacity at-spi2-core libebur128-dev python3 python3-dev python3-venv gettext
+
+    - uses: ./.github/actions/setup-pulseaudio-legacy
+      with:
+        packages: libwxgtk3.0-gtk3-dev pulseaudio
+
+    - uses: ./.github/actions/setup-rade-python-env
+      with:
+        torch-index-url: https://download.pytorch.org/whl/cpu
+
+    - name: Build freedv-gui
+      shell: bash
+      working-directory: ${{github.workspace}}
+      run: |
+          . ./rade-venv/bin/activate
+          UT_ENABLE=1 CC=clang-21 CXX=clang++-21 USE_NATIVE_AUDIO=1 WITH_ASAN=0 ./build_linux.sh
+
+    - uses: ./.github/actions/run-linux-gui-test
+      with:
+        audio-backend: pulseaudio
+        screen-geometry: 1024x768x16
+
+    # Attempt 1 runs the first three tests in the same order as the
+    # test-application job (fullduplex_RADEV1, rade_loss, fullduplex_700D);
+    # attempts 2-6 run fullduplex_700D on its own. Each result is printed as
+    # a REPRO_RESULT line. The job itself always passes.
+    - name: Run fullduplex_700D repeatedly
+      shell: bash
+      working-directory: ${{github.workspace}}/build_linux
+      run: |
+          ln -s ${{github.workspace}}/build_linux/rade_src/model19_check3 model19_check3
+          . ../rade-venv/bin/activate
+          echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor || true
+          export PYTHONPATH=${{github.workspace}}/build_linux/rade_src:$PYTHONPATH
+          for i in 1 2 3 4 5 6; do
+              if [ $i -eq 1 ]; then
+                  sel='^(fullduplex_RADEV1|rade_loss|fullduplex_700D)$'
+              else
+                  sel='^fullduplex_700D$'
+              fi
+              ctest -V -R "$sel" > attempt$i.log 2>&1 || true
+              res=$(grep -E 'Test +#[0-9]+: fullduplex_700D' attempt$i.log | grep -q Passed && echo pass || echo FAIL)
+              syncs=$(grep -oE 'Got [0-9]+ sync changes' attempt$i.log | tail -1)
+              timing=$(awk '/Start +[0-9]+: fullduplex_700D/{f=1} f && /Firing start/{split($2,a,":");s=a[1]*3600+a[2]*60+a[3]} f && /Sync changed/ && s{split($2,a,":");printf "%+d ", a[1]*3600+a[2]*60+a[3]-s}' attempt$i.log)
+              echo "REPRO_RESULT branch=${GITHUB_REF_NAME} run=${{ matrix.run }} attempt=$i result=$res [$syncs] sync_at=[$timing]"
+          done
+          sed -n '/Start +[0-9]*: fullduplex_700D/,$p' attempt1.log | tail -80
