@@ -953,6 +953,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * FreeDV Reporter: don't select the station under the mouse when the list gains focus without a click. (PR #1611)
     * Fix waterfall going black when the received audio level is very low. (PR #1618)
     * Windows: stop busy-waiting in the audio threads, which increased CPU usage in 2.4.1. (PR #1617)
+    * Fix various audio thread races and teardown gaps. (PR #1620)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
 
