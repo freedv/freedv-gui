@@ -93,11 +93,12 @@ short* RecordStep::execute(short* inputSamples, int numInputSamples, int* numOut
     // has only just appeared doesn't count as a change: audio queued before
     // it was opened is meant to be recorded.
     auto recordFile = getSndFileFn_();
-    if (queuedForFile_ != nullptr && recordFile != queuedForFile_)
+    auto queuedFor = queuedForFile_.load(std::memory_order_relaxed);
+    if (queuedFor != nullptr && recordFile != queuedFor)
     {
         inputFifo_.reset();
     }
-    queuedForFile_ = recordFile;
+    queuedForFile_.store(recordFile, std::memory_order_release);
 
     // write() is all-or-nothing, so a full FIFO means this entire chunk is missing from
     // the resulting file. That silently makes the recording an unfaithful record of what
@@ -142,7 +143,17 @@ void RecordStep::drainFifoToFile_(short* buf)
     // callback data, so holding it here lets a slow disk stall the window.
     std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
     auto recordFile = getSndFileFn_();
-    if (recordFile != nullptr)
+    auto queuedFor = queuedForFile_.load(std::memory_order_acquire);
+    if (recordFile != nullptr && queuedFor != nullptr && queuedFor != recordFile)
+    {
+        // What's queued was queued for another file: the tail of a
+        // recording that has since ended, with the next one attached before
+        // execute() has run again to notice. Writing it would put the old
+        // recording's audio at the front of the new one, so it's left for
+        // execute() to drop when it next runs.
+        drainHadFile_ = true;
+    }
+    else if (recordFile != nullptr)
     {
         int numInputSamples = inputFifo_.numUsed();
         if (numInputSamples > 0)
