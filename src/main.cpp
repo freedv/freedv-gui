@@ -1554,6 +1554,8 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, _("FreeDV ")
     wxGetApp().m_channel_noise = false;
     g_tone_phase.store(0.0f, std::memory_order_relaxed);
 
+    // TEMP (repro): create OptionsDlg at startup as before #1579.
+    optionsDlg = new OptionsDlg(NULL);
     m_schedule_restore = false;
 
     vk_state = VK_IDLE;
