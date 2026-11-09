@@ -71,10 +71,11 @@ private:
     int consecutiveWriteDrops_;
 
     // The file the samples currently in inputFifo_ were queued for. Set by
-    // execute() on the pipeline thread; used only to notice when the file
-    // being recorded to has changed, so it's never dereferenced -- it can
-    // outlive the SNDFILE it names.
-    SNDFILE* queuedForFile_ = nullptr;
+    // execute() on the pipeline thread, and read by the file thread so it
+    // doesn't write them to a different file; used only to tell files
+    // apart, so it's never dereferenced -- it can outlive the SNDFILE it
+    // names.
+    std::atomic<SNDFILE*> queuedForFile_{nullptr};
 
     // Whether the file thread found a file to write to the last time it
     // looked, so it can tell when a recording has ended. Only touched by the

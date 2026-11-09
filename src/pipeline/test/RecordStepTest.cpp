@@ -424,6 +424,90 @@ bool staleAudioFromAPreviousRecordingIsLeftOutOfTheNextOne()
     return samplesAre(actual, expected);
 }
 
+// As above, but with the file thread never having seen the first file, and
+// the next one attached a while before the next block of audio: the file
+// thread has a file to write to, and the last recording's samples queued,
+// before execute() has had a chance to drop them.
+bool staleAudioIsLeftOutWhenTheNextFileIsAttachedBeforeMoreAudio()
+{
+    auto firstPath = unitTestTempPath("RecordStepTest", "-early-first.wav");
+    auto secondPath = unitTestTempPath("RecordStepTest", "-early-second.wav");
+
+    SF_INFO info = {};
+    info.samplerate = SAMPLE_RATE;
+    info.channels = 1;
+    info.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
+
+    SNDFILE* firstFile = sf_open(firstPath.c_str(), SFM_WRITE, &info);
+    SNDFILE* secondFile = sf_open(secondPath.c_str(), SFM_WRITE, &info);
+    if (firstFile == nullptr || secondFile == nullptr)
+    {
+        std::cout << "[could not open the test files] ";
+        return false;
+    }
+
+    // No file yet, so the file thread's first look finds none.
+    std::atomic<SNDFILE*> activeFile{nullptr};
+    auto step = std::make_unique<RecordStep>(
+        SAMPLE_RATE, [&activeFile]() { return activeFile.load(); }, [](int) {});
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    auto record = [&](int start) {
+        auto samples = ramp(BLOCK_SIZE, start);
+        int numOutput = 0;
+        step->execute(samples.data(), samples.size(), &numOutput);
+    };
+
+    // A whole recording goes by with the file thread held at the lock, so
+    // it never sees the first file.
+    {
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+        activeFile.store(firstFile);
+        for (int block = 0; block < 3; block++)
+        {
+            record(block * BLOCK_SIZE);
+        }
+        activeFile.store(nullptr);
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // The next recording's file is attached, and the file thread looks
+    // again (it does every FILE_CHECK_INTERVAL_MS) before any more audio.
+    activeFile.store(secondFile);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    std::vector<short> expected;
+    for (int block = 0; block < 3; block++)
+    {
+        auto samples = ramp(BLOCK_SIZE, 2000 + block * BLOCK_SIZE);
+        expected.insert(expected.end(), samples.begin(), samples.end());
+        record(2000 + block * BLOCK_SIZE);
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Ends the file thread, which writes whatever's still queued.
+    step = nullptr;
+
+    sf_close(firstFile);
+    sf_close(secondFile);
+
+    SF_INFO readInfo = {};
+    SNDFILE* recorded = sf_open(secondPath.c_str(), SFM_READ, &readInfo);
+    if (recorded == nullptr)
+    {
+        std::cout << "[the second file could not be read back] ";
+        return false;
+    }
+    std::vector<short> actual(readInfo.frames);
+    actual.resize(sf_read_short(recorded, actual.data(), actual.size()));
+    sf_close(recorded);
+
+    remove(firstPath.c_str());
+    remove(secondPath.c_str());
+
+    return samplesAre(actual, expected);
+}
+
 // As above, but the next recording's SNDFILE lands at the address the last
 // one had -- as sf_open() after sf_close() is apt to do, since it asks for a
 // block of the same size. The two can't be told apart by their handles.
@@ -525,6 +609,8 @@ int main()
     executeTestCase("stopsWritingWhenFileGoesAway", stopsWritingWhenFileGoesAway);
     executeTestCase("staleAudioFromAPreviousRecordingIsLeftOutOfTheNextOne",
                     staleAudioFromAPreviousRecordingIsLeftOutOfTheNextOne);
+    executeTestCase("staleAudioIsLeftOutWhenTheNextFileIsAttachedBeforeMoreAudio",
+                    staleAudioIsLeftOutWhenTheNextFileIsAttachedBeforeMoreAudio);
     executeTestCase("staleAudioIsLeftOutEvenWhenTheNextFileHasTheSameHandle",
                     staleAudioIsLeftOutEvenWhenTheNextFileHasTheSameHandle);
     executeTestCase("recordingDoesNotWaitForTheUiCallbackMutex", recordingDoesNotWaitForTheUiCallbackMutex);
