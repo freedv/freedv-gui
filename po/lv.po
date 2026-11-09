@@ -3,15 +3,14 @@
 # This file is distributed under the same license as the freedv package.
 # Rihards Priedītis <rprieditis@gmail.com>, 2026.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: freedv 3.0.0-dev1\n"
 "Report-Msgid-Bugs-To: mooneer@gmail.com\n"
 "POT-Creation-Date: 2026-10-31 14:25-0700\n"
-"PO-Revision-Date: 2026-11-04 10:22+0200\n"
+"PO-Revision-Date: 2026-11-07 20:35+0200\n"
 "Last-Translator: Rihards Priedītis <rprieditis@gmail.com>\n"
-"Language-Team: Latvian <translation-team-lv@lists.sourceforge.net>\n"
+"Language-Team: Latvian <translation-team-lv@googlegroups.com>\n"
 "Language: lv\n"
 "X-Bugs: Report translation errors to the Language-Team address.\n"
 "MIME-Version: 1.0\n"
@@ -34,7 +33,7 @@ msgstr "Ierakstīšanas iestatījumi"
 
 #: src/gui/dialogs/begin_recording.cpp
 msgid "Recording suffix:"
-msgstr "Ieraksta sufikss:"
+msgstr "Ieraksta piedēklis:"
 
 #: src/gui/dialogs/begin_recording.cpp
 msgid "Recording type:"
@@ -42,11 +41,11 @@ msgstr "Ieraksta veids:"
 
 #: src/gui/dialogs/begin_recording.cpp
 msgid "Off Air"
-msgstr "Ēterā nav"
+msgstr "Ētera signāls"
 
 #: src/gui/dialogs/begin_recording.cpp
 msgid "Decoded"
-msgstr "Atkodēts"
+msgstr "Dekodēts"
 
 #: src/gui/dialogs/begin_recording.cpp
 msgid "Both"
@@ -224,7 +223,7 @@ msgstr "Radio"
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Rig Control"
-msgstr "Transīvera vadība"
+msgstr "Raiduztvērēja vadība"
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Reporting"
@@ -385,7 +384,7 @@ msgstr "Iespējot CAT vadību, izmantojot OmniRig"
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Rig ID:"
-msgstr "Ierīces ID:"
+msgstr "Raiduztvērēja ID:"
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Test PTT"
@@ -602,7 +601,7 @@ msgstr "FreeDV Reporter krāsas"
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "TX Stations:"
-msgstr "Raidstacijas:"
+msgstr "Raidošās stacijas:"
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Background"
@@ -614,7 +613,7 @@ msgstr "Priekšplāns"
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "RX Stations:"
-msgstr "Uztveršanas stacijas:"
+msgstr "Uztverošās stacijas:"
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Message updates:"
@@ -654,7 +653,7 @@ msgstr "Atsvaidzināt ierīču sarakstu"
 
 #: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
 msgid "Receive only (I will not be transmitting)"
-msgstr "Tikai uztveršana (es nepārraidīšu)"
+msgstr "Tikai uztveršana (es neraidīšu)"
 
 #: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
 msgid "Input From Microphone To Computer:"
@@ -670,7 +669,7 @@ msgstr "Faila atrašanās vieta: "
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Path to Voice Keyer audio files"
-msgstr "Ceļš uz Voice Keyer audiofailiem"
+msgstr "Ceļš uz balss manipulatora audiofailiem"
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Rx Pause:"
@@ -812,7 +811,7 @@ msgstr "Atcelt"
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Testing of tone based PTT not supported; try PTT after pressing Start on main window"
-msgstr "Uz toni balstīta PTT testēšana netiek atbalstīta; izmēģiniet PTT pēc pogas \"Start\" nospiešanas galvenajā logā"
+msgstr "Uz toni balstīta PTT testēšana netiek atbalstīta; izmēģiniet PTT pēc pogas \"Sākt\" nospiešanas galvenajā logā"
 
 #: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/log_entry.cpp src/main.cpp
 #: src/ongui.cpp src/util.cpp
@@ -911,8 +910,8 @@ msgid ""
 "Copy radio audio devices, rig control and callsign/grid square settings\n"
 "from another program installed on this computer."
 msgstr ""
-"Kopēt radio audio ierīču, radio vadības un izsaukuma signāla/režģa kvadrāta iestatījumus\n"
-"no citas šajā datorā instalētas programmas."
+"Kopēt radio audio ierīču, radio vadības un izsaukuma signāla/režģa kvadrāta\n"
+"iestatījumus no citas šajā datorā instalētas programmas."
 
 #: src/gui/dialogs/dlg_setup_wizard.cpp
 msgid "Import"
@@ -980,15 +979,15 @@ msgstr "Iespējot OmniRig"
 
 #: src/gui/dialogs/dlg_setup_wizard.cpp
 msgid "Rig:"
-msgstr "Radio:"
+msgstr "Raiduztvērējs:"
 
 #: src/gui/dialogs/dlg_setup_wizard.cpp
 msgid "Rig 1"
-msgstr "Radio 1"
+msgstr "Raiduztvērējs 1"
 
 #: src/gui/dialogs/dlg_setup_wizard.cpp
 msgid "Rig 2"
-msgstr "Radio 2"
+msgstr "Raiduztvērējs 2"
 
 #: src/gui/dialogs/dlg_setup_wizard.cpp
 msgid "Step 4 of 4: Reporting"
@@ -1021,12 +1020,12 @@ msgstr "radio audioierīces (pašlaik nav pievienotas)"
 #: src/gui/dialogs/dlg_setup_wizard.cpp
 #, c-format
 msgid "Hamlib rig control (%s)"
-msgstr "Hamlib raidaparāta vadība (%s)"
+msgstr "Hamlib raiduztvērēja vadība (%s)"
 
 #: src/gui/dialogs/dlg_setup_wizard.cpp
 #, c-format
 msgid "OmniRig rig control (%s)"
-msgstr "OmniRig raidaparāta vadība (%s)"
+msgstr "OmniRig raiduztvērēja vadība (%s)"
 
 #: src/gui/dialogs/dlg_setup_wizard.cpp
 #, c-format
@@ -1036,7 +1035,7 @@ msgstr "seriālā porta PTT (%s)"
 #: src/gui/dialogs/dlg_setup_wizard.cpp
 #, c-format
 msgid "rig control (%s is not supported by FreeDV)"
-msgstr "raidaparāta vadība (FreeDV neatbalsta %s)"
+msgstr "raiduztvērēja vadība (FreeDV neatbalsta %s)"
 
 #: src/gui/dialogs/dlg_setup_wizard.cpp
 msgid "callsign"
@@ -1048,7 +1047,7 @@ msgstr "režģa kvadrāts"
 
 #: src/gui/dialogs/dlg_setup_wizard.cpp
 msgid "reporting enabled"
-msgstr "ziņošana ieslēgta"
+msgstr "ziņošana iespējota"
 
 #: src/gui/dialogs/dlg_setup_wizard.cpp
 msgid ", "
@@ -1088,7 +1087,7 @@ msgstr "km"
 #. TRANSLATORS: Abbreviation of "Heading".
 #: src/gui/dialogs/freedv_reporter.cpp
 msgid "Hdg"
-msgstr "Virziens"
+msgstr "Azim."
 
 #: src/gui/dialogs/freedv_reporter.cpp
 msgid "Version"
@@ -1108,7 +1107,7 @@ msgstr "Ziņa"
 
 #: src/gui/dialogs/freedv_reporter.cpp
 msgid "Last TX"
-msgstr "Pēdējā TX"
+msgstr "Pēdējais TX"
 
 #: src/gui/dialogs/freedv_reporter.cpp
 msgid "RX Call"
@@ -1252,7 +1251,7 @@ msgstr "Attālums"
 
 #: src/gui/dialogs/freedv_reporter.cpp
 msgid "Heading"
-msgstr "Virziens"
+msgstr "Azimuts"
 
 #: src/gui/dialogs/freedv_reporter.cpp src/topFrame.cpp
 msgid "Frequency"
@@ -1337,7 +1336,7 @@ msgstr "Jūdzes"
 #. TRANSLATORS: Abbreviation of "Direction".
 #: src/gui/dialogs/freedv_reporter.cpp
 msgid "Dir"
-msgstr "Virziens"
+msgstr "Virz."
 
 #. TRANSLATORS: %d is a number of minutes.
 #: src/gui/dialogs/freedv_reporter.cpp
@@ -1498,9 +1497,9 @@ msgstr "Atiestata noildzes taimeri, lai pagarinātu raidīšanu."
 #, c-format
 msgid "%d second remaining"
 msgid_plural "%d seconds remaining"
-msgstr[0] "%d sekunde atlikusi"
-msgstr[1] "%d sekundes atlikušas"
-msgstr[2] "%d sekunžu atlicis"
+msgstr[0] "%d sekunžu atlicis"
+msgstr[1] "%d sekunde atlikusi"
+msgstr[2] "%d sekundes atlikušas"
 
 #: src/gui/util/GridSquare.cpp
 msgid "ENE"
@@ -1749,7 +1748,7 @@ msgstr "FreeDV ir jāpiešķir mikrofona atļaujas, lai tas darbotos pareizi."
 
 #: src/main.cpp
 msgid "&Stop Modem"
-msgstr "&Apturēt modemu"
+msgstr "A&pturēt modemu"
 
 #: src/main.cpp src/topFrame.cpp
 msgid "&Start Modem"
@@ -1796,11 +1795,11 @@ msgstr "Skaņas ierīce nav atrasta"
 #: src/main.cpp
 #, c-format
 msgid "Your %s device is set to use a sample rate of %d, which is less than the minimum of %d. Please go to Tools->Settings to check your settings."
-msgstr "Jūsu %s ierīcei ir iestatīts iztveršanas ātrums %d, kas ir mazāks par minimālo %d. Lūdzu, dodieties uz Rīki->Iestatījumi, lai pārbaudītu iestatījumus."
+msgstr "Jūsu %s ierīcei ir iestatīta iztveršanas frekvence %d, kas ir mazāka par minimālo %d. Lūdzu, dodieties uz Rīki->Iestatījumi, lai pārbaudītu iestatījumus."
 
 #: src/main.cpp src/voicekeyer.cpp
 msgid "Sample Rate Too Low"
-msgstr "Pārāk zems iztveršanas ātrums"
+msgstr "Pārāk zema iztveršanas frekvence"
 
 #: src/main.cpp
 #, c-format
@@ -1810,14 +1809,14 @@ msgid ""
 "\n"
 "FreeDV will still work, but speech will sound muffled to you or to other stations, depending on which device it is. If your device supports a sample rate higher than 16 kHz, consider enabling it."
 msgstr ""
-"Šīm mikrofona/skaļruņa ierīcēm ir iestatīts iztveršanas ātrums, kas ir zemāks par ieteicamo minimālo %d Hz:\n"
+"Šīm mikrofona/skaļruņa ierīcēm ir iestatīta iztveršanas frekvence, kas ir zemāka par ieteicamo minimālo %d Hz:\n"
 "%s\n"
 "\n"
-"FreeDV joprojām darbosies, bet runa jums vai citām stacijām skanēs neskaidri atkarībā no tā, kura ierīce tā ir. Ja jūsu ierīce atbalsta iztveršanas ātrumu, kas ir lielāks par 16 kHz, apsveriet iespēju to iespējot."
+"FreeDV joprojām darbosies, bet runa jums vai citām stacijām skanēs neskaidri atkarībā no tā, kura ierīce tā ir. Ja jūsu ierīce atbalsta iztveršanas frekvenci, kas ir lielāka par 16 kHz, apsveriet iespēju to iespējot."
 
 #: src/main.cpp
 msgid "Low Sample Rate"
-msgstr "Zems iztveršanas ātrums"
+msgstr "Zema iztveršanas frekvence"
 
 #. TRANSLATORS: First %s is a callsign, second %s is a frequency.
 #: src/main.cpp
@@ -1886,7 +1885,7 @@ msgstr "nezināms"
 
 #: src/ongui.cpp
 msgid "The radio's model is empty. This is likely due to changes in Hamlib between FreeDV releases. Please click Stop Modem, double-check your CAT settings and push Start Modem again."
-msgstr "Radio modelis nav norādīts. Tas, visticamāk, ir saistīts ar izmaiņām Hamlib starp FreeDV laidieniem. Lūdzu, noklikšķiniet uz \"Apturēt modemu\", vēlreiz pārbaudiet CAT iestatījumus un vēlreiz nospiediet \"Sākt modemu\"."
+msgstr "Radio modelis nav norādīts. Tas, visticamāk, ir saistīts ar izmaiņām Hamlib starp FreeDV laidieniem. Lūdzu, noklikšķiniet uz \"Apturēt modemu\", vēlreiz pārbaudiet CAT iestatījumus un vēlreiz nospiediet \"Palaist modemu\"."
 
 #. TRANSLATORS: %s is the error message returned by Hamlib.
 #: src/ongui.cpp
@@ -1993,7 +1992,7 @@ msgstr "K&opēt"
 
 #: src/ongui.cpp
 msgid "&Paste"
-msgstr "&Ielīmēt"
+msgstr "Ie&līmēt"
 
 #: src/ongui.cpp
 #, c-format
@@ -2100,7 +2099,7 @@ msgstr "Turēt &virspusē"
 
 #: src/topFrame.cpp
 msgid "E&xit"
-msgstr "&Iziet"
+msgstr "I&ziet"
 
 #: src/topFrame.cpp
 msgid "Exit Program"
@@ -2180,7 +2179,7 @@ msgstr "Novada radio skaņas ievadi no faila"
 
 #: src/topFrame.cpp
 msgid "Start &Play File - From Radio..."
-msgstr "Sākt &atskaņot failu - no radio..."
+msgstr "Sākt a&tskaņot failu - no radio..."
 
 #: src/topFrame.cpp
 msgid "&Tools"
@@ -2196,7 +2195,7 @@ msgstr "Pārbauda FreeDV atjauninājumus"
 
 #: src/topFrame.cpp
 msgid "&About FreeDV"
-msgstr "&Par FreeDV"
+msgstr "P&ar FreeDV"
 
 #: src/topFrame.cpp
 msgid "About this program"
@@ -2264,7 +2263,7 @@ msgstr "Ieraksta ienākošos ētera signālus, kā arī visu pārraidīto."
 
 #: src/topFrame.cpp
 msgid "Logging"
-msgstr "Žurnālēšana"
+msgstr "Žurnalēšana"
 
 #: src/topFrame.cpp
 msgid "Log QSO"
@@ -2296,7 +2295,7 @@ msgstr "&Notīrīt"
 
 #: src/topFrame.cpp
 msgid "Call Sign of transmitting station will appear here"
-msgstr "Šeit parādīsies raidstacijas izsaukuma signāls"
+msgstr "Šeit parādīsies raidošās stacijas izsaukuma signāls"
 
 #: src/topFrame.cpp
 msgid "Date/Time"
@@ -2312,11 +2311,11 @@ msgstr "Samazināt izvadi par 0,2 dB"
 
 #: src/topFrame.cpp
 msgid "Increase output by 0.2dB"
-msgstr "Palielināt izvadi par 0.2dB"
+msgstr "Palielināt izvadi par 0,2 dB"
 
 #: src/topFrame.cpp
 msgid "Increase output by 1.0dB"
-msgstr "Palielināt izvadi par 1.0dB"
+msgstr "Palielināt izvadi par 1,0 dB"
 
 #: src/topFrame.cpp
 msgid ""
@@ -2324,7 +2323,7 @@ msgid ""
 "Right click for more options"
 msgstr ""
 "Izmantojiet peles ritentiņu, lai regulētu uz augšu vai uz leju\n"
-"Labais klikšķis papildu opcijām"
+"Noklikšķiniet ar peles labo pogu, lai skatītu papildu opcijas"
 
 #: src/topFrame.cpp
 msgid "Speaker &Level"
@@ -2352,7 +2351,7 @@ msgid ""
 "Right click for more options"
 msgstr ""
 "Rada 1500 Hz nesējfrekvenci, lai veiktu iekārtas/antenas noskaņošanu.\n"
-"Labais klikšķis papildu opcijām"
+"Noklikšķiniet ar peles labo pogu, lai skatītu papildu opcijas"
 
 #: src/topFrame.cpp src/voicekeyer.cpp
 msgid "Start Voice &Keyer"
@@ -2360,11 +2359,11 @@ msgstr "Sākt balss &manipulatoru"
 
 #: src/topFrame.cpp
 msgid "Toggle Voice Keyer. Right-click for additional options."
-msgstr "Pārslēgt balss manipulatoru. Labais klikšķis papildu opcijām."
+msgstr "Pārslēgt balss manipulatoru. Noklikšķiniet ar peles labo pogu, lai skatītu papildu opcijas."
 
 #: src/topFrame.cpp
 msgid "Switch between Receive and Transmit. Right-click for additional options."
-msgstr "Pārslēgt starp uztveršanu un raidīšanu. Labais klikšķis papildu opcijām."
+msgstr "Pārslēgt starp uztveršanu un raidīšanu. Noklikšķiniet ar peles labo pogu, lai skatītu papildu opcijas."
 
 #: src/topFrame.h
 msgid "FreeDV "
