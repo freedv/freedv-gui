@@ -893,6 +893,12 @@ void TxRxThread::txProcessing_(IRealtimeHelper* helper) FREEDV_NONBLOCKING
             // we keep reading from the FIFO until we have less than nsam_in_48 samples available.
             auto inputPtr = inputSamples_.get();
             int nread = cbData->infifo2->read(inputPtr, nsam_in_48);
+            // TEMP (700D repro): v2.4.0 behaviour -- a short read from the
+            // mic FIFO still produces a (silent) modem frame.
+            if (nread != 0)
+            {
+                inputPtr = inputSamplesZeros_.get();
+            }
             if (nread != 0 && endingTx.load(std::memory_order_acquire))
             {
                 if (freedvInterface.getCurrentMode() >= FREEDV_MODE_RADE)
@@ -950,11 +956,6 @@ void TxRxThread::txProcessing_(IRealtimeHelper* helper) FREEDV_NONBLOCKING
                 pendingEooCount_ = 0;
             }
 
-            if (nread != 0)
-            {
-                break;
-            }
-
             auto outputSamples = pipeline_->execute(inputPtr, nsam_in_48, &nout);
             
             if (g_dump_fifo_state.load(std::memory_order_relaxed)) {
@@ -976,6 +977,11 @@ void TxRxThread::txProcessing_(IRealtimeHelper* helper) FREEDV_NONBLOCKING
 #if defined(ENABLE_PROCESSING_STATS)
             processingStats_.end();
 #endif // defined(ENABLE_PROCESSING_STATS)
+
+            if (nread != 0) // TEMP (700D repro): as in v2.4.0, after the frame
+            {
+                break;
+            }
         }
     }
     else
