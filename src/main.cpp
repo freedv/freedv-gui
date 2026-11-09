@@ -1646,7 +1646,9 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, _("FreeDV ")
     DBGLOG("MainFrame ctor at former OptionsDlg creation point"); // TEMP
 
     // TEMP (repro): create OptionsDlg at startup as before #1579.
+    DBGLOG("OptionsDlg construction begin");
     optionsDlg = new OptionsDlg(NULL);
+    DBGLOG("OptionsDlg construction end");
     m_schedule_restore = false;
 
     vk_state = VK_IDLE;
