@@ -62,6 +62,13 @@ jobs:
     # test-application job (fullduplex_RADEV1, rade_loss, fullduplex_700D);
     # attempts 2-6 run fullduplex_700D on its own. Each result is printed as
     # a REPRO_RESULT line. The job itself always passes.
+    - name: Runner hardware
+      shell: bash
+      run: |
+          echo "REPRO_HW run=${{ matrix.run }} nproc=$(nproc) model=$(lscpu | sed -n 's/^Model name: *//p' | head -1 | tr ' ' '_') cpu_part=$(grep -m1 'CPU part' /proc/cpuinfo | awk '{print $NF}') mem_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')"
+          lscpu || true
+          cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo "no cpufreq"
+
     - name: Run fullduplex_700D repeatedly
       shell: bash
       working-directory: ${{github.workspace}}/build_linux
@@ -83,3 +90,11 @@ jobs:
               echo "REPRO_RESULT branch=${GITHUB_REF_NAME} run=${{ matrix.run }} attempt=$i result=$res [$syncs] sync_at=[$timing]"
           done
           sed -n '/Start +[0-9]*: fullduplex_700D/,$p' attempt1.log | tail -80
+
+    - name: Upload attempt logs
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: repro-700d-${{ github.ref_name }}-run${{ matrix.run }}
+        path: ${{github.workspace}}/build_linux/attempt*.log
+        retention-days: 7

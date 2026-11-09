@@ -161,6 +161,39 @@ std::atomic<GenericFIFO<short>*> g_rxDataOutFifo;
 // tx/rx processing states
 std::atomic<int>                 g_State, g_prev_State;
 paCallBackData     *g_rxUserdata;
+
+// ---- TEMP (700D repro) timing probes. Not for merging. ----
+static const auto g_dbgT0 = std::chrono::steady_clock::now();
+static inline long long dbgUs()
+{
+    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - g_dbgT0).count();
+}
+#define DBGLOG(fmt, ...) log_info("PROBE T+%.1fms " fmt, dbgUs() / 1000.0, ##__VA_ARGS__)
+// Index: 0 = TX in (mic), 1 = TX out (to radio), 2 = RX in (from radio), 3 = RX out (speaker).
+// Each written only by its own device's callback thread.
+std::atomic<long long> g_dbgFirstCbUs[4] = {-1, -1, -1, -1};
+std::atomic<long long> g_dbgLastCbUs[4] = {-1, -1, -1, -1};
+std::atomic<long long> g_dbgMaxGapUs[4] = {0, 0, 0, 0};
+std::atomic<long long> g_dbgSamples[4] = {0, 0, 0, 0};
+std::atomic<long long> g_dbgCalls[4] = {0, 0, 0, 0};
+static inline void dbgCb(int i, size_t n) FREEDV_NONBLOCKING
+{
+    auto now = dbgUs();
+    auto last = g_dbgLastCbUs[i].load(std::memory_order_relaxed);
+    if (last < 0)
+    {
+        g_dbgFirstCbUs[i].store(now, std::memory_order_relaxed);
+    }
+    else if (now - last > g_dbgMaxGapUs[i].load(std::memory_order_relaxed))
+    {
+        g_dbgMaxGapUs[i].store(now - last, std::memory_order_relaxed);
+    }
+    g_dbgLastCbUs[i].store(now, std::memory_order_relaxed);
+    g_dbgSamples[i].fetch_add((long long)n, std::memory_order_relaxed);
+    g_dbgCalls[i].fetch_add(1, std::memory_order_relaxed);
+}
+std::atomic<long long> g_dbgUiMaxLagUs{0};
+// ---- end TEMP ----
 std::atomic<int>                 g_dump_timing;
 std::atomic<int>                 g_dump_fifo_state;
 time_t              g_sync_time;
@@ -338,6 +371,49 @@ void MainFrame::handleAudioDeviceChange_(std::string const& newDeviceName)
 void MainApp::UnitTest_()
 {
     SetThreadName("UnitTest");
+    DBGLOG("UnitTest_ thread begin");
+
+    // TEMP (700D repro): 20 ms observer, separate from the 100 ms poll the
+    // test's pass criterion is based on.
+    int dbgSync20 = 0;
+    long long dbgLastCounters[12] = {};
+    auto dbgObserve = [&](bool status) {
+        auto s20 = freedvInterface.getSync();
+        if (s20 != dbgSync20)
+        {
+            DBGLOG("sync20 %d -> %d snr=%.1f", dbgSync20, s20, freedvInterface.getSNREstimate());
+            dbgSync20 = s20;
+        }
+        long long c[12] = {
+            g_infifo1_full.load(), g_outfifo1_empty.load(), g_infifo2_full.load(), g_outfifo2_empty.load(),
+            g_AEstatus1[0].load(), g_AEstatus1[1].load(), g_AEstatus1[2].load(), g_AEstatus1[3].load(),
+            g_AEstatus2[0].load(), g_AEstatus2[1].load(), g_AEstatus2[2].load(), g_AEstatus2[3].load()};
+        bool changed = false;
+        for (int k = 0; k < 12; k++) { if (c[k] != dbgLastCounters[k]) { changed = true; dbgLastCounters[k] = c[k]; } }
+        if (changed)
+        {
+            DBGLOG("counters changed fifo(in1full=%lld out1empty=%lld in2full=%lld out2empty=%lld) ae1(inU=%lld inO=%lld outU=%lld outO=%lld) ae2(inU=%lld inO=%lld outU=%lld outO=%lld)",
+                c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11]);
+        }
+        if (status)
+        {
+            auto first = [](int k) { return g_dbgFirstCbUs[k].load() / 1000.0; };
+            auto in1 = g_rxUserdata ? g_rxUserdata->infifo1->numUsed() : -1;
+            auto out1 = g_rxUserdata ? g_rxUserdata->outfifo1->numUsed() : -1;
+            DBGLOG("status sync=%d snr=%.1f first_cb_ms(txIn=%.1f txOut=%.1f rxIn=%.1f rxOut=%.1f) samples(txIn=%lld txOut=%lld rxIn=%lld rxOut=%lld) maxgap_ms(txIn=%.1f txOut=%.1f rxIn=%.1f rxOut=%.1f) fifo_used(in1=%d out1=%d) ui_maxlag_ms=%.1f",
+                freedvInterface.getSync(), freedvInterface.getSNREstimate(),
+                first(0), first(1), first(2), first(3),
+                g_dbgSamples[0].load(), g_dbgSamples[1].load(), g_dbgSamples[2].load(), g_dbgSamples[3].load(),
+                g_dbgMaxGapUs[0].exchange(0) / 1000.0, g_dbgMaxGapUs[1].exchange(0) / 1000.0,
+                g_dbgMaxGapUs[2].exchange(0) / 1000.0, g_dbgMaxGapUs[3].exchange(0) / 1000.0,
+                (int)in1, (int)out1, g_dbgUiMaxLagUs.exchange(0) / 1000.0);
+            auto posted = dbgUs();
+            CallAfter([posted]() {
+                auto lag = dbgUs() - posted;
+                if (lag > g_dbgUiMaxLagUs.load()) g_dbgUiMaxLagUs.store(lag);
+            });
+        }
+    };
 
     // List audio devices
     auto engine = AudioEngineFactory::GetAudioEngine();
@@ -397,6 +473,7 @@ void MainApp::UnitTest_()
     
     // Fire event to start FreeDV
     log_info("Firing start");
+    DBGLOG("Firing start");
     CallAfter([this]() {
         frame->m_togBtnOnOff->SetValue(true);
         wxCommandEvent* onEvent = new wxCommandEvent(wxEVT_COMMAND_TOGGLEBUTTON_CLICKED, frame->m_togBtnOnOff->GetId());
@@ -413,7 +490,13 @@ void MainApp::UnitTest_()
     {
         std::this_thread::sleep_for(20ms);
     }
-    std::this_thread::sleep_for(2s);
+    DBGLOG("UnitTest_ saw modem running");
+    for (int k = 0; k < 100; k++) // TEMP: 2 s, observed every 20 ms
+    {
+        std::this_thread::sleep_for(20ms);
+        dbgObserve(k % 25 == 0);
+    }
+    DBGLOG("UnitTest_ begins counting sync changes");
     
     constexpr int MAX_TIME_AS_COUNTER = 12000; // 20 minutes
     if (testName == "tx")
@@ -552,11 +635,16 @@ void MainApp::UnitTest_()
             auto sync = 0;
             for (int i = 0; i < utTxTimeSeconds*10; i++)
             {
-                std::this_thread::sleep_for(100ms);
+                for (int k = 0; k < 5; k++) // TEMP: 100 ms, observed every 20 ms
+                {
+                    std::this_thread::sleep_for(20ms);
+                    dbgObserve(k == 0 && (i % 5) == 0);
+                }
                 auto newSync = freedvInterface.getSync();
                 if (newSync != sync)
                 {
                     log_info("Sync changed from %d to %d", sync, newSync);
+                    DBGLOG("counted sync change %d -> %d", sync, newSync);
                     sync = newSync;
                 }
             } 
@@ -868,6 +956,7 @@ static void SuppressButtonPressFlicker_()
 //-------------------------------------------------------------------------
 bool MainApp::OnInit()
 {
+    DBGLOG("OnInit begin epoch_ms=%lld", (long long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()); // TEMP
 #if !defined(_WIN32)
     // Writing to a socket whose peer has closed raises SIGPIPE, which by
     // default kills the process. That can happen whenever a server (e.g. FreeDV
@@ -1336,6 +1425,7 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, _("FreeDV ")
     VAR_FMT("Var: %4.1f"),
     CLK_OFF_FMT("ClkOff: %+-d")
 {
+    DBGLOG("MainFrame ctor begin"); // TEMP
     SetThreadName("GUI");
 
     terminating_ = false;
@@ -1553,6 +1643,7 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, _("FreeDV ")
     wxGetApp().m_testFrames = false;
     wxGetApp().m_channel_noise = false;
     g_tone_phase.store(0.0f, std::memory_order_relaxed);
+    DBGLOG("MainFrame ctor at former OptionsDlg creation point"); // TEMP
 
     m_schedule_restore = false;
 
@@ -3066,6 +3157,7 @@ void MainFrame::performFreeDVOn_()
                 });
 
                 isModemRunning.store(true, std::memory_order_release);
+                DBGLOG("isModemRunning = true"); // TEMP
             }
         }
     }
@@ -3221,6 +3313,7 @@ void MainFrame::performFreeDVOff_()
 //-------------------------------------------------------------------------
 void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
 {
+    DBGLOG("OnTogBtnOnOff begin"); // TEMP
     if (!m_togBtnOnOff->IsEnabled()) return;
 
     m_togBtnOnOff->SetFocus();
@@ -4331,6 +4424,7 @@ void MainFrame::OnAudioDeviceError_(IAudioDevice&, std::string const& error, voi
 
 void MainFrame::OnTxInAudioData_(IAudioDevice& dev, void* data, size_t size, void* state) FREEDV_NONBLOCKING
 {
+    dbgCb(0, size); // TEMP (700D repro)
     paCallBackData* cbData = static_cast<paCallBackData*>(state);
     short* audioData = static_cast<short*>(data);
     short* tmpInput = cbData->tmpReadTxBuffer_.get();
@@ -4351,6 +4445,7 @@ void MainFrame::OnTxInAudioData_(IAudioDevice& dev, void* data, size_t size, voi
 
 void MainFrame::OnTxOutAudioData_(IAudioDevice& dev, void* data, size_t size, void* state) FREEDV_NONBLOCKING
 {
+    dbgCb(1, size); // TEMP (700D repro)
     paCallBackData* cbData = static_cast<paCallBackData*>(state);
     short* audioData = static_cast<short*>(data);
     short* tmpOutput = cbData->tmpWriteTxBuffer_.get();
@@ -4427,6 +4522,7 @@ void MainFrame::OnTxOutAudioData_(IAudioDevice& dev, void* data, size_t size, vo
 
 void MainFrame::OnRxInAudioData_(IAudioDevice& dev, void* data, size_t size, void* state) FREEDV_NONBLOCKING
 {
+    dbgCb(2, size); // TEMP (700D repro)
     paCallBackData* cbData = static_cast<paCallBackData*>(state);
     short* audioData = static_cast<short*>(data);
     short* tmpInput = cbData->tmpReadRxBuffer_.get();
@@ -4444,6 +4540,7 @@ void MainFrame::OnRxInAudioData_(IAudioDevice& dev, void* data, size_t size, voi
 
 void MainFrame::OnRxOutAudioData_(IAudioDevice& dev, void* data, size_t size, void* state) FREEDV_NONBLOCKING
 {
+    dbgCb(3, size); // TEMP (700D repro)
     paCallBackData* cbData = static_cast<paCallBackData*>(state);
     short* audioData = static_cast<short*>(data);
     short* tmpOutput = cbData->tmpWriteRxBuffer_.get();
