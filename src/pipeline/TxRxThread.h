@@ -95,6 +95,8 @@ public:
         , helper_(std::move(helper))
         , deferReset_(false)
         , reachedMinimumTxInput_(false)
+        , coveredInputSamples_(0)
+        , totalCoveredInputSamples_(0)
     { 
         assert(inputSampleRate_ > 0);
         assert(outputSampleRate_ > 0);
@@ -165,6 +167,13 @@ private:
     Semaphore startSem_;
 
     bool reachedMinimumTxInput_;
+
+    // Microphone audio that was late, covered with silence so the signal
+    // going to the radio doesn't break (see txProcessing_()). Counted in
+    // input samples: how much of the current shortfall has been covered,
+    // which is capped, and how much in all since this thread was made.
+    int coveredInputSamples_;
+    long totalCoveredInputSamples_;
 
 #if defined(ENABLE_PROCESSING_STATS)
     // Tracks min/max/mean/stdev plus a histogram for one timed interval.
