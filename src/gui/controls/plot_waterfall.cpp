@@ -711,11 +711,16 @@ void PlotWaterfall::plotPixelData(wxGraphicsContext* gc)
     int min_fft_bin=((float)200/m_modem_stats_max_f_hz)*MODEM_STATS_NSPEC;
     int max_fft_bin=((float)2800/m_modem_stats_max_f_hz)*MODEM_STATS_NSPEC;
 
+    bool silentRow = true;
     for(int i=min_fft_bin; i<max_fft_bin; i++) 
     {
         if (m_magDb[i] > max_mag)
         {
             max_mag = m_magDb[i];
+        }
+        if (m_magDb[i] != (float)MIN_MAG_DB)
+        {
+            silentRow = false;
         }
     }
 
@@ -723,7 +728,10 @@ void PlotWaterfall::plotPixelData(wxGraphicsContext* gc)
     // synthetic "blanked" placeholder fed in during half-duplex TX (see
     // main.cpp's "Assume zero spectrum to avoid waterfall artifacts"
     // handling), not real spectrum data -- real RX/RADE spectra essentially
-    // never have their loudest bin sitting exactly at MIN_MAG_DB. Render it
+    // never have every bin sitting exactly at MIN_MAG_DB. (Testing only the
+    // peak against the floor isn't enough: weak but real signals, e.g. with
+    // the radio's audio level turned well down, can peak below MIN_MAG_DB
+    // and must still be drawn.) Render it
     // as plain black and leave the auto-ranging baseline (m_max_mag)
     // untouched, rather than running it through the normal relative
     // intensity scale below, which treats *any* perfectly flat row as "at
@@ -731,7 +739,6 @@ void PlotWaterfall::plotPixelData(wxGraphicsContext* gc)
     // actual absolute level -- confirmed live: filling the placeholder with
     // MIN_MAG_DB alone still produced a colour ramp (green fading to red)
     // as m_max_mag caught up to the new flat level, not the intended blank.
-    bool silentRow = (max_mag <= MIN_MAG_DB);
     if (!silentRow)
     {
         m_max_mag = BETA*m_max_mag + (1 - BETA)*max_mag;
