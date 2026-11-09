@@ -31,6 +31,7 @@
 
 #include "codec2.h"
 #include "freedv_api.h"
+#include "codec2_alloc.h"
 
 #include "../TxRxThread.h"
 #include "pipeline/LinkStep.h"
@@ -2014,6 +2015,10 @@ public:
 
         DigitalTransmit result;
         long written = 0;
+
+        // As on the application's TX thread, Codec2 modes take what memory
+        // they need while encoding from a pool set aside in advance.
+        codec2_initialize_realtime(CODEC2_REAL_TIME_MEMORY_SIZE);
         for (int turn = 0; turn < turns; turn++)
         {
             int numSamples = micBlocks(turn) * BLOCK;
@@ -2035,6 +2040,7 @@ public:
             else if (result.firstFullTurn >= 0 && turn < speechEndsTurn && available < BLOCK) result.shortTurnsWhileSpeaking++;
             if (turn >= turns - endTurns && available > 0) result.turnsGivenAnythingAtTheEnd++;
         }
+        codec2_disable_realtime();
 
         result.coveredInputSamples = thread.totalCoveredInputSamples_;
         unsigned int nsamOneModemFrame = (freedvInterface.getTxNNomModemSamples() * TEST_SAMPLE_RATE) / freedvInterface.getTxModemSampleRate();
