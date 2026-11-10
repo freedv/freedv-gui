@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Stop on the first failure so a driver that did not build is not silently
+# skipped (the tests would then run without their BlackHole devices).
+set -e
+
 git clone https://github.com/freedv/BlackHole.git
 cd BlackHole
 
@@ -24,7 +28,7 @@ for i in {1..2}; do
             kDevice2_HasInput=true \
             kDevice2_HasOutput=true" \
             kLatency_Frame_Size='128' \
-        MACOSX_DEPLOYMENT_TARGET=11.0
+        MACOSX_DEPLOYMENT_TARGET=12.0
 
     sudo mv build/BlackHole.driver /Library/Audio/Plug-Ins/HAL/$driverName.driver
 done
