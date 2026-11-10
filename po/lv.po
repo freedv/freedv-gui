@@ -1,0 +1,2446 @@
+# Latvian translation of freedv
+# Copyright (C) 2026 freedv Project
+# This file is distributed under the same license as the freedv package.
+# Rihards Priedītis <rprieditis@gmail.com>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: freedv 3.0.0-dev1\n"
+"Report-Msgid-Bugs-To: mooneer@gmail.com\n"
+"POT-Creation-Date: 2026-10-31 14:25-0700\n"
+"PO-Revision-Date: 2026-11-07 20:35+0200\n"
+"Last-Translator: Rihards Priedītis <rprieditis@gmail.com>\n"
+"Language-Team: Latvian <translation-team-lv@googlegroups.com>\n"
+"Language: lv\n"
+"X-Bugs: Report translation errors to the Language-Team address.\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==0 || (n%100>=11 && n%100<=19) ? 0 : n%10==1 && n%100!=11 ? 1 : 2);\n"
+"X-Generator: Poedit 3.10\n"
+
+#: src/gui/controls/MsgListPopup.cpp
+msgid "Right click for more options"
+msgstr "Noklikšķiniet ar peles labo pogu, lai skatītu papildu opcijas"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Start Recording"
+msgstr "Sākt ierakstīšanu"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Recording Settings"
+msgstr "Ierakstīšanas iestatījumi"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Recording suffix:"
+msgstr "Ieraksta piedēklis:"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Recording type:"
+msgstr "Ieraksta veids:"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Off Air"
+msgstr "Ētera signāls"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Decoded"
+msgstr "Dekodēts"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Both"
+msgstr "Abi"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Recording format:"
+msgstr "Ieraksta formāts:"
+
+#: src/gui/dialogs/begin_recording.cpp
+msgid "Start"
+msgstr "Sākt"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Mic Audio Pre-Processing"
+msgstr "Mikrofona audio pirmapstrāde"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "TX Noise Suppression"
+msgstr "TX trokšņu slāpēšana"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Enable noise suppression, dereverberation, AGC of mic signal"
+msgstr "Iespējot trokšņu slāpēšanu, atbalss novēršanu un mikrofona signāla AGC"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "AGC"
+msgstr "AGC"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Automatic level control for microphone. Peak limiting stays on when this is off."
+msgstr "Automātiska mikrofona līmeņa regulēšana. Maksimālā līmeņa ierobežošana paliek aktīva arī tad, ja šī funkcija ir izslēgta."
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Speaker Audio Post-Processing"
+msgstr "Skaļruņa audio pēcapstrāde"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "BW Expander"
+msgstr "BW paplašinātājs"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Expands RADE RX audio to 24kHz. Requires speaker or headset capable of >16kHz sample rate."
+msgstr "Paplašina RADE RX audio līdz 24 kHz. Nepieciešami skaļruņi vai austiņas ar >16 kHz iztveršanas frekvences atbalstu."
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Enable"
+msgstr "Iespējot"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Default"
+msgstr "Noklusējums"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Vol"
+msgstr "Skaļums"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Bass"
+msgstr "Zemie"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Mid"
+msgstr "Vidējie"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Treble"
+msgstr "Augstie"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Microphone In Equaliser"
+msgstr "Mikrofona ievades ekvalaizers"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Speaker Out Equaliser"
+msgstr "Skaļruņa izvades ekvalaizers"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Freq"
+msgstr "Frekvence"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Gain"
+msgstr "Pastiprinājums"
+
+#: src/gui/dialogs/dlg_filter.cpp
+msgid "Q"
+msgstr "Q"
+
+#: src/gui/dialogs/dlg_filter.h src/gui/dialogs/freedv_reporter.cpp
+msgid "Filter"
+msgstr "Filtrs"
+
+#: src/gui/dialogs/dlg_options.cpp
+#, c-format
+msgid "F%d"
+msgstr "F%d"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Space"
+msgstr "Atstarpe"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Tab"
+msgstr "Tab"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enter"
+msgstr "Enter"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Escape"
+msgstr "Escape"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Backspace"
+msgstr "Atpakaļatkāpe"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Delete"
+msgstr "Del"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Insert"
+msgstr "Ins"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Home"
+msgstr "Home"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "End"
+msgstr "End"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Page Up"
+msgstr "PgUp"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Page Down"
+msgstr "PgDn"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Up"
+msgstr "Augšup"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Down"
+msgstr "Lejup"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Left"
+msgstr "Pa kreisi"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Right"
+msgstr "Pa labi"
+
+#: src/gui/dialogs/dlg_options.cpp
+#, c-format
+msgid "Key(%d)"
+msgstr "Taustiņš(%d)"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "RX Audio"
+msgstr "RX audio"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "TX Audio"
+msgstr "TX audio"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Radio"
+msgstr "Radio"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Rig Control"
+msgstr "Raiduztvērēja vadība"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Reporting"
+msgstr "Ziņošana"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Voice Keyer"
+msgstr "Balss manipulators"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Display"
+msgstr "Displejs"
+
+#. TRANSLATORS: Shown in the Sync box on the main window.
+#: src/gui/dialogs/dlg_options.cpp src/main.cpp src/topFrame.cpp
+msgid "Modem"
+msgstr "Modems"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Debugging"
+msgstr "Atkļūdošana"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "VOX PTT Settings"
+msgstr "VOX PTT iestatījumi"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Left Channel Vox Tone"
+msgstr "Kreisā kanāla VOX tonis"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Hamlib Settings"
+msgstr "Hamlib iestatījumi"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Enable CAT control via Hamlib"
+msgstr "Iespējot CAT vadību, izmantojot Hamlib"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Rig Model:"
+msgstr "Raiduztvērēja modelis:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Serial Device (or hostname:port):"
+msgstr "Seriālā ierīce (vai resursdators:ports):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Radio Address:"
+msgstr "Radio adrese:"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Serial Rate:"
+msgstr "Seriālais ātrums:"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "PTT uses:"
+msgstr "PTT izmanto:"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "PTT Serial Device:"
+msgstr "PTT seriālā ierīce:"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "None"
+msgstr "Nav"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "CAT via Data port"
+msgstr "CAT caur datu portu"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Always assert RTS on the Hamlib serial port (e.g. to power a radio interface)"
+msgstr "Vienmēr aktivizēt RTS Hamlib seriālajā portā (piemēram, lai darbinātu radio saskarni)"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Force RTS"
+msgstr "Piespiest RTS"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Always assert DTR on the Hamlib serial port (e.g. to power a radio interface)"
+msgstr "Vienmēr aktivizēt DTR Hamlib seriālajā portā (piemēram, lai darbinātu radio saskarni)"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Force DTR"
+msgstr "Piespiest DTR"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Serial Port Settings"
+msgstr "Seriālā porta iestatījumi"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "PTT Port"
+msgstr "PTT ports"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Use Serial Port PTT"
+msgstr "Izmantot seriālā porta PTT"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Serial Device:  "
+msgstr "Seriālā ierīce:  "
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Use DTR"
+msgstr "Izmantot DTR"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Toggle DTR line for PTT"
+msgstr "Pārslēgt DTR līniju PTT vadībai"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Use RTS"
+msgstr "Izmantot RTS"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Toggle the RTS pin for PTT"
+msgstr "Pārslēgt RTS kontaktu PTT vadībai"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "DTR = +V"
+msgstr "DTR = +V"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Set Polarity of the DTR line"
+msgstr "Iestatīt DTR līnijas polaritāti"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "RTS = +V"
+msgstr "RTS = +V"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Set Polarity of the RTS line"
+msgstr "Iestatīt RTS līnijas polaritāti"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "PTT In"
+msgstr "PTT ievade"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable PTT Input"
+msgstr "Iespējot PTT ievadi"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "CTS = +V"
+msgstr "CTS = +V"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Set Polarity of the CTS line"
+msgstr "Iestatīt CTS līnijas polaritāti"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "OmniRig Settings"
+msgstr "OmniRig iestatījumi"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable CAT control via OmniRig"
+msgstr "Iespējot CAT vadību, izmantojot OmniRig"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Rig ID:"
+msgstr "Raiduztvērēja ID:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Test PTT"
+msgstr "Pārbaudīt PTT"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable Reporting"
+msgstr "Iespējot ziņošanu"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Callsign:"
+msgstr "Izsaukuma signāls:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Grid Square/Locator:"
+msgstr "Režģa kvadrāts/lokators:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Manual Frequency Reporting"
+msgstr "Manuāla frekvences ziņošana"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Report to PSK Reporter"
+msgstr "Ziņot PSK Reporter"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Report to FreeDV Reporter"
+msgstr "Ziņot FreeDV Reporter"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable QSO Logging"
+msgstr "Iespējot QSO reģistrēšanu"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enables QSO logging using the WSJT-X support in your preferred logging program."
+msgstr "Iespējo QSO reģistrēšanu, izmantojot WSJT-X atbalstu jūsu izvēlētajā žurnāla programmā."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "IP Address:"
+msgstr "IP adrese:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Port:"
+msgstr "Ports:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable UDP Broadcast"
+msgstr "Iespējot UDP apraidi"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Broadcasts received callsign/frequency data as JSON UDP datagrams (e.g. to a multicast group or a local listener)."
+msgstr "Pārraida uztvertos izsaukuma signāla un frekvences datus kā JSON UDP datagrammas (piemēram, multiraides grupai vai vietējam klausītājam)."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Stations Heard Log File:"
+msgstr "Uztverto staciju žurnālfails:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Choose"
+msgstr "Izvēlēties"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/freedv_reporter.cpp
+#: src/gui/dialogs/freedv_reporter.h src/main.cpp
+msgid "FreeDV Reporter"
+msgstr "FreeDV Reporter"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Hostname:"
+msgstr "Resursdatora nosaukums:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Secure Connection"
+msgstr "Drošs savienojums"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Distances in km"
+msgstr "Attālumi km"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Show cardinal directions"
+msgstr "Rādīt debespuses"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Force RX Only reporting"
+msgstr "Piespiest tikai RX ziņošanu"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Callsign List"
+msgstr "Izsaukuma signālu saraksts"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Use UTC Time"
+msgstr "Izmantot UTC laiku"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "PTT Options"
+msgstr "PTT opcijas"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable key for PTT:"
+msgstr "Iespējot taustiņu PTT:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "The key currently assigned to PTT."
+msgstr "Pašlaik PTT piešķirtais taustiņš."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Change..."
+msgstr "Mainīt..."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Momentary PTT (hold key to transmit)"
+msgstr "Īslaicīgs PTT (turēt taustiņu, lai raidītu)"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "When enabled, you must hold the PTT button or key to keep transmitting. Releasing it returns to receive."
+msgstr "Ja iespējots, jātur PTT poga vai taustiņš, lai turpinātu raidīt. To atlaižot, atgriežas uztveršanas režīmā."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "TX/RX Delay (milliseconds): "
+msgstr "TX/RX aizkave (milisekundēs): "
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "The amount of time to wait between toggling PTT and stopping/starting TX audio in milliseconds."
+msgstr "Laiks milisekundēs, ko nogaidīt starp PTT pārslēgšanu un TX audio apturēšanu/sākšanu."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable Time-Out Timer (TOT):"
+msgstr "Iespējot noildzes taimeri (TOT):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "When enabled, FreeDV will automatically stop transmitting after the configured time period has elapsed."
+msgstr "Ja iespējots, FreeDV automātiski pārtrauks raidīšanu pēc iestatītā laika perioda beigām."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "The number of seconds FreeDV will transmit before automatically dropping back to receive."
+msgstr "Sekunžu skaits, cik ilgi FreeDV raidīs, pirms automātiski pārslēgsies atpakaļ uz uztveršanu."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "seconds"
+msgstr "sekundes"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Frequency/Mode Control Options"
+msgstr "Frekvences/režīma vadības opcijas"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable frequency and mode changes"
+msgstr "Iespējot frekvences un režīma maiņu"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable frequency changes only"
+msgstr "Iespējot tikai frekvences maiņu"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "No frequency or mode changes"
+msgstr "Bez frekvences vai režīma maiņas"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Use USB instead of DIGU"
+msgstr "Lietot USB, nevis DIGU"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Save and restore the frequency on start and stop"
+msgstr "Saglabāt un atjaunot frekvenci startējot un apturot"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "When checked, Start sets the radio to the frequency FreeDV last used, and Stop returns the radio to the frequency and mode it had before Start. When unchecked, FreeDV shows the radio's current frequency on Start and leaves the radio where it is on Stop."
+msgstr "Ja atzīmēts, Start iestata radio uz frekvenci, ko FreeDV izmantoja pēdējoreiz, un Stop atgriež radio uz frekvenci un režīmu, kāds bija pirms Start. Ja nav atzīmēts, FreeDV startējot parāda radio pašreizējo frekvenci un apturot atstāj radio esošajā stāvoklī."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Frequency entry in kHz"
+msgstr "Frekvences ievade kHz"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Predefined Frequencies"
+msgstr "Iepriekšdefinētās frekvences"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Add"
+msgstr "Pievienot"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Remove"
+msgstr "Noņemt"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enter frequency (kHz):"
+msgstr "Ievadiet frekvenci (kHz):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enter frequency (MHz):"
+msgstr "Ievadiet frekvenci (MHz):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Waterfall Style"
+msgstr "Ūdenskrituma stils"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Multicolor"
+msgstr "Daudzkrāsu"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Black && White"
+msgstr "Melns && balts"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Blue Tint"
+msgstr "Zila nokrāsa"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "FreeDV Reporter colors"
+msgstr "FreeDV Reporter krāsas"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "TX Stations:"
+msgstr "Raidošās stacijas:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Background"
+msgstr "Fons"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Foreground"
+msgstr "Priekšplāns"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "RX Stations:"
+msgstr "Uztverošās stacijas:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Message updates:"
+msgstr "Ziņojumu atjauninājumi:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Plot settings"
+msgstr "Grafika iestatījumi"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Average spectrum plot across"
+msgstr "Vidējot spektra grafiku pa"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "sample(s)"
+msgstr "paraugu(-iem)"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Input To Computer From Radio:"
+msgstr "Ievade no radio uz datoru:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Test"
+msgstr "Pārbaudīt"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Selected:"
+msgstr "Atlasīts:"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Output From Computer To Speaker/Headphones:"
+msgstr "Izvade no datora uz skaļruni/austiņām:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Refresh Device List"
+msgstr "Atsvaidzināt ierīču sarakstu"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Receive only (I will not be transmitting)"
+msgstr "Tikai uztveršana (es neraidīšu)"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Input From Microphone To Computer:"
+msgstr "Ievade no mikrofona uz datoru:"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Output From Computer To Radio:"
+msgstr "Izvade no datora uz radio:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "File location: "
+msgstr "Faila atrašanās vieta: "
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Path to Voice Keyer audio files"
+msgstr "Ceļš uz balss manipulatora audiofailiem"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Rx Pause:"
+msgstr "Rx pauze:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "How long to wait in Rx mode before repeat"
+msgstr "Cik ilgi gaidīt Rx režīmā pirms atkārtošanas"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Repeats:"
+msgstr "Atkārtojumi:"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Quick Record"
+msgstr "Ātrais ieraksts"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Location to save raw recordings: "
+msgstr "Neapstrādāto ierakstu saglabāšanas vieta: "
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Location which to save raw recordings started via the Record button in the main window."
+msgstr "Vieta, kurā saglabāt neapstrādātos ierakstus, kas sākti, izmantojot galvenā loga pogu \"Ierakstīt\"."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Location to save decoded recordings: "
+msgstr "Dekodēto ierakstu saglabāšanas vieta: "
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Location which to save decoded recordings started via the Record button in the main window."
+msgstr "Vieta, kurā saglabāt dekodētos ierakstus, kas sākti, izmantojot galvenā loga pogu \"Ierakstīt\"."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Modem Options"
+msgstr "Modema opcijas"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Start Automatically on Launch"
+msgstr "Sākt automātiski pēc palaišanas"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Half/Full Duplex Operation"
+msgstr "Pusdupleksa/pilndupleksa darbība"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Half Duplex"
+msgstr "Pusduplekss"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Modem Statistics"
+msgstr "Modema statistika"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Show Decode Stats"
+msgstr "Rādīt dekodēšanas statistiku"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Time before resetting stats (in seconds):"
+msgstr "Laiks pirms statistikas atiestatīšanas (sekundēs):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Debug: Windows"
+msgstr "Atkļūdošana: Logi"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Show Console"
+msgstr "Rādīt konsoli"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Debug: FIFO and Under/Over Flow Counters"
+msgstr "Atkļūdošana: FIFO un izsīkuma/pārpildes skaitītāji"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Fifo Size (ms):"
+msgstr "FIFO izmērs (ms):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Reset"
+msgstr "Atiestatīt"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Debug: Application Options"
+msgstr "Atkļūdošana: lietojumprogrammas opcijas"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Verbose"
+msgstr "Detalizēts"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Enable Experimental Features"
+msgstr "Iespējot eksperimentālās funkcijas"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Simulated Interference Tone"
+msgstr "Simulēts traucējumu tonis"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Tone"
+msgstr "Tonis"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Freq (Hz):"
+msgstr "Frekvence (Hz):"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Amplitude (pk): "
+msgstr "Amplitūda (pk): "
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Voice Keyer file location"
+msgstr "Balss manipulatora faila atrašanās vieta"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Choose Quick Record save location"
+msgstr "Izvēlieties ātrā ieraksta saglabāšanas vietu"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Choose CSV log file location"
+msgstr "Izvēlieties CSV žurnālfaila atrašanās vietu"
+
+#: src/gui/dialogs/dlg_options.cpp src/ongui.cpp src/playrec.cpp
+#: src/voicekeyer.cpp
+msgid "All files (*.*)"
+msgstr "Visi faili (*.*)"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "CSV files (*.csv)"
+msgstr "CSV faili (*.csv)"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Press any key..."
+msgstr "Nospiediet jebkuru taustiņu..."
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+#: src/main.cpp
+msgid "Cancel"
+msgstr "Atcelt"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Testing of tone based PTT not supported; try PTT after pressing Start on main window"
+msgstr "Uz toni balstīta PTT testēšana netiek atbalstīta; izmēģiniet PTT pēc pogas \"Sākt\" nospiešanas galvenajā logā"
+
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/log_entry.cpp src/main.cpp
+#: src/ongui.cpp src/util.cpp
+msgid "Error"
+msgstr "Kļūda"
+
+#. TRANSLATORS: %s is the error message returned by Hamlib.
+#: src/gui/dialogs/dlg_options.cpp
+#, c-format
+msgid "Couldn't connect to Radio with Hamlib (%s). Make sure the Hamlib serial Device, Rate, and Params match your radio"
+msgstr "Neizdevās izveidot savienojumu ar radio, izmantojot Hamlib (%s). Pārliecinieties, vai Hamlib seriālā ierīce, ātrums un parametri atbilst jūsu radio"
+
+#. TRANSLATORS: The first %s is the serial port and the second is the error message returned by the operating system.
+#: src/gui/dialogs/dlg_options.cpp
+#, c-format
+msgid "Couldn't open serial port %s (%s). This is likely due to not having permission to access the chosen port."
+msgstr "Neizdevās atvērt seriālo portu %s (%s). Visticamāk, nav tiesību piekļūt izvēlētajam portam."
+
+#. TRANSLATORS: %s is the error message returned by OmniRig.
+#: src/gui/dialogs/dlg_options.cpp
+#, c-format
+msgid "Couldn't connect to Radio with OmniRig (%s). Make sure the rig ID and OmniRig configuration is correct."
+msgstr "Neizdevās izveidot savienojumu ar radio, izmantojot OmniRig (%s). Pārliecinieties, vai radio ID un OmniRig konfigurācija ir pareiza."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Device"
+msgstr "Ierīce"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "API"
+msgstr "API"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Default Sample Rate"
+msgstr "Noklusējuma iztveršanas frekvence"
+
+#. TRANSLATORS: Shown in the audio device lists to indicate that no device is selected.
+#: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "none"
+msgstr "nav"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Audio Test"
+msgstr "Audio tests"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Please select an audio output device first."
+msgstr "Lūdzu, vispirms atlasiet audio izvades ierīci."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Playing"
+msgstr "Atskaņo"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Please select an audio input device first."
+msgstr "Lūdzu, vispirms atlasiet audio ievades ierīci."
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid "Recording"
+msgstr "Ieraksta"
+
+#: src/gui/dialogs/dlg_options.h
+msgid "Settings"
+msgstr "Iestatījumi"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "FreeDV Setup Wizard"
+msgstr "FreeDV iestatīšanas vednis"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "< Previous"
+msgstr "< Iepriekšējais"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Next >"
+msgstr "Nākamais >"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Finish"
+msgstr "Pabeigt"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Step 1 of 4: Receive Audio"
+msgstr "1. solis no 4: Audio uztveršana"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Select the audio devices used for receiving transmissions."
+msgstr "Atlasiet audio ierīces, kas tiek izmantotas pārraižu uztveršanai."
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Import From Another Program"
+msgstr "Importēt no citas programmas"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid ""
+"Copy radio audio devices, rig control and callsign/grid square settings\n"
+"from another program installed on this computer."
+msgstr ""
+"Kopēt radio audio ierīču, radio vadības un izsaukuma signāla/režģa kvadrāta\n"
+"iestatījumus no citas šajā datorā instalētas programmas."
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Import"
+msgstr "Importēt"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Step 2 of 4: Transmit Audio"
+msgstr "2. solis no 4: Raidīšanas audio"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid ""
+"Select the audio devices used for transmitting. Skip if you\n"
+"only want to receive."
+msgstr ""
+"Atlasiet raidīšanai izmantotās audio ierīces. Izlaidiet, ja\n"
+"vēlaties tikai uztvert."
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Step 3 of 4: Radio Control"
+msgstr "3. solis no 4: Radio vadība"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid ""
+"Configure PTT (Push-To-Talk) control for your radio.\n"
+"Leave all options unchecked if you do not need PTT control."
+msgstr ""
+"Konfigurējiet sava radio PTT (Push-To-Talk) vadību.\n"
+"Atstājiet visas opcijas neatzīmētas, ja PTT vadība nav nepieciešama."
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "CAT Control via Hamlib"
+msgstr "CAT vadība, izmantojot Hamlib"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Serial Device:"
+msgstr "Seriālā ierīce:"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Serial Port PTT"
+msgstr "Seriālā porta PTT"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Enable serial port PTT"
+msgstr "Iespējot seriālā porta PTT"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Control Device:"
+msgstr "Vadības ierīce:"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Signal:"
+msgstr "Signāls:"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Inverted"
+msgstr "Invertēts"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "OmniRig"
+msgstr "OmniRig"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Enable OmniRig"
+msgstr "Iespējot OmniRig"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Rig:"
+msgstr "Raiduztvērējs:"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Rig 1"
+msgstr "Raiduztvērējs 1"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Rig 2"
+msgstr "Raiduztvērējs 2"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Step 4 of 4: Reporting"
+msgstr "4. solis no 4: Ziņošana"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid ""
+"Optionally report your station to FreeDV Reporter and PSK Reporter.\n"
+"A valid callsign and grid square are required."
+msgstr ""
+"Pēc izvēles ziņojiet par savu staciju FreeDV Reporter un PSK Reporter.\n"
+"Nepieciešams derīgs izsaukuma signāls un režģa kvadrāts."
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Enable station reporting"
+msgstr "Iespējot stacijas ziņošanu"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Grid Square:"
+msgstr "Režģa kvadrāts:"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "radio audio devices"
+msgstr "radio audioierīces"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "radio audio devices (not currently connected)"
+msgstr "radio audioierīces (pašlaik nav pievienotas)"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "Hamlib rig control (%s)"
+msgstr "Hamlib raiduztvērēja vadība (%s)"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "OmniRig rig control (%s)"
+msgstr "OmniRig raiduztvērēja vadība (%s)"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "serial port PTT (%s)"
+msgstr "seriālā porta PTT (%s)"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "rig control (%s is not supported by FreeDV)"
+msgstr "raiduztvērēja vadība (FreeDV neatbalsta %s)"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "callsign"
+msgstr "izsaukuma signāls"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "grid square"
+msgstr "režģa kvadrāts"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "reporting enabled"
+msgstr "ziņošana iespējota"
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid ", "
+msgstr ", "
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "No usable settings were found in %s."
+msgstr "%s netika atrasti derīgi iestatījumi."
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "Imported: %s."
+msgstr "Importēts: %s."
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+#, c-format
+msgid "Not imported: %s."
+msgstr "Nav importēts: %s."
+
+#: src/gui/dialogs/dlg_setup_wizard.cpp
+msgid "Review each page before clicking Finish."
+msgstr "Pārskatiet katru lapu, pirms noklikšķināt uz „Pabeigt”."
+
+#: src/gui/dialogs/freedv_reporter.cpp src/topFrame.cpp
+msgid "Callsign"
+msgstr "Izsaukuma signāls"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Locator"
+msgstr "Lokators"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "km"
+msgstr "km"
+
+#. TRANSLATORS: Abbreviation of "Heading".
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Hdg"
+msgstr "Azim."
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Version"
+msgstr "Versija"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Mode"
+msgstr "Režīms"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Status"
+msgstr "Statuss"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Msg"
+msgstr "Ziņa"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Last TX"
+msgstr "Pēdējais TX"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "RX Call"
+msgstr "RX izsaukums"
+
+#: src/gui/dialogs/freedv_reporter.cpp src/main.cpp src/topFrame.cpp
+msgid "SNR"
+msgstr "SNR"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Last Update"
+msgstr "Pēdējais atjauninājums"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Close"
+msgstr "Aizvērt"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Closes FreeDV Reporter window."
+msgstr "Aizver FreeDV Reporter logu."
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Request QSY"
+msgstr "Pieprasīt QSY"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Asks selected user to switch to your frequency."
+msgstr "Lūdz atlasītajam lietotājam pārslēgties uz jūsu frekvenci."
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Website"
+msgstr "Tīmekļa vietne"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Opens FreeDV Reporter in your Web browser."
+msgstr "Atver FreeDV Reporter jūsu tīmekļa pārlūkprogrammā."
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "All"
+msgstr "Visi"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "160 m"
+msgstr "160 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "80 m"
+msgstr "80 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "60 m"
+msgstr "60 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "40 m"
+msgstr "40 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "30 m"
+msgstr "30 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "20 m"
+msgstr "20 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "17 m"
+msgstr "17 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "15 m"
+msgstr "15 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "12 m"
+msgstr "12 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "10 m"
+msgstr "10 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid ">= 6 m"
+msgstr ">= 6 m"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Other"
+msgstr "Cits"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Band:"
+msgstr "Josla:"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Track:"
+msgstr "Sekot:"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Filters FreeDV Reporter list based on radio's current frequency or band."
+msgstr "Filtrē FreeDV Reporter sarakstu, pamatojoties uz radio pašreizējo frekvenci vai joslu."
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "band"
+msgstr "josla"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "freq."
+msgstr "frekv."
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Idle Off"
+msgstr "Dīkstāve izslēgta"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Message:"
+msgstr "Ziņojums:"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Send"
+msgstr "Sūtīt"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Sends message to FreeDV Reporter. Right-click for additional options."
+msgstr "Nosūta ziņojumu uz FreeDV Reporter. Noklikšķiniet ar peles labo pogu, lai skatītu papildu opcijas."
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Clear"
+msgstr "Notīrīt"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Clears message from FreeDV Reporter. Right-click for additional options."
+msgstr "Notīra ziņojumu no FreeDV Reporter. Noklikšķiniet ar peles labo pogu, lai skatītu papildu opcijas."
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Show"
+msgstr "Rādīt"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Distance"
+msgstr "Attālums"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Heading"
+msgstr "Azimuts"
+
+#: src/gui/dialogs/freedv_reporter.cpp src/topFrame.cpp
+msgid "Frequency"
+msgstr "Frekvence"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "TX Mode"
+msgstr "TX režīms"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "User Message"
+msgstr "Lietotāja ziņojums"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Last TX Date"
+msgstr "Pēdējais TX datums"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Last RX Callsign"
+msgstr "Pēdējais RX izsaukuma signāls"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Idle more than (minutes)..."
+msgstr "Dīkstāvē ilgāk par (minūtēm)..."
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Disabled"
+msgstr "Atspējots"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Custom..."
+msgstr "Pielāgots..."
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Send and save message"
+msgstr "Nosūtīt un saglabāt ziņojumu"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Only save message"
+msgstr "Tikai saglabāt ziņojumu"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Remove selected from list"
+msgstr "Noņemt atlasīto no saraksta"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Clear all messages from list"
+msgstr "Notīrīt visus ziņojumus no saraksta"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Edit message"
+msgstr "Rediģēt ziņojumu"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Delete message"
+msgstr "Dzēst ziņojumu"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Add new message"
+msgstr "Pievienot jaunu ziņojumu"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Copy message"
+msgstr "Kopēt ziņojumu"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Lookup via QRZ"
+msgstr "Meklēt ar QRZ"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Lookup via HamQTH"
+msgstr "Meklēt ar HamQTH"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Lookup via HamCall"
+msgstr "Meklēt ar HamCall"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Miles"
+msgstr "Jūdzes"
+
+#. TRANSLATORS: Abbreviation of "Direction".
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Dir"
+msgstr "Virz."
+
+#. TRANSLATORS: %d is a number of minutes.
+#: src/gui/dialogs/freedv_reporter.cpp
+#, c-format
+msgid "Idle %d"
+msgstr "Dīkstāve %d"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Enter number of minutes: "
+msgstr "Ievadiet minūšu skaitu: "
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Max Idle Time"
+msgstr "Maksimālais dīkstāves laiks"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+#, c-format
+msgid "QSY request sent to %s"
+msgstr "QSY pieprasījums nosūtīts uz %s"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid ">= (Greater or equal to)"
+msgstr ">= (Lielāks vai vienāds ar)"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid ">  (Greater than)"
+msgstr ">  (Lielāks par)"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "=  (Equal to)"
+msgstr "=  (Vienāds ar)"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "!= (Not equal to)"
+msgstr "!= (Nav vienāds ar)"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "<  (Less than)"
+msgstr "<  (Mazāks par)"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "<= (Less or equal to)"
+msgstr "<= (Mazāks vai vienāds ar)"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Enter value for column filter:"
+msgstr "Ievadiet kolonnas filtra vērtību:"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Set Column Filter"
+msgstr "Iestatīt kolonnas filtru"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Clear Column Filter"
+msgstr "Notīrīt kolonnas filtru"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Edit Message"
+msgstr "Rediģēt ziņojumu"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Edit the saved message:"
+msgstr "Rediģēt saglabāto ziņojumu:"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Add Message"
+msgstr "Pievienot ziņojumu"
+
+#: src/gui/dialogs/freedv_reporter.cpp
+msgid "Enter new message:"
+msgstr "Ievadiet jaunu ziņojumu:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Log Entry"
+msgstr "Žurnāla ieraksts"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Your Call:"
+msgstr "Jūsu izsaukuma signāls:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Your Locator:"
+msgstr "Jūsu lokators:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Time (UTC):"
+msgstr "Laiks (UTC):"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "DX Call:"
+msgstr "DX izsaukums:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "DX Locator:"
+msgstr "DX lokators:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Frequency (Hz):"
+msgstr "Frekvence (Hz):"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "TX Report:"
+msgstr "TX ziņojums:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "59"
+msgstr "59"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "RX Report:"
+msgstr "RX ziņojums:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Name:"
+msgstr "Vārds:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Comments:"
+msgstr "Komentāri:"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Frequency (kHz):"
+msgstr "Frekvence (kHz):"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Frequency (MHz):"
+msgstr "Frekvence (MHz):"
+
+#: src/gui/dialogs/log_entry.cpp
+msgid "Frequency and DX Call must be filled in in order to log the contact."
+msgstr "Lai reģistrētu kontaktu, ir jānorāda frekvence un DX izsaukums."
+
+#: src/gui/dialogs/log_entry.h
+msgid "Confirm Log Entry"
+msgstr "Apstiprināt žurnāla ierakstu"
+
+#: src/gui/dialogs/monitor_volume_adj.cpp
+msgid "Monitor volume (dB)"
+msgstr "Monitorēšanas skaļums (dB)"
+
+#: src/gui/dialogs/tot_warning.cpp
+msgid "Time-Out Timer Warning"
+msgstr "Noildzes taimera brīdinājums"
+
+#: src/gui/dialogs/tot_warning.cpp
+msgid "Transmit time-out is imminent!"
+msgstr "Drīz iestāsies raidīšanas noildze!"
+
+#: src/gui/dialogs/tot_warning.cpp
+msgid "Reset Timer"
+msgstr "Atiestatīt taimeri"
+
+#: src/gui/dialogs/tot_warning.cpp
+msgid "Resets the Time-Out Timer to extend transmission."
+msgstr "Atiestata noildzes taimeri, lai pagarinātu raidīšanu."
+
+#: src/gui/dialogs/tot_warning.cpp
+#, c-format
+msgid "%d second remaining"
+msgid_plural "%d seconds remaining"
+msgstr[0] "%d sekunžu atlicis"
+msgstr[1] "%d sekunde atlikusi"
+msgstr[2] "%d sekundes atlikušas"
+
+#: src/gui/util/GridSquare.cpp
+msgid "ENE"
+msgstr "AZA"
+
+#: src/gui/util/GridSquare.cpp
+msgid "N"
+msgstr "Z"
+
+#: src/gui/util/GridSquare.cpp
+msgid "NE"
+msgstr "ZA"
+
+#: src/gui/util/GridSquare.cpp
+msgid "NNE"
+msgstr "ZZA"
+
+#: src/gui/util/GridSquare.cpp
+msgid "E"
+msgstr "A"
+
+#: src/gui/util/GridSquare.cpp
+msgid "ESE"
+msgstr "ADA"
+
+#: src/gui/util/GridSquare.cpp
+msgid "SE"
+msgstr "DA"
+
+#: src/gui/util/GridSquare.cpp
+msgid "SSE"
+msgstr "DDA"
+
+#: src/gui/util/GridSquare.cpp
+msgid "S"
+msgstr "D"
+
+#: src/gui/util/GridSquare.cpp
+msgid "SSW"
+msgstr "DDR"
+
+#: src/gui/util/GridSquare.cpp
+msgid "SW"
+msgstr "DR"
+
+#: src/gui/util/GridSquare.cpp
+msgid "WSW"
+msgstr "RDR"
+
+#: src/gui/util/GridSquare.cpp
+msgid "NNW"
+msgstr "ZZR"
+
+#: src/gui/util/GridSquare.cpp
+msgid "NW"
+msgstr "ZR"
+
+#: src/gui/util/GridSquare.cpp
+msgid "W"
+msgstr "R"
+
+#: src/gui/util/GridSquare.cpp
+msgid "WNW"
+msgstr "RZR"
+
+#: src/main.cpp
+msgid "Use different configuration file instead of the default."
+msgstr "Izmantot citu konfigurācijas failu noklusējuma vietā."
+
+#: src/main.cpp
+msgid "Application Expired"
+msgstr "Lietojumprogrammas derīguma termiņš beidzies"
+
+#: src/main.cpp
+msgid "This version of FreeDV has expired. Please download a new version from freedv.org."
+msgstr "Šīs FreeDV versijas derīguma termiņš ir beidzies. Lūdzu, lejupielādējiet jaunu versiju no freedv.org."
+
+#: src/main.cpp src/ongui.cpp
+msgid "Radio Freq. (kHz)"
+msgstr "Radio frekvence (kHz)"
+
+#: src/main.cpp src/ongui.cpp
+msgid "kHz"
+msgstr "kHz"
+
+#: src/main.cpp src/ongui.cpp src/topFrame.cpp
+msgid "Radio Freq. (MHz)"
+msgstr "Radio frekvence (MHz)"
+
+#: src/main.cpp src/ongui.cpp
+msgid "MHz"
+msgstr "MHz"
+
+#: src/main.cpp src/ongui.cpp
+msgid "Turn On"
+msgstr "Ieslēgt"
+
+#: src/main.cpp src/ongui.cpp src/topFrame.cpp
+msgid "Turn Off"
+msgstr "Izslēgt"
+
+#: src/main.cpp src/voicekeyer.cpp
+#, c-format
+msgid "Toggle Voice Keyer using file %s. Right-click for additional options."
+msgstr "Pārslēgt balss manipulatoru, izmantojot failu %s. Noklikšķiniet ar peles labo pogu, lai skatītu papildu opcijas."
+
+#. TRANSLATORS: %s is the name of the FreeDV mode (e.g. RADEV1, 700D).
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "Mode: %s"
+msgstr "Režīms: %s"
+
+#. TRANSLATORS: "unk" = unknown. The labels in the Stats box are abbreviated to save space.
+#: src/main.cpp
+msgid "Bits: unk"
+msgstr "Biti: nezināms"
+
+#: src/main.cpp
+msgid "Errs: unk"
+msgstr "Kļūdas: nezināms"
+
+#: src/main.cpp
+msgid "BER: unk"
+msgstr "BER: nezināms"
+
+#: src/main.cpp
+msgid "FrqOff: unk"
+msgstr "Frekv. nobīde: nezināms"
+
+#: src/main.cpp
+msgid "Sync: unk"
+msgstr "Sinhronizācija: nezināms"
+
+#: src/main.cpp
+msgid "Var: unk"
+msgstr "Dispersija: nezināms"
+
+#: src/main.cpp
+msgid "ClkOff: unk"
+msgstr "Pulkst. nobīde: nezināms"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "Bits: %d"
+msgstr "Biti: %d"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "Errs: %d"
+msgstr "Kļūdas: %d"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "BER: %4.3f"
+msgstr "BER: %4.3f"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "Resyncs: %d"
+msgstr "Pārsinhronizācijas: %d"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "FrqOff: %3.1f"
+msgstr "Frekv. nobīde: %3.1f"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "Sync: %3.2f"
+msgstr "Sinhronizācija: %3.2f"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "Var: %4.1f"
+msgstr "Dispersija: %4.1f"
+
+#: src/main.cpp src/topFrame.cpp
+#, c-format
+msgid "ClkOff: %+-d"
+msgstr "Pulkst. nobīde: %+-d"
+
+#: src/main.cpp src/ongui.cpp
+#, c-format
+msgid " [Expires %s]"
+msgstr " [Iztek %s]"
+
+#: src/main.cpp
+msgid "&Restore defaults"
+msgstr "&Atjaunot noklusējumus"
+
+#: src/main.cpp
+msgid "Delete config file/keys and restore defaults"
+msgstr "Dzēst konfigurācijas failu/atslēgas un atjaunot noklusējumus"
+
+#: src/main.cpp
+msgid "Double click to tune, middle click to re-center"
+msgstr "Dubultklikšķis, lai noskaņotu, vidējais klikšķis, lai centrētu"
+
+#: src/main.cpp
+msgid "Waterfall"
+msgstr "Ūdenskritums"
+
+#: src/main.cpp
+msgid "Spectrum"
+msgstr "Spektrs"
+
+#: src/main.cpp
+msgid "Frm Radio"
+msgstr "No radio"
+
+#: src/main.cpp
+msgid "Frm Mic"
+msgstr "No mikrofona"
+
+#: src/main.cpp
+msgid "Frm Decoder"
+msgstr "No dekodera"
+
+#: src/main.cpp
+msgid "AGC dB"
+msgstr "AGC dB"
+
+#: src/main.cpp
+msgid "&Use another voice keyer file..."
+msgstr "&Izmantot citu balss manipulatora failu..."
+
+#: src/main.cpp
+msgid "&Record new voice keyer file..."
+msgstr "&Ierakstīt jaunu balss manipulatora failu..."
+
+#: src/main.cpp
+msgid "Monitor transmitted audio"
+msgstr "Pārraudzīt pārraidīto audio"
+
+#: src/main.cpp
+msgid "Adjust Monitor Volume..."
+msgstr "Noregulēt monitora skaļumu..."
+
+#: src/main.cpp
+msgid "Reporting requires a valid callsign and grid square in Tools->Settings. Reporting will be disabled."
+msgstr "Ziņošanai nepieciešams derīgs izsaukuma signāls un režģa kvadrāts sadaļā Rīki->Iestatījumi. Ziņošana tiks atspējota."
+
+#: src/main.cpp
+msgid "Microphone permissions must be granted to FreeDV for it to function properly."
+msgstr "FreeDV ir jāpiešķir mikrofona atļaujas, lai tas darbotos pareizi."
+
+#: src/main.cpp
+msgid "&Stop Modem"
+msgstr "A&pturēt modemu"
+
+#: src/main.cpp src/topFrame.cpp
+msgid "&Start Modem"
+msgstr "&Palaist modemu"
+
+#: src/main.cpp
+msgid "No Sound Cards configured, use Tools->Settings to configure"
+msgstr "Nav konfigurētas skaņas kartes, izmantojiet Rīki->Iestatījumi, lai konfigurētu"
+
+#: src/main.cpp
+#, c-format
+msgid "Could not find RX input sound device '%s'. Please check settings and try again."
+msgstr "Neizdevās atrast RX ievades skaņas ierīci '%s'. Lūdzu, pārbaudiet iestatījumus un mēģiniet vēlreiz."
+
+#: src/main.cpp
+#, c-format
+msgid "Could not find RX output sound device '%s'. Please check settings and try again."
+msgstr "Neizdevās atrast RX izvades skaņas ierīci '%s'. Lūdzu, pārbaudiet iestatījumus un mēģiniet vēlreiz."
+
+#: src/main.cpp
+#, c-format
+msgid "Could not find TX input sound device '%s'. Please check settings and try again."
+msgstr "Neizdevās atrast TX ievades skaņas ierīci '%s'. Lūdzu, pārbaudiet iestatījumus un mēģiniet vēlreiz."
+
+#: src/main.cpp
+#, c-format
+msgid "Could not find TX output sound device '%s'. Please check settings and try again."
+msgstr "Neizdevās atrast TX izvades skaņas ierīci '%s'. Lūdzu, pārbaudiet iestatījumus un mēģiniet vēlreiz."
+
+#: src/main.cpp
+#, c-format
+msgid "Error encountered while initializing the audio engine: %s."
+msgstr "Inicializējot audio dzinēju, radās kļūda: %s."
+
+#: src/main.cpp
+#, c-format
+msgid "Your %s device cannot be found and may have been removed from your system. Please reattach this device, close this message box and retry. If this fails, go to Tools->Settings to check your settings."
+msgstr "Jūsu %s ierīce nav atrasta un, iespējams, ir atvienota no sistēmas. Lūdzu, pievienojiet šo ierīci no jauna, aizveriet šo paziņojumu un mēģiniet vēlreiz. Ja tas neizdodas, dodieties uz Rīki->Iestatījumi, lai pārbaudītu iestatījumus."
+
+#: src/main.cpp
+msgid "Sound Device Not Found"
+msgstr "Skaņas ierīce nav atrasta"
+
+#: src/main.cpp
+#, c-format
+msgid "Your %s device is set to use a sample rate of %d, which is less than the minimum of %d. Please go to Tools->Settings to check your settings."
+msgstr "Jūsu %s ierīcei ir iestatīta iztveršanas frekvence %d, kas ir mazāka par minimālo %d. Lūdzu, dodieties uz Rīki->Iestatījumi, lai pārbaudītu iestatījumus."
+
+#: src/main.cpp src/voicekeyer.cpp
+msgid "Sample Rate Too Low"
+msgstr "Pārāk zema iztveršanas frekvence"
+
+#: src/main.cpp
+#, c-format
+msgid ""
+"The following microphone/speaker devices are set to a sample rate below the recommended minimum of %d Hz:\n"
+"%s\n"
+"\n"
+"FreeDV will still work, but speech will sound muffled to you or to other stations, depending on which device it is. If your device supports a sample rate higher than 16 kHz, consider enabling it."
+msgstr ""
+"Šīm mikrofona/skaļruņa ierīcēm ir iestatīta iztveršanas frekvence, kas ir zemāka par ieteicamo minimālo %d Hz:\n"
+"%s\n"
+"\n"
+"FreeDV joprojām darbosies, bet runa jums vai citām stacijām skanēs neskaidri atkarībā no tā, kura ierīce tā ir. Ja jūsu ierīce atbalsta iztveršanas frekvenci, kas ir lielāka par 16 kHz, apsveriet iespēju to iespējot."
+
+#: src/main.cpp
+msgid "Low Sample Rate"
+msgstr "Zema iztveršanas frekvence"
+
+#. TRANSLATORS: First %s is a callsign, second %s is a frequency.
+#: src/main.cpp
+#, c-format
+msgid "%s has requested that you QSY to %s kHz."
+msgstr "%s ir pieprasījis, lai jūs pārslēgtos uz %s kHz."
+
+#. TRANSLATORS: First %s is a callsign, second %s is a frequency.
+#: src/main.cpp
+#, c-format
+msgid "%s has requested that you QSY to %s MHz."
+msgstr "%s ir pieprasījis, lai jūs pārslēgtos uz %s MHz."
+
+#. TRANSLATORS: %s is the QSY request message.
+#: src/main.cpp
+#, c-format
+msgid "%s Would you like to change to that frequency now?"
+msgstr "%s Vai vēlaties pārslēgties uz šo frekvenci tūlīt?"
+
+#: src/main.cpp
+msgid "Change Frequency"
+msgstr "Mainīt frekvenci"
+
+#: src/main.cpp
+#, c-format
+msgid "Error encountered while processing audio: %s"
+msgstr "Apstrādājot audio, radās kļūda: %s"
+
+#. TRANSLATORS: The first two %s are the FreeDV version, the third is the git
+#. commit hash and the fourth is the Hamlib version.
+#: src/ongui.cpp
+#, c-format
+msgid ""
+"FreeDV GUI %s\n"
+"\n"
+"For Help and Support visit: http://freedv.org\n"
+"\n"
+"GNU Public License V2.1\n"
+"\n"
+"Created by David Witten KD0EAG and David Rowe VK5DGR (2012).  Currently maintained by Mooneer Salem K6AQ and David Rowe VK5DGR.\n"
+"\n"
+"freedv-gui version: %s\n"
+"freedv-gui git hash: %s\n"
+"Using %s\n"
+msgstr ""
+"FreeDV GUI %s\n"
+"\n"
+"Palīdzībai un atbalstam apmeklējiet: http://freedv.org\n"
+"\n"
+"GNU Public License V2.1\n"
+"\n"
+"Izveidojuši David Witten KD0EAG un David Rowe VK5DGR (2012).  Pašlaik uztur Mooneer Salem K6AQ un David Rowe VK5DGR.\n"
+"\n"
+"freedv-gui versija: %s\n"
+"freedv-gui git hash: %s\n"
+"Izmanto %s\n"
+
+#: src/ongui.cpp
+msgid "About"
+msgstr "Par"
+
+#. TRANSLATORS: "unk" = unknown.
+#: src/ongui.cpp src/topFrame.cpp
+msgid "unk"
+msgstr "nezināms"
+
+#: src/ongui.cpp
+msgid "The radio's model is empty. This is likely due to changes in Hamlib between FreeDV releases. Please click Stop Modem, double-check your CAT settings and push Start Modem again."
+msgstr "Radio modelis nav norādīts. Tas, visticamāk, ir saistīts ar izmaiņām Hamlib starp FreeDV laidieniem. Lūdzu, noklikšķiniet uz \"Apturēt modemu\", vēlreiz pārbaudiet CAT iestatījumus un vēlreiz nospiediet \"Palaist modemu\"."
+
+#. TRANSLATORS: %s is the error message returned by Hamlib.
+#: src/ongui.cpp
+#, c-format
+msgid "Couldn't connect to Radio with hamlib: %s"
+msgstr "Neizdevās izveidot savienojumu ar radio, izmantojot hamlib: %s"
+
+#. TRANSLATORS: %s is the error message returned by OmniRig.
+#: src/ongui.cpp
+#, c-format
+msgid "Couldn't connect to Radio with OmniRig: %s"
+msgstr "Neizdevās izveidot savienojumu ar radio, izmantojot OmniRig: %s"
+
+#: src/ongui.cpp
+msgid "Restore Defaults"
+msgstr "Atjaunot noklusējuma iestatījumus"
+
+#: src/ongui.cpp
+msgid "Would you like to restore configuration to defaults?"
+msgstr "Vai vēlaties atjaunot konfigurācijas noklusējuma iestatījumus?"
+
+#: src/ongui.cpp
+msgid "Config file/registry key successfully deleted."
+msgstr "Konfigurācijas fails/reģistra atslēga veiksmīgi izdzēsta."
+
+#: src/ongui.cpp
+msgid "Deleting config file/registry key failed."
+msgstr "Neizdevās izdzēst konfigurācijas failu/reģistra atslēgu."
+
+#: src/ongui.cpp
+#, c-format
+msgid "Disable auto-save of TX atten for %s"
+msgstr "Atspējot TX vājinājuma automātisko saglabāšanu (%s)"
+
+#: src/ongui.cpp
+#, c-format
+msgid "Enable auto-save of TX atten for %s"
+msgstr "Iespējot TX vājinājuma automātisko saglabāšanu (%s)"
+
+#: src/ongui.cpp
+#, c-format
+msgid "Restore TX atten level for %s"
+msgstr "Atjaunot TX vājinājuma līmeni (%s)"
+
+#: src/ongui.cpp
+msgid "Set tune output to minimum (-30 dB)"
+msgstr "Iestatīt skaņošanas izvadi uz minimumu (-30 dB)"
+
+#: src/ongui.cpp
+#, c-format
+msgid "Disable auto-save of tune atten for %s"
+msgstr "Atspējot skaņošanas vājinājuma automātisko saglabāšanu (%s)"
+
+#: src/ongui.cpp
+#, c-format
+msgid "Enable auto-save of tune atten for %s"
+msgstr "Iespējot skaņošanas vājinājuma automātisko saglabāšanu (%s)"
+
+#: src/ongui.cpp
+#, c-format
+msgid "Restore tune atten level for %s"
+msgstr "Atjaunot skaņošanas vājinājuma līmeni (%s)"
+
+#: src/ongui.cpp
+msgid "TX Ending"
+msgstr "TX beigas"
+
+#: src/ongui.cpp src/topFrame.cpp
+msgid "&XMIT"
+msgstr "&RAIDĪT"
+
+#: src/ongui.cpp
+msgid "Tune &Attenuation"
+msgstr "Skaņošanas &vājinājums"
+
+#: src/ongui.cpp src/topFrame.cpp
+msgid "TX &Attenuation"
+msgstr "TX &vājinājums"
+
+#: src/ongui.cpp
+msgid "Switch to Di&gital"
+msgstr "Pārslēgt uz di&gitālo"
+
+#: src/ongui.cpp src/topFrame.cpp
+msgid "Switch to A&nalog"
+msgstr "Pārslēgt uz a&nalogo"
+
+#: src/ongui.cpp
+#, c-format
+msgid "&Add %s%s to list"
+msgstr "&Pievienot %s%s sarakstam"
+
+#: src/ongui.cpp
+msgid "&Add frequency to list"
+msgstr "&Pievienot frekvenci sarakstam"
+
+#: src/ongui.cpp
+msgid "&Cut"
+msgstr "&Izgriezt"
+
+#: src/ongui.cpp
+msgid "C&opy"
+msgstr "K&opēt"
+
+#: src/ongui.cpp
+msgid "&Paste"
+msgstr "Ie&līmēt"
+
+#: src/ongui.cpp
+#, c-format
+msgid "&Delete %s%s from list"
+msgstr "&Dzēst %s%s no saraksta"
+
+#: src/ongui.cpp
+msgid "Export FreeDV Configuration"
+msgstr "Eksportēt FreeDV konfigurāciju"
+
+#: src/ongui.cpp
+msgid "FreeDV configuration files (*.conf)"
+msgstr "FreeDV konfigurācijas faili (*.conf)"
+
+#: src/ongui.cpp
+msgid "Import FreeDV Configuration"
+msgstr "Importēt FreeDV konfigurāciju"
+
+#: src/ongui.cpp
+msgid "Import Error"
+msgstr "Importēšanas kļūda"
+
+#: src/ongui.cpp
+msgid "The selected file does not exist."
+msgstr "Atlasītais fails neeksistē."
+
+#: src/ongui.cpp
+msgid "The selected file could not be parsed as a FreeDV configuration."
+msgstr "Atlasīto failu neizdevās parsēt kā FreeDV konfigurāciju."
+
+#: src/ongui.cpp
+msgid "This will load the default FreeDV configuration. Are you sure?"
+msgstr "Tiks ielādēta FreeDV noklusējuma konfigurācija. Vai esat pārliecināts?"
+
+#: src/ongui.cpp
+msgid "Load Default Configuration"
+msgstr "Ielādēt noklusējuma konfigurāciju"
+
+#: src/playrec.cpp
+msgid "Loop"
+msgstr "Cikls"
+
+#: src/playrec.cpp
+msgid "When checked file will repeat forever"
+msgstr "Ja atzīmēts, fails atkārtosies bezgalīgi"
+
+#: src/playrec.cpp
+msgid "Start Play File - From Radio..."
+msgstr "Sākt atskaņot failu - no radio..."
+
+#: src/playrec.cpp
+msgid "Play File - From Radio"
+msgstr "Atskaņot failu - no radio"
+
+#: src/playrec.cpp
+msgid "WAV and RAW files (*.wav;*.raw)"
+msgstr "WAV un RAW faili (*.wav;*.raw)"
+
+#: src/playrec.cpp src/voicekeyer.cpp
+msgid "Couldn't open sound file"
+msgstr "Neizdevās atvērt skaņas failu"
+
+#: src/playrec.cpp
+#, c-format
+msgid "Playing raw file %s as radio input (assuming Fs=%d)"
+msgstr "Atskaņo RAW failu %s kā radio ievadi (pieņemot Fs=%d)"
+
+#: src/playrec.cpp
+#, c-format
+msgid "Playing file %s as radio input"
+msgstr "Atskaņo failu %s kā radio ievadi"
+
+#: src/playrec.cpp
+msgid "Stop Play File - From Radio..."
+msgstr "Apturēt faila atskaņošanu — no radio..."
+
+#: src/playrec.cpp
+#, c-format
+msgid "Recording file %s from radio and file %s from decoder"
+msgstr "Ieraksta failu %s no radio un failu %s no dekodētāja"
+
+#: src/playrec.cpp
+#, c-format
+msgid "Recording file %s from radio"
+msgstr "Ieraksta failu %s no radio"
+
+#: src/playrec.cpp
+#, c-format
+msgid "Recording file %s from decoder"
+msgstr "Ieraksta failu %s no dekodētāja"
+
+#. TRANSLATORS: Read aloud by screen readers in place of the "." in the version number.
+#: src/topFrame.cpp
+msgid " point "
+msgstr " punkts "
+
+#: src/topFrame.cpp
+msgid "Always keeps FreeDV above other windows"
+msgstr "Vienmēr tur FreeDV virs citiem logiem"
+
+#: src/topFrame.cpp
+msgid "Keep &On Top"
+msgstr "Turēt &virspusē"
+
+#: src/topFrame.cpp
+msgid "E&xit"
+msgstr "I&ziet"
+
+#: src/topFrame.cpp
+msgid "Exit Program"
+msgstr "Iziet no programmas"
+
+#: src/topFrame.cpp
+msgid "&File"
+msgstr "&Fails"
+
+#: src/topFrame.cpp
+msgid "&Edit Settings...\tCTRL-,"
+msgstr "&Rediģēt iestatījumus...\tCTRL-,"
+
+#: src/topFrame.cpp
+msgid "Miscellaneous FreeDV configuration options"
+msgstr "Dažādi FreeDV konfigurācijas iestatījumi"
+
+#: src/topFrame.cpp
+msgid "&Edit Settings..."
+msgstr "&Rediģēt iestatījumus..."
+
+#: src/topFrame.cpp
+msgid "Re-run the FreeDV Setup Wizard"
+msgstr "Atkārtoti palaist FreeDV iestatīšanas vedni"
+
+#: src/topFrame.cpp
+msgid "Setup &Wizard..."
+msgstr "Iestatīšanas &vednis..."
+
+#: src/topFrame.cpp
+msgid "&Export Configuration..."
+msgstr "&Eksportēt konfigurāciju..."
+
+#: src/topFrame.cpp
+msgid "Exports the current FreeDV configuration to a file"
+msgstr "Eksportē pašreizējo FreeDV konfigurāciju failā"
+
+#: src/topFrame.cpp
+msgid "&Use Configuration..."
+msgstr "&Izmantot konfigurāciju..."
+
+#: src/topFrame.cpp
+msgid "Loads a FreeDV configuration from a file"
+msgstr "Ielādē FreeDV konfigurāciju no faila"
+
+#: src/topFrame.cpp
+msgid "Load &Default Configuration"
+msgstr "Ielādēt &noklusējuma konfigurāciju"
+
+#: src/topFrame.cpp
+msgid "Resets FreeDV to its default configuration"
+msgstr "Atiestata FreeDV uz noklusējuma konfigurāciju"
+
+#: src/topFrame.cpp
+msgid "&Settings"
+msgstr "&Iestatījumi"
+
+#: src/topFrame.cpp
+msgid "FreeDV R&eporter"
+msgstr "FreeDV R&eporter"
+
+#: src/topFrame.cpp
+msgid "Opens browser window and displays FreeDV Reporter service."
+msgstr "Atver pārlūkprogrammas logu un parāda FreeDV Reporter pakalpojumu."
+
+#: src/topFrame.cpp
+msgid "Configures audio filtering"
+msgstr "Konfigurē audio filtrēšanu"
+
+#: src/topFrame.cpp
+msgid "Filter &Audio..."
+msgstr "Filtrēt &audio..."
+
+#: src/topFrame.cpp
+msgid "Pipes radio sound input from file"
+msgstr "Novada radio skaņas ievadi no faila"
+
+#: src/topFrame.cpp
+msgid "Start &Play File - From Radio..."
+msgstr "Sākt a&tskaņot failu - no radio..."
+
+#: src/topFrame.cpp
+msgid "&Tools"
+msgstr "&Rīki"
+
+#: src/topFrame.cpp
+msgid "&Check for Updates"
+msgstr "&Pārbaudīt atjauninājumus"
+
+#: src/topFrame.cpp
+msgid "Checks for updates to FreeDV"
+msgstr "Pārbauda FreeDV atjauninājumus"
+
+#: src/topFrame.cpp
+msgid "&About FreeDV"
+msgstr "P&ar FreeDV"
+
+#: src/topFrame.cpp
+msgid "About this program"
+msgstr "Par šo programmu"
+
+#: src/topFrame.cpp
+msgid "&User Manual..."
+msgstr "&Lietotāja rokasgrāmata..."
+
+#: src/topFrame.cpp
+msgid "Loads the user manual"
+msgstr "Ielādē lietotāja rokasgrāmatu"
+
+#: src/topFrame.cpp
+msgid "&Get Assistance"
+msgstr "&Saņemt palīdzību"
+
+#: src/topFrame.cpp
+msgid "Gets assistance with FreeDV setup"
+msgstr "Saņem palīdzību FreeDV iestatīšanā"
+
+#: src/topFrame.cpp
+msgid "&Help"
+msgstr "&Palīdzība"
+
+#: src/topFrame.cpp
+msgid "Displays signal to noise ratio in dB."
+msgstr "Parāda signāla un trokšņa attiecību dB."
+
+#: src/topFrame.cpp
+msgid "Slow"
+msgstr "Lēns"
+
+#: src/topFrame.cpp
+msgid "Smooth but slow SNR estimation"
+msgstr "Vienmērīgs, bet lēns SNR novērtējums"
+
+#: src/topFrame.cpp
+msgid "Level"
+msgstr "Līmenis"
+
+#: src/topFrame.cpp
+msgid "RX: Peak level of radio's audio output, TX: Peak level of microphone audio from the sound card (before noise reduction/AGC/level settings)."
+msgstr "RX: radio audio izvades maksimālais līmenis, TX: mikrofona audio maksimālais līmenis no skaņas kartes (pirms trokšņu mazināšanas/AGC/līmeņa iestatījumiem)."
+
+#: src/topFrame.cpp
+msgid "Sync"
+msgstr "Sinhronizācija"
+
+#: src/topFrame.cpp
+msgid "C&enter RX"
+msgstr "C&entrēt RX"
+
+#: src/topFrame.cpp
+msgid "Audio Recording"
+msgstr "Audio ierakstīšana"
+
+#: src/topFrame.cpp
+msgid "Record"
+msgstr "Ierakstīt"
+
+#: src/topFrame.cpp
+msgid "Records incoming over the air signals as well as anything transmitted."
+msgstr "Ieraksta ienākošos ētera signālus, kā arī visu pārraidīto."
+
+#: src/topFrame.cpp
+msgid "Logging"
+msgstr "Žurnalēšana"
+
+#: src/topFrame.cpp
+msgid "Log QSO"
+msgstr "Reģistrēt QSO"
+
+#: src/topFrame.cpp
+msgid "Logs most recent QSO."
+msgstr "Reģistrē žurnālā pēdējo QSO."
+
+#: src/topFrame.cpp
+msgid "FDV Reporting"
+msgstr "FDV ziņošana"
+
+#: src/topFrame.cpp
+msgid "Quick ON/OFF for FreeDV Reporting, when enabled in Tools->Settings->Reporting."
+msgstr "Ātra FreeDV ziņošanas ieslēgšana/izslēgšana, ja tā iespējota sadaļā Rīki->Iestatījumi->Ziņošana."
+
+#: src/topFrame.cpp
+msgid "Stats"
+msgstr "Statistika"
+
+#: src/topFrame.cpp
+msgid "&Reset"
+msgstr "&Atiestatīt"
+
+#: src/topFrame.cpp
+msgid "&Clear"
+msgstr "&Notīrīt"
+
+#: src/topFrame.cpp
+msgid "Call Sign of transmitting station will appear here"
+msgstr "Šeit parādīsies raidošās stacijas izsaukuma signāls"
+
+#: src/topFrame.cpp
+msgid "Date/Time"
+msgstr "Datums/laiks"
+
+#: src/topFrame.cpp
+msgid "Decrease output by 1.0dB"
+msgstr "Samazināt izvadi par 1,0 dB"
+
+#: src/topFrame.cpp
+msgid "Decrease output by 0.2dB"
+msgstr "Samazināt izvadi par 0,2 dB"
+
+#: src/topFrame.cpp
+msgid "Increase output by 0.2dB"
+msgstr "Palielināt izvadi par 0,2 dB"
+
+#: src/topFrame.cpp
+msgid "Increase output by 1.0dB"
+msgstr "Palielināt izvadi par 1,0 dB"
+
+#: src/topFrame.cpp
+msgid ""
+"Use mouse scroll wheel to adjust up or down\n"
+"Right click for more options"
+msgstr ""
+"Izmantojiet peles ritentiņu, lai regulētu uz augšu vai uz leju\n"
+"Noklikšķiniet ar peles labo pogu, lai skatītu papildu opcijas"
+
+#: src/topFrame.cpp
+msgid "Speaker &Level"
+msgstr "Skaļruņa &līmenis"
+
+#: src/topFrame.cpp
+msgid "Control"
+msgstr "Vadība"
+
+#: src/topFrame.cpp
+msgid "Begin/End receiving data."
+msgstr "Sākt/beigt datu uztveršanu."
+
+#: src/topFrame.cpp
+msgid "Toggle analog/digital operation."
+msgstr "Pārslēgt analogo/digitālo darbību."
+
+#: src/topFrame.cpp
+msgid "&Tune"
+msgstr "&Skaņot"
+
+#: src/topFrame.cpp
+msgid ""
+"Emits 1500 Hz carrier to enable rig/antenna tuning.\n"
+"Right click for more options"
+msgstr ""
+"Rada 1500 Hz nesējfrekvenci, lai veiktu iekārtas/antenas noskaņošanu.\n"
+"Noklikšķiniet ar peles labo pogu, lai skatītu papildu opcijas"
+
+#: src/topFrame.cpp src/voicekeyer.cpp
+msgid "Start Voice &Keyer"
+msgstr "Sākt balss &manipulatoru"
+
+#: src/topFrame.cpp
+msgid "Toggle Voice Keyer. Right-click for additional options."
+msgstr "Pārslēgt balss manipulatoru. Noklikšķiniet ar peles labo pogu, lai skatītu papildu opcijas."
+
+#: src/topFrame.cpp
+msgid "Switch between Receive and Transmit. Right-click for additional options."
+msgstr "Pārslēgt starp uztveršanu un raidīšanu. Noklikšķiniet ar peles labo pogu, lai skatītu papildu opcijas."
+
+#: src/topFrame.h
+msgid "FreeDV "
+msgstr "FreeDV "
+
+#: src/util.cpp
+#, c-format
+msgid "Could not open serial port %s."
+msgstr "Neizdevās atvērt seriālo portu %s."
+
+#: src/util.cpp
+msgid "Please ensure that no other applications are accessing the port."
+msgstr "Lūdzu, pārliecinieties, vai neviena cita lietotne neizmanto šo portu."
+
+#: src/util.cpp
+msgid "Please ensure that you have permission to access the port. Adding yourself to the 'dialout' group (and logging out/back in) along with reattaching your radio to your PC will typically ensure this."
+msgstr "Lūdzu, pārliecinieties, vai jums ir tiesības piekļūt šim portam. To parasti var nodrošināt, pievienojot savu kontu grupai 'dialout' (un izrakstoties no sistēmas un piesakoties no jauna), kā arī atkārtoti pievienojot radio datoram."
+
+#: src/util.cpp
+msgid "Please ensure that you have permission to access the port."
+msgstr "Lūdzu, pārliecinieties, vai jums ir tiesības piekļūt šim portam."
+
+#. TRANSLATORS: %s is the error message returned by the operating system.
+#: src/util.cpp
+#, c-format
+msgid "Couldn't open serial port for PTT output: %s"
+msgstr "Neizdevās atvērt seriālo portu PTT izvadei: %s"
+
+#. TRANSLATORS: %s is the error message returned by the operating system.
+#: src/util.cpp
+#, c-format
+msgid "Couldn't open PTT input port: %s"
+msgstr "Neizdevās atvērt PTT ievades portu: %s"
+
+#: src/voicekeyer.cpp
+msgid "Stop Voice &Keyer"
+msgstr "Apturēt balss &manipulatoru"
+
+#: src/voicekeyer.cpp
+msgid "Select Voice Keyer File"
+msgstr "Atlasīt balss manipulatora failu"
+
+#: src/voicekeyer.cpp
+msgid "WAV files (*.wav)"
+msgstr "WAV faili (*.wav)"
+
+#: src/voicekeyer.cpp
+#, c-format
+msgid "Recording file %s from microphone"
+msgstr "Ieraksta failu %s no mikrofona"
+
+#: src/voicekeyer.cpp
+msgid "Sound files (*.wav;*.mp3)"
+msgstr "Skaņas faili (*.wav;*.mp3)"
+
+#: src/voicekeyer.cpp
+msgid "MP3 files (*.mp3)"
+msgstr "MP3 faili (*.mp3)"
+
+#: src/voicekeyer.cpp
+#, c-format
+msgid "Couldn't open: %s"
+msgstr "Neizdevās atvērt: %s"
+
+#: src/voicekeyer.cpp
+msgid "The selected voice keyer file does not have a high enough sample rate to guarantee acceptable audio quality. Please ensure that your file's sample rate is 16 kHz or greater."
+msgstr "Atlasītajam balss manipulatora failam nav pietiekami augsta iztveršanas frekvence, lai garantētu pieņemamu audio kvalitāti. Lūdzu, pārliecinieties, ka faila iztveršanas frekvence ir vismaz 16 kHz."
+
+#: src/voicekeyer.cpp
+msgid "The selected voice keyer file must only contain a single channel. Please use an audio editor to convert the file to a mono file."
+msgstr "Atlasītajā balss manipulatora failā drīkst būt tikai viens kanāls. Lūdzu, izmantojiet audio redaktoru, lai pārveidotu failu par mono failu."
+
+#: src/voicekeyer.cpp
+msgid "Too Many Channels"
+msgstr "Pārāk daudz kanālu"
+
+#: src/voicekeyer.cpp
+#, c-format
+msgid "Voice Keyer: Playing file %s to mic input"
+msgstr "Balss manipulators: atskaņo failu %s mikrofona ievadē"

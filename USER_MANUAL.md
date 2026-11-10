@@ -898,6 +898,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Remove unused plot, main window and FreeDV Reporter code. (PR #1556)
     * Settings: play back audio input tests through the speaker/headphones instead of the radio. (PR #1548)
     * Add tests of whole transmissions through the TX/RX threads without sound cards, and diagnostics for rade_loss test failures. (PR #1562)
+    * Add translations for Swedish, Brazilian Portuguese and Latvian. (PR #1615)
     * Additional data race cleanup. (PR #1616)
 
 *Note: Legacy FreeDV modes (700D/700E/1600) have been removed due to low use. FreeDV 2.4.x is still available if one wishes to operate these modes.*
