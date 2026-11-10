@@ -61,9 +61,11 @@ void AudioOptsDialog::audioEngineInit(void)
     m_isPaInitialized = true;
 
     auto engine = AudioEngineFactory::GetAudioEngine();
-    engine->setOnEngineError([this](IAudioEngine&, std::string error, void*)
+    engine->setOnEngineError([this](IAudioEngine&, std::string const& error, void*)
     {
-        CallAfter([&]() {
+        // error is copied in: this lambda runs after the handler returns,
+        // and the handler's argument is gone by then.
+        CallAfter([error]() {
             wxMessageBox(wxString::Format("Sound engine failed to initialize: %s", error), wxT("Error"), wxOK);
         });
         

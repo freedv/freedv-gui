@@ -57,3 +57,10 @@ if(BOOTSTRAP_WXWIDGETS)
     target_compile_definitions(fdv_audio PRIVATE ${WXBUILD_BUILD_DEFS})
     target_include_directories(fdv_audio PRIVATE ${WXBUILD_INCLUDES})
 endif(BOOTSTRAP_WXWIDGETS)
+
+# The factory itself is built on every platform; only the engine it makes
+# differs.
+if(UNITTEST)
+    DefineFreeDVUnitTest(audio AudioEngineFactoryTest fdv_audio fdv_util ${FREEDV_LINK_LIBS})
+    FreeDVUnitTestUsesWxWidgets(AudioEngineFactoryTest)
+endif()

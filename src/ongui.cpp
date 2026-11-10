@@ -1575,14 +1575,15 @@ void MainFrame::togglePTT(void) {
             wxGetApp().Yield(true);
         }
         
-        // Trigger end of TX processing. This causes us to wait for the remaining samples
-        // to flow through the system before toggling PTT.  Note that there is a 1000ms 
-        // timeout as backup.
+        // Trigger end of TX processing, in every mode: the TX thread sends what the
+        // microphone has already captured (then, in RADE, the end of over) and then
+        // stops sending, so that what's queued for the radio can drain before PTT is
+        // released. Note that there is a 1000ms timeout on that drain as backup.
+        endingTx.store(true, std::memory_order_release);
         if (freedvInterface.getCurrentMode() == FREEDV_MODE_RADE)
         {
             log_info("Waiting for EOO to be queued");
-            endingTx.store(true, std::memory_order_release);
-            
+
             auto beginTime = std::chrono::high_resolution_clock::now();
             while(true)
             {

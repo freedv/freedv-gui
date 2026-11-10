@@ -234,6 +234,13 @@ wxMutex g_mutexProtectingCallbackData(wxMUTEX_RECURSIVE);
 // g_mutexProtectingCallbackData first.
 std::mutex g_mutexProtectingPlayFiles;
 
+// Protects the lifetime of the SNDFILE handles written by RecordStep
+// (g_sfRecFile, g_sfRecFileFromModulator, g_sfRecDecoderFile and
+// g_sfRecMicFile). Kept separate from g_mutexProtectingCallbackData so that
+// slow writes on the recording thread can't stall the UI thread. If both
+// are needed, take g_mutexProtectingCallbackData first.
+std::mutex g_mutexProtectingRecordFiles;
+
 // End of TX state control
 std::atomic<bool> endingTx;
 
@@ -504,10 +511,22 @@ void MainApp::UnitTest_()
             std::this_thread::sleep_for(5s + std::chrono::milliseconds(distrib(gen)));
         }
 
-        if (g_sfRecFileFromModulator)
+        // Null out the handle (under the mutex RecordStep's drain takes
+        // around sf_write_short) before closing it, so no pending drain can
+        // write into a closed SNDFILE.
+        SNDFILE* modulatorRecFile = NULL;
         {
+            std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
             g_recFileFromModulator = false;
-            sf_close(g_sfRecFileFromModulator);
+            modulatorRecFile = g_sfRecFileFromModulator.exchange(NULL, std::memory_order_acq_rel);
+            if (g_sfRecFile.load(std::memory_order_acquire) == modulatorRecFile)
+            {
+                g_sfRecFile.store(NULL, std::memory_order_release);
+            }
+        }
+        if (modulatorRecFile != NULL)
+        {
+            sf_close(modulatorRecFile);
         }
     }
     else
@@ -562,10 +581,16 @@ void MainApp::UnitTest_()
             } 
         }
 
-        if (g_recFileFromDecoder.load(std::memory_order_acquire))
+        // Same drain-safe close as the modulator record file above.
+        SNDFILE* decoderRecFile = NULL;
         {
+            std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
             g_recFileFromDecoder.store(false, std::memory_order_release);
-            sf_close(g_sfRecDecoderFile.load(std::memory_order_acquire));
+            decoderRecFile = g_sfRecDecoderFile.exchange(NULL, std::memory_order_acq_rel);
+        }
+        if (decoderRecFile != NULL)
+        {
+            sf_close(decoderRecFile);
         }
     }
     
@@ -1863,15 +1888,32 @@ MainFrame::~MainFrame()
             g_sfPlayFileReader = nullptr;
         }
     }
-    if (g_sfRecFile.load(std::memory_order_acquire) != NULL)
+    // Detached from the pipeline the same way as everywhere else: the
+    // handles go null under the mutex RecordStep's drain takes around
+    // sf_write_short, and only then are the files closed.
+    std::vector<SNDFILE*> recordFilesToClose;
     {
-        sf_close(g_sfRecFile.load(std::memory_order_acquire));
-        g_sfRecFile.store(NULL, std::memory_order_release);
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+        recordFilesToClose.push_back(g_sfRecFile.exchange(NULL, std::memory_order_acq_rel));
+        recordFilesToClose.push_back(g_sfRecFileFromModulator.exchange(NULL, std::memory_order_acq_rel));
+        recordFilesToClose.push_back(g_sfRecDecoderFile.exchange(NULL, std::memory_order_acq_rel));
+        // The voice keyer/mic recording too: without this the file is never
+        // finalized (sf_close writes the lengths the header still owes) and
+        // RecordStep's file thread keeps writing into a handle that dies
+        // with the process.
+        recordFilesToClose.push_back(g_sfRecMicFile.exchange(NULL, std::memory_order_acq_rel));
     }
-    if (g_sfRecFileFromModulator != NULL)
+    for (size_t fileIndex = 0; fileIndex < recordFilesToClose.size(); fileIndex++)
     {
-        sf_close(g_sfRecFileFromModulator);
-        g_sfRecFileFromModulator = NULL;
+        auto recordFile = recordFilesToClose[fileIndex];
+        // The modulator's file is the same SNDFILE as the radio's when both
+        // are being recorded, so close each one only once.
+        if (recordFile != NULL &&
+            std::find(recordFilesToClose.begin(), recordFilesToClose.begin() + fileIndex, recordFile)
+                == recordFilesToClose.begin() + fileIndex)
+        {
+            sf_close(recordFile);
+        }
     }
 #ifdef _USE_TIMER
     if(m_pskReporterTimer.IsRunning())
@@ -2578,6 +2620,45 @@ void MainFrame::topFrame_OnClose( wxCloseEvent& event )
         return;
     }
 
+    if (onOffInProgress_)
+    {
+        // A Start or Stop is still being carried out on its own thread, and
+        // closing now would destroy this window under it: the flag the
+        // close checks below (m_RxRunning) is cleared partway through a
+        // stop and isn't set yet early in a start, so nothing here would
+        // wait for it to finish. The user can close once the On/Off button
+        // is back.
+        if (event.CanVeto())
+        {
+            event.Veto();
+            return;
+        }
+
+        // Nothing to veto with: the session is ending around us (a log out,
+        // the window manager forcing the close), and refusing would leave
+        // the process behind. Wait the worker out instead -- briefly, and
+        // pumping the loop, because it's a UI turn that runs what the worker
+        // queued there, and that's what clears the flag.
+        auto offDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (onOffInProgress_ && std::chrono::steady_clock::now() < offDeadline)
+        {
+            wxGetApp().SafeYield(nullptr, false);
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+
+        if (onOffInProgress_)
+        {
+            // Going on anyway, as the close can't be refused, but it can't
+            // be done cleanly either. With the session up, the Stop asked
+            // for below can't begin while the On/Off button is disabled:
+            // the window then goes only once a Stop that's already running
+            // finishes (a Start's worker doesn't close it). With m_RxRunning
+            // already clear, the window is destroyed while the worker may
+            // still be using it.
+            log_warn("On/Off still running after 10s; going on with the close without it finishing");
+        }
+    }
+
     if (closingReporterDialog_)
     {
         // Another request to close (say, a second click on the close button)
@@ -2640,6 +2721,12 @@ void MainFrame::topFrame_OnClose( wxCloseEvent& event )
 //-------------------------------------------------------------------------
 void MainFrame::OnExit(wxCommandEvent&)
 {
+    if (onOffInProgress_)
+    {
+        // As in topFrame_OnClose().
+        return;
+    }
+
     if (m_RxRunning.load(std::memory_order_acquire))
     {
         if (m_btnTogPTT->GetValue())
@@ -3230,7 +3317,12 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
     m_togBtnAnalog->Enable(false);
     m_togBtnVoiceKeyer->Enable(false);
     m_btnTogPTT->Enable(false);
-        
+
+    // Until the worker below is done; closing the window waits for it (see
+    // topFrame_OnClose()). A Start counts too, as one that fails is undone
+    // by the same Stop.
+    onOffInProgress_ = true;
+
     // we are attempting to start
 
     if (!m_RxRunning.load(std::memory_order_acquire))
@@ -3239,12 +3331,45 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
         {
             SetThreadName("TurningOn");
 
-            performFreeDVOn_();
-            
-            if (!m_RxRunning.load(std::memory_order_acquire))
+            // Anything a start that threw left running comes down with it, as
+            // it would on any other failed start, whatever it threw.
+            auto stopAfterThrow = [this]() {
+                try
+                {
+                    performFreeDVOff_();
+                }
+                catch (const std::exception& offEx)
+                {
+                    log_error("Stopping after that threw too: %s", offEx.what());
+                }
+                catch (...)
+                {
+                    log_error("Stopping after that threw too.");
+                }
+            };
+
+            try
             {
-                // Startup failed.
-                performFreeDVOff_();
+                performFreeDVOn_();
+
+                if (!m_RxRunning.load(std::memory_order_acquire))
+                {
+                    // Startup failed.
+                    performFreeDVOff_();
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                // Logged, and the code below still runs: with onOffInProgress_
+                // set the window refuses to close, so a start that dies on the
+                // way out would leave the app impossible to quit.
+                log_error("Turning FreeDV on threw: %s", ex.what());
+                stopAfterThrow();
+            }
+            catch (...)
+            {
+                log_error("Turning FreeDV on threw an unknown error.");
+                stopAfterThrow();
             }
 
             // On/Off actions complete, re-enable button.
@@ -3268,6 +3393,7 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
                 }
                 m_togBtnOnOff->SetValue(m_RxRunning.load(std::memory_order_acquire));
                 m_togBtnOnOff->Enable(true);
+                onOffInProgress_ = false;
 
                 // On some systems the Report Frequency box ends up getting
                 // focus after clicking on Start. This causes the frequency
@@ -3284,26 +3410,40 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
         {
             SetThreadName("TurningOff");
 
-            performFreeDVOff_();
-
-            if (terminating_)
+            try
             {
-                // We're about to destroy the frame and let the process exit,
-                // which would kill the detached rig-disconnect threads from
-                // performFreeDVOff_() mid-flight if a slow/unresponsive rig
-                // hasn't finished with them yet -- e.g. a queued ptt(false)
-                // might never reach the radio. Give them a bounded chance to
-                // finish first; an unresponsive rig still can't hang shutdown
-                // indefinitely, it just gets abandoned after the grace period.
-                auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-                if (rigPttDisconnectFuture_.valid())
+                performFreeDVOff_();
+
+                if (terminating_)
                 {
-                    rigPttDisconnectFuture_.wait_until(deadline);
+                    // We're about to destroy the frame and let the process exit,
+                    // which would kill the detached rig-disconnect threads from
+                    // performFreeDVOff_() mid-flight if a slow/unresponsive rig
+                    // hasn't finished with them yet -- e.g. a queued ptt(false)
+                    // might never reach the radio. Give them a bounded chance to
+                    // finish first; an unresponsive rig still can't hang shutdown
+                    // indefinitely, it just gets abandoned after the grace period.
+                    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+                    if (rigPttDisconnectFuture_.valid())
+                    {
+                        rigPttDisconnectFuture_.wait_until(deadline);
+                    }
+                    if (rigFreqDisconnectFuture_.valid())
+                    {
+                        rigFreqDisconnectFuture_.wait_until(deadline);
+                    }
                 }
-                if (rigFreqDisconnectFuture_.valid())
-                {
-                    rigFreqDisconnectFuture_.wait_until(deadline);
-                }
+            }
+            catch (const std::exception& ex)
+            {
+                // Logged, and the code below still runs: with onOffInProgress_
+                // set the window refuses to close, so a stop that dies on the
+                // way out would leave the app impossible to quit.
+                log_error("Turning FreeDV off threw: %s", ex.what());
+            }
+            catch (...)
+            {
+                log_error("Turning FreeDV off threw an unknown error.");
             }
 
             // On/Off actions complete, re-enable button.
@@ -3318,6 +3458,7 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
                 m_togBtnOnOff->SetValue(m_RxRunning.load(std::memory_order_acquire));
                 m_togBtnOnOff->SetLabel(wxT("&Start Modem"));
                 m_togBtnOnOff->Enable(true);
+                onOffInProgress_ = false;
 
                 if (terminating_)
                 {
@@ -3336,9 +3477,17 @@ void MainFrame::stopRxStream()
 {
     std::unique_lock<std::recursive_mutex> lk(stoppingMutex);
 
-    if(m_RxRunning.load(std::memory_order_acquire))
+    // What's up has to come down even when the flag says nothing is: a
+    // start that got as far as starting the processing threads and then
+    // found a device that wasn't running leaves m_RxRunning false with the
+    // threads still turning and the devices still open.
+    if (m_RxRunning.load(std::memory_order_acquire) ||
+        m_txThread != nullptr || m_rxThread != nullptr)
     {
-        StopLowLatencyActivity();
+        if (m_RxRunning.load(std::memory_order_acquire))
+        {
+            StopLowLatencyActivity();
+        }
 
         m_RxRunning.store(false, std::memory_order_release);
 
@@ -3380,6 +3529,18 @@ void MainFrame::stopRxStream()
             m_rxThread = nullptr;
         }
 
+        // A start that failed before both threads were made leaves devices
+        // with no thread above to take them down with it: the TX ones may
+        // have been started, the RX ones only looked up.
+        for (auto device : { &txInSoundDevice, &txOutSoundDevice, &rxInSoundDevice, &rxOutSoundDevice })
+        {
+            if (*device)
+            {
+                (*device)->stop();
+                device->reset();
+            }
+        }
+
         wxGetApp().linkStep = nullptr;
         destroy_fifos();
         
@@ -3388,6 +3549,7 @@ void MainFrame::stopRxStream()
         m_newSpkOutFilter.store(true, std::memory_order_relaxed);
         deleteEQFilters(g_rxUserdata);
         delete g_rxUserdata;
+        g_rxUserdata = nullptr;
         
         auto engine = AudioEngineFactory::GetAudioEngine();
         engine->stop();
@@ -3532,11 +3694,12 @@ void MainFrame::startRxStream()
                 wxMessageBox(wxT("No Sound Cards configured, use Tools - Audio Config to configure"), wxT("Error"), wxOK);
             });
             
-            m_RxRunning.store(false, std::memory_order_release);
-            
-            engine->stop();
-            engine->setOnEngineError(nullptr, nullptr);
-            delete g_rxUserdata;
+            // Brought down the way a Stop would be. Deleting g_rxUserdata on
+            // its own leaves the FIFOs just allocated for this start behind
+            // -- paCallBackData has no destructor -- and those are sized in
+            // minutes of audio, so a user retrying piles up tens of
+            // megabytes each time.
+            stopRxStream();
             return;
         }
         else if (g_nSoundCards.load(std::memory_order_acquire) == 1)
@@ -3581,21 +3744,8 @@ void MainFrame::startRxStream()
  
             if (failed)
             {
-                if (rxInSoundDevice)
-                {
-                    rxInSoundDevice.reset();
-                }
-                
-                if (rxOutSoundDevice)
-                {
-                    rxOutSoundDevice.reset();
-                }
-                
-                m_RxRunning.store(false, std::memory_order_release);
-            
-                engine->stop();
-                engine->setOnEngineError(nullptr, nullptr);
-                delete g_rxUserdata;
+                // As above: the devices, the FIFOs and the engine go with it.
+                stopRxStream();
                 return;
             }
             else
@@ -3715,33 +3865,8 @@ void MainFrame::startRxStream()
  
             if (failed)
             {
-                if (rxInSoundDevice)
-                {
-                    rxInSoundDevice.reset();
-                }
-                
-                if (rxOutSoundDevice)
-                {
-                    rxOutSoundDevice.reset();
-                }
-                
-                if (txInSoundDevice)
-                {
-                    txInSoundDevice->stop();
-                    txInSoundDevice.reset();
-                }
-                
-                if (txOutSoundDevice)
-                {
-                    txOutSoundDevice->stop();
-                    txOutSoundDevice.reset();
-                }
-                
-                m_RxRunning.store(false, std::memory_order_release);
-            
-                engine->stop();
-                engine->setOnEngineError(nullptr, nullptr);
-                delete g_rxUserdata;
+                // As above.
+                stopRxStream();
                 return;
             }
             else
@@ -3909,23 +4034,19 @@ void MainFrame::startRxStream()
             
             if (!txInSoundDevice->isRunning())
             {
-                rxInSoundDevice.reset();
-                rxOutSoundDevice.reset();
-                txInSoundDevice.reset();
-                txOutSoundDevice.reset();
-                m_RxRunning.store(false, std::memory_order_release);
+                // A device that didn't come up: bring the half-started
+                // session down the way a Stop would, so the engine, the
+                // FIFOs and the thread objects don't linger on a start that
+                // failed -- and so the engine isn't left with this window
+                // registered as its error handler.
+                stopRxStream();
                 return;
             }
 
             if (!txOutSoundDevice->isRunning())
             {
-                txInSoundDevice->stop();
-
-                rxInSoundDevice.reset();
-                rxOutSoundDevice.reset();
-                txInSoundDevice.reset();
-                txOutSoundDevice.reset();
-                m_RxRunning.store(false, std::memory_order_release);
+                // As above.
+                stopRxStream();
                 return;
             }
         }
@@ -3935,29 +4056,16 @@ void MainFrame::startRxStream()
         rxInSoundDevice->start();
         if (!rxInSoundDevice->isRunning())
         {
-            if (txInSoundDevice) txInSoundDevice->stop();
-            if (txOutSoundDevice) txOutSoundDevice->stop();
-            
-            rxInSoundDevice.reset();
-            rxOutSoundDevice.reset();
-            txInSoundDevice.reset();
-            txOutSoundDevice.reset();
-            m_RxRunning.store(false, std::memory_order_release);
+            // As above.
+            stopRxStream();
             return;
         }
 
         rxOutSoundDevice->start();
         if (!rxOutSoundDevice->isRunning())
         {
-            if (txInSoundDevice) txInSoundDevice->stop();
-            if (txOutSoundDevice) txOutSoundDevice->stop();
-            rxInSoundDevice->stop();
-
-            rxInSoundDevice.reset();
-            rxOutSoundDevice.reset();
-            txInSoundDevice.reset();
-            txOutSoundDevice.reset();
-            m_RxRunning.store(false, std::memory_order_release);
+            // Same as the device failures above.
+            stopRxStream();
             return;
         }
 
@@ -4310,10 +4418,18 @@ void MainFrame::onQsyRequestUIThread_(QsyRequestArgs* args)
 
 void MainFrame::onAudioEngineError_(IAudioEngine&, std::string const& error, void*)
 {
-     executeOnUiThreadAndWait_([&, error]() {
+     // Reported without waiting for the UI thread, as the device errors are:
+     // this runs on whichever thread the engine reported from, which can be
+     // one the UI thread is itself waiting on (the engine's COM thread on
+     // Windows), or one holding a lock the UI thread wants (PulseAudio's
+     // start/stop lock, held around its error reports). Logged as a warning
+     // in case the window closes before the message box can be shown; the
+     // message box is how the error is reported.
+     log_warn("%s", error.c_str());
+     CallAfter([this, error]() {
          wxMessageBox(wxString::Format(
-                          "Error encountered while initializing the audio engine: %s.", 
-                          error), wxT("Error"), wxOK, this); 
+                          "Error encountered while initializing the audio engine: %s.",
+                          error), wxT("Error"), wxOK, this);
      });
 }
 
