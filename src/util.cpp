@@ -7,7 +7,9 @@
 #include "main.h"
 
 #include <mutex>
+#include <chrono>
 #include <utility>
+#include "util/logging/ulog.h"
 
 #ifdef _WIN32
 #include <strsafe.h>
@@ -352,17 +354,39 @@ void resample_for_plot(GenericFIFO<short> *plotFifo, short buf[], short* dec_sam
 
 void MainFrame::executeOnUiThreadAndWait_(std::function<void()> fn)
 {
+    // Already on the UI thread: run it here. Queuing it and waiting would
+    // deadlock -- what's queued only runs when the UI thread next turns
+    // round the loop, and this call is what's keeping it from doing that.
+    if (wxIsMainThread())
+    {
+        fn();
+        return;
+    }
+
     std::mutex funcMutex;
     std::condition_variable funcConditionVariable;
+    bool funcDone = false; // guarded by funcMutex
     std::unique_lock<std::mutex> funcLock(funcMutex);
-    
+
     CallAfter([&]() {
         std::unique_lock<std::mutex> guiLock(funcMutex);
-        
+
         fn();
-        
+
+        funcDone = true;
         funcConditionVariable.notify_one();
     });
     
-    funcConditionVariable.wait(funcLock);
+    // Waited out rather than timed out: this wx's CallAfter reports nothing,
+    // so there's no way to learn the work was dropped (a window destroyed
+    // with it still queued, say), and returning while it's still queued would
+    // pull the ground out from under it -- the work refers to the caller's
+    // locals. Say when it's taking that long, which is what such a stall
+    // looks like from the outside. Both waits check funcDone: a wait can
+    // wake without a notify, and returning then would be returning early.
+    if (!funcConditionVariable.wait_for(funcLock, std::chrono::seconds(5), [&]() { return funcDone; }))
+    {
+        log_warn("Still waiting for the UI thread to run work handed to it");
+        funcConditionVariable.wait(funcLock, [&]() { return funcDone; });
+    }
 }

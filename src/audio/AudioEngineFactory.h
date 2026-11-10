@@ -34,8 +34,6 @@ private:
     AudioEngineFactory() = delete;
     AudioEngineFactory(const AudioEngineFactory&) = delete;
     ~AudioEngineFactory() = delete;
-    
-    static std::shared_ptr<IAudioEngine> SystemEngine_;
 };
 
 #endif // AUDIO_ENGINE_FACTORY_H

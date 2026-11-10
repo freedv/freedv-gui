@@ -984,6 +984,23 @@ void TxRxThread::txProcessing_(IRealtimeHelper* helper) FREEDV_NONBLOCKING
     }
     else
     {
+        // TX has just ended. togglePTT() has already waited for what was
+        // queued for the radio to go out, so anything still queued (if that
+        // wait timed out) would be played after PTT is released, into the
+        // radio while it receives. Drop it. (With one sound card, outfifo1
+        // carries received audio instead, and this thread doesn't run.)
+        if (!deferReset_ && g_nSoundCards.load(std::memory_order_acquire) == 2)
+        {
+            int left = cbData->outfifo1->numUsed();
+            if (left > 0)
+            {
+                cbData->outfifo1->reset();
+                FREEDV_BEGIN_VERIFIED_SAFE
+                log_info("TX ended with %d ms still queued for the radio, discarded it", (left * 1000) / outputSampleRate_);
+                FREEDV_END_VERIFIED_SAFE
+            }
+        }
+
         // Defer reset until next time we go into TX.
         deferReset_ = true;
     }

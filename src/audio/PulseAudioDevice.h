@@ -23,6 +23,7 @@
 #ifndef PULSE_AUDIO_DEVICE_H
 #define PULSE_AUDIO_DEVICE_H
 
+#include <atomic>
 #include <chrono>
 #include <mutex>
 #include <thread>
@@ -88,9 +89,16 @@ private:
     // share a connection can stall: e.g. when a loopback connects a sink FreeDV plays to
     // with the sink whose monitor it records, pipewire-pulse stopped delivering the
     // recorded audio for seconds to minutes at a time.
-    pa_context* context_;
-    pa_threaded_mainloop* mainloop_;
-    pa_stream* stream_;
+    pa_context* context_ = nullptr;
+    pa_threaded_mainloop* mainloop_ = nullptr;
+    pa_stream* stream_ = nullptr;
+
+    // Whether the stream was actually connected, and whether there's a
+    // semaphore to pace work to it. Both are set up by a successful start()
+    // and torn down by stop(); a start() that fails part way through leaves
+    // one or the other missing, and nothing else may use it.
+    std::atomic<bool> streamConnected_{false};
+    std::atomic<bool> semReady_{false};
 
     wxString devName_;
     IAudioEngine::AudioDirection direction_;
@@ -100,8 +108,8 @@ private:
     thread_local static bool MustStopWork_;
 
     sem_t sem_;
-    struct timespec ts_;
-    bool sleepFallback_;
+    struct timespec ts_ = {};
+    bool sleepFallback_ = true;
 
     int64_t extraTimeNs_;
     std::chrono::time_point<std::chrono::steady_clock> startTime_;

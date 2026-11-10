@@ -43,3 +43,8 @@ if(LINUX)
         endif(CAIRO_FOUND)
     endif(PkgConfig_FOUND)
 endif(LINUX)
+
+if(UNITTEST)
+    # Header-only logic, so the test needs none of the plot classes.
+    DefineFreeDVUnitTest(gui_controls WaterfallRowTest)
+endif(UNITTEST)

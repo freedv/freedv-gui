@@ -50,6 +50,7 @@ std::string utTxFeatureFile;
 std::string utRxFeatureFile;
 wxString utFreeDVMode;
 std::mutex g_mutexProtectingPlayFiles;
+std::mutex g_mutexProtectingRecordFiles;
 
 paCallBackData* g_rxUserdata = nullptr;
 
@@ -816,6 +817,59 @@ public:
         }
         result &= !anyNonZero(modemOut) ? (std::cout << "[outfifo1 output was all zeros]" << std::endl, false) : true;
         return result;
+    }
+
+    // togglePTT() waits for what's queued for the radio to go out before it
+    // ends TX, but gives up after a while. Whatever is still queued then would
+    // be played into the radio after PTT is released, so it's dropped -- once,
+    // as TX ends, not while transmitting.
+    static bool leftoverForRadioIsDroppedWhenTxEnds()
+    {
+        resetGlobals();
+        g_tx = true;
+        FifoGuard fifos;
+        seedSine(g_rxUserdata->infifo2, TEST_SAMPLE_RATE);
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(true, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr, makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+
+        FakeRealtimeHelper helper;
+        bool result = true;
+        thread.txProcessing_(&helper);
+        int queued = g_rxUserdata->outfifo1->numUsed();
+        result &= checkBetween("samples queued for the radio while transmitting", queued, 1, FIFO_CAPACITY);
+
+        thread.txProcessing_(&helper);
+        result &= check("samples queued a turn later, still transmitting", g_rxUserdata->outfifo1->numUsed(), queued);
+
+        g_tx = false;
+        thread.txProcessing_(&helper);
+        result &= check("samples queued for the radio once TX ended", g_rxUserdata->outfifo1->numUsed(), 0);
+
+        seedSine(g_rxUserdata->outfifo1, 160);
+        thread.txProcessing_(&helper);
+        result &= check("samples queued later, before the next over", g_rxUserdata->outfifo1->numUsed(), 160);
+        return result;
+    }
+
+    // With one sound card, outfifo1 carries what's been received to the
+    // speaker, so it isn't the transmit thread's to drop.
+    static bool receivedAudioIsLeftAloneWithOneSoundCard()
+    {
+        resetGlobals(); // PTT off
+        g_nSoundCards = 1;
+        FifoGuard fifos;
+        seedSine(g_rxUserdata->outfifo1, 1600);
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(true, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr, makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+
+        FakeRealtimeHelper helper;
+        thread.txProcessing_(&helper);
+        thread.txProcessing_(&helper);
+        return check("received samples queued for the speaker", g_rxUserdata->outfifo1->numUsed(), 1600);
     }
 
     static bool enteringTxAfterRxResetsPipelineAndSkipsOneCycle()
@@ -3249,6 +3303,8 @@ int main()
 
     executeTestCase("txProcessingSkippedWhenHalfDuplexPttOff", &TxRxThreadTest::txProcessingSkippedWhenHalfDuplexPttOff);
     executeTestCase("txProcessingGeneratesModemOutputWhenPttOn", &TxRxThreadTest::txProcessingGeneratesModemOutputWhenPttOn);
+    executeTestCase("leftoverForRadioIsDroppedWhenTxEnds", &TxRxThreadTest::leftoverForRadioIsDroppedWhenTxEnds);
+    executeTestCase("receivedAudioIsLeftAloneWithOneSoundCard", &TxRxThreadTest::receivedAudioIsLeftAloneWithOneSoundCard);
     executeTestCase("enteringTxAfterRxResetsPipelineAndSkipsOneCycle", &TxRxThreadTest::enteringTxAfterRxResetsPipelineAndSkipsOneCycle);
     executeTestCase("rxProcessingDemodulatesToOutfifo1ForSingleSoundCard", &TxRxThreadTest::rxProcessingDemodulatesToOutfifo1ForSingleSoundCard);
     executeTestCase("rxProcessingWritesToOutfifo2ForDualSoundCards", &TxRxThreadTest::rxProcessingWritesToOutfifo2ForDualSoundCards);
