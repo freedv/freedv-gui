@@ -1211,6 +1211,11 @@ class="header-section-number">19.2</span> V2.4.2 TBD 2026</h2>
 <ul>
 <li>FreeDV Reporter: don’t select the station under the mouse when the
 list gains focus without a click. (PR #1611)</li>
+<li>Fix waterfall going black when the received audio level is very low.
+(PR #1618)</li>
+<li>Windows: stop busy-waiting in the audio threads, which increased CPU
+usage in 2.4.1. (PR #1617)</li>
+<li>Fix various audio thread races and teardown gaps. (PR #1620)</li>
 </ul></li>
 <li>Documentation:
 <ul>

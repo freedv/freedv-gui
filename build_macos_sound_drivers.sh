@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Stop on the first failure so a driver that did not build is not silently
+# skipped (the tests would then run without their BlackHole devices).
+set -e
+
 git clone https://github.com/freedv/BlackHole.git
 cd BlackHole
 
