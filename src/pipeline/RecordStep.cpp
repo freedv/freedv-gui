@@ -35,6 +35,7 @@
 #include "RecordStep.h"
 
 #include <chrono>
+#include <mutex>
 #include "wx/thread.h"
 
 #if defined(__APPLE__)
@@ -44,7 +45,7 @@
 #include "../os/os_interface.h"
 #include "../util/logging/ulog.h"
 
-extern wxMutex g_mutexProtectingCallbackData;
+extern std::mutex g_mutexProtectingRecordFiles;
 
 using namespace std::chrono_literals;
 
@@ -83,6 +84,22 @@ int RecordStep::getOutputSampleRate() const FREEDV_NONBLOCKING
 
 short* RecordStep::execute(short* inputSamples, int numInputSamples, int* numOutputSamples) FREEDV_NONBLOCKING
 {
+    // What's queued here belongs to the file being recorded to. If that has
+    // changed since the last block was queued -- one recording stopped, or
+    // another started while the first's samples were still waiting to be
+    // written -- what's left in the queue is the tail of the recording that
+    // just ended and can no longer be written to its file, so it goes here
+    // rather than turning up at the front of the next recording. A file that
+    // has only just appeared doesn't count as a change: audio queued before
+    // it was opened is meant to be recorded.
+    auto recordFile = getSndFileFn_();
+    auto queuedFor = queuedForFile_.load(std::memory_order_relaxed);
+    if (queuedFor != nullptr && recordFile != queuedFor)
+    {
+        inputFifo_.reset();
+    }
+    queuedForFile_.store(recordFile, std::memory_order_release);
+
     // write() is all-or-nothing, so a full FIFO means this entire chunk is missing from
     // the resulting file. That silently makes the recording an unfaithful record of what
     // actually flowed through the pipeline, so say so rather than dropping it quietly.
@@ -119,9 +136,24 @@ void RecordStep::reset() FREEDV_NONBLOCKING
 
 void RecordStep::drainFifoToFile_(short* buf)
 {
-    g_mutexProtectingCallbackData.Lock();
+    // The mutex the application takes when it detaches a record file, so
+    // that a close can't leave this writing into a freed SNDFILE. It's
+    // deliberately not g_mutexProtectingCallbackData: the write below blocks
+    // on the disk, and that mutex is what the UI thread takes to touch the
+    // callback data, so holding it here lets a slow disk stall the window.
+    std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
     auto recordFile = getSndFileFn_();
-    if (recordFile != nullptr)
+    auto queuedFor = queuedForFile_.load(std::memory_order_acquire);
+    if (recordFile != nullptr && queuedFor != nullptr && queuedFor != recordFile)
+    {
+        // What's queued was queued for another file: the tail of a
+        // recording that has since ended, with the next one attached before
+        // execute() has run again to notice. Writing it would put the old
+        // recording's audio at the front of the new one, so it's left for
+        // execute() to drop when it next runs.
+        drainHadFile_ = true;
+    }
+    else if (recordFile != nullptr)
     {
         int numInputSamples = inputFifo_.numUsed();
         if (numInputSamples > 0)
@@ -141,8 +173,19 @@ void RecordStep::drainFifoToFile_(short* buf)
                 log_warn("Could not read %d samples from record FIFO; recording is missing audio", numInputSamples);
             }
         }
+
+        drainHadFile_ = true;
     }
-    g_mutexProtectingCallbackData.Unlock();
+    else if (drainHadFile_)
+    {
+        // The recording this thread was writing has ended. What's still
+        // queued is its tail, and can't go to its file any more. execute()
+        // can't always tell -- the next recording's SNDFILE can land at the
+        // same address as the last one's -- so it's dropped here instead,
+        // rather than turning up at the front of the next recording.
+        inputFifo_.reset();
+        drainHadFile_ = false;
+    }
 }
 
 void RecordStep::fileIoThreadEntry_()
@@ -162,7 +205,11 @@ void RecordStep::fileIoThreadEntry_()
     while (!fileIoThreadEnding_.load(std::memory_order_acquire))
     {
         drainFifoToFile_(buf);
-        fileIoThreadSem_.wait();
+
+        // Woken by execute(), and also every so often without it: once a
+        // recording stops, execute() isn't called again until the next one
+        // starts, and this has to notice the file going away before then.
+        fileIoThreadSem_.waitFor(FILE_CHECK_INTERVAL_MS);
     }
 
     // Record whatever's left in the FIFO, if anything.

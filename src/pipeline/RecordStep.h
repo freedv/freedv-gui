@@ -70,10 +70,27 @@ private:
     // once per drop event (start + duration) rather than once per audio callback.
     int consecutiveWriteDrops_;
 
+    // The file the samples currently in inputFifo_ were queued for. Set by
+    // execute() on the pipeline thread, and read by the file thread so it
+    // doesn't write them to a different file; used only to tell files
+    // apart, so it's never dereferenced -- it can outlive the SNDFILE it
+    // names.
+    std::atomic<SNDFILE*> queuedForFile_{nullptr};
+
+    // Whether the file thread found a file to write to the last time it
+    // looked, so it can tell when a recording has ended. Only touched by the
+    // file thread.
+    bool drainHadFile_ = false;
+
+    // How long the file thread waits for execute() before checking on the
+    // file by itself.
+    static constexpr int FILE_CHECK_INTERVAL_MS = 50;
+
     void fileIoThreadEntry_();
 
-    // Writes whatever's currently queued to the record file. Must only be called from
-    // the file I/O thread; takes g_mutexProtectingCallbackData itself.
+    // Writes whatever's currently queued to the record file. Must only be
+    // called from the file I/O thread; takes g_mutexProtectingRecordFiles
+    // itself.
     void drainFifoToFile_(short* buf);
 };
 
