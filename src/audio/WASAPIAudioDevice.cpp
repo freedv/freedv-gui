@@ -318,7 +318,10 @@ void WASAPIAudioDevice::start()
             {
                 onAudioErrorFunction(*this, ss.str(), onAudioErrorState);
             }
+            // Cleared as well, or stop() (which the destructor also runs)
+            // would close it again -- possibly another handle by then.
             CloseHandle(renderCaptureEvent_);
+            renderCaptureEvent_ = nullptr;
             prom->set_value();
             return;
         }
