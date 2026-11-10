@@ -21,6 +21,7 @@
 //=========================================================================
 
 #include "WASAPIAudioDevice.h"
+#include "WASAPIRealtimeWait.h"
 
 #include <sstream>
 #include <chrono>
@@ -456,17 +457,10 @@ void WASAPIAudioDevice::start()
         }
 
         // Create a high-resolution waitable timer for the debt-compensated
-        // wait in stopRealTimeWork(), so that wait isn't limited to
-        // WaitForSingleObject's millisecond-granular timeout. The high-res
-        // flag requires Windows 10 1803+; fall back to a regular (still
-        // usable, just lower-resolution) waitable timer if unavailable.
+        // wait in stopRealTimeWork() (see CreateRealtimeWaitTimer()).
         if (highResTimer_ == nullptr)
         {
-            highResTimer_ = CreateWaitableTimerEx(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
-        }
-        if (highResTimer_ == nullptr)
-        {
-            highResTimer_ = CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
+            highResTimer_ = CreateRealtimeWaitTimer();
         }
         if (highResTimer_ == nullptr)
         {
@@ -718,20 +712,10 @@ void WASAPIAudioDevice::stopRealTimeWork(bool fastMode)
         return;
     }
 
-    // Wait on a high-resolution one-shot timer for the compensated duration
-    // (negative = relative time, in 100ns units) alongside the semaphore, so
-    // the wait isn't limited to WaitForSingleObject's millisecond-granular
-    // timeout. This blocks for the whole wait: spinning through the last
-    // timer tick instead burned 1-2 ms of CPU per cycle on each audio thread.
-    LARGE_INTEGER dueTime;
-    dueTime.QuadPart = -hns;
-    SetWaitableTimer(highResTimer_, &dueTime, 0, nullptr, nullptr, FALSE);
-
+    // Wait on the high-resolution timer for the compensated duration,
+    // alongside the semaphore so stop() ends it early.
     auto waitStartTime = std::chrono::steady_clock::now();
-    HANDLE waitHandles[2] = { semaphore_, highResTimer_ };
-    DWORD result = WaitForMultipleObjects(2, waitHandles, FALSE, INFINITE);
-
-    if (result != WAIT_OBJECT_0 && result != WAIT_OBJECT_0 + 1)
+    if (RealtimeWaitForPeriod(semaphore_, highResTimer_, hns) == RealtimeWaitResult::Failed)
     {
         // Fallback to a simple sleep.
         IAudioDevice::stopRealTimeWork(fastMode);

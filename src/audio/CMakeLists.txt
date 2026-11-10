@@ -66,6 +66,11 @@ if(UNITTEST AND LINUX AND NATIVE_AUDIO_AVAILABLE)
     FreeDVUnitTestUsesWxWidgets(PulseAudioDeviceTest)
 endif()
 
+if(UNITTEST AND WIN32 AND NATIVE_AUDIO_AVAILABLE)
+    # The wait between WASAPI audio thread cycles (header-only).
+    DefineFreeDVUnitTest(audio WASAPIRealtimeWaitTest winmm)
+endif()
+
 # The factory itself is built on every platform; only the engine it makes
 # differs.
 if(UNITTEST)
