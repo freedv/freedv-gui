@@ -189,9 +189,12 @@ void FreeDVConfiguration::load(wxConfigBase* config)
     else
     {
         // Make sure path isn't in the filename
-        voiceKeyerWaveFile->Replace(voiceKeyerWaveFilePath, "");
-        voiceKeyerWaveFile->Replace("/", "");
-        voiceKeyerWaveFile->Replace("\\", "");
+        wxString wavePath = voiceKeyerWaveFilePath.get();
+        voiceKeyerWaveFile.update([&](wxString& waveFile) {
+            waveFile.Replace(wavePath, "");
+            waveFile.Replace("/", "");
+            waveFile.Replace("\\", "");
+        });
     }
 
     load_(config, voiceKeyerRxPause);

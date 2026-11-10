@@ -27,6 +27,7 @@
 #include "../IRigFrequencyController.h"
 #include "../IRigPttController.h"
 #include "omnirig.h"
+#include <atomic>
 
 class OmniRigController : public ThreadedObject, public IRigFrequencyController, public IRigPttController
 {
@@ -47,7 +48,10 @@ public:
 private:
     int rigId_; // can be either 0 or 1 (Rig 1 or 2)
     IOmniRigX* omniRig_;
-    IRigX* rig_;
+    // Atomic like HamlibRigController::rig_: the worker thread assigns it
+    // in connectImpl_/disconnectImpl_ while isConnected() runs on callers'
+    // threads.
+    std::atomic<IRigX*> rig_;
     uint64_t origFreq_;
     RigParamX origMode_;
     uint64_t currFreq_;

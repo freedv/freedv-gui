@@ -10,6 +10,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <atomic>
 
 #include <semaphore.h>
 
@@ -59,16 +60,19 @@ struct PulseAudioDeviceTestAccess
         return name;
     }
 
-    // What starting a device does, once its stream is connected, for the
-    // thread that works to the stream's timing to wait on.
+    // What starting a device does, once its stream is connected and its
+    // semaphore is set up, for the thread that works to the stream's timing
+    // to wait on.
     static void prepareToPaceWork(PulseAudioDevice& device)
     {
         sem_init(&device.sem_, 0, 0);
+        device.semReady_ = true;
     }
 
     static void finishedPacingWork(PulseAudioDevice& device)
     {
         sem_destroy(&device.sem_);
+        device.semReady_ = false;
     }
 };
 
@@ -997,6 +1001,120 @@ bool deviceSpecificationsFallBackToTheirServerNamesForDisplay()
     }
     return true;
 }
+
+// A stream the running server refuses (there's no such sink or source to
+// connect to) leaves the device not running: FreeDV asks isRunning() right
+// after start() and otherwise goes ahead with a session that can never
+// carry audio. Stopping it must also be clean -- the stream exists but
+// nothing was ever set up to pace work to it -- and it's stopped and
+// destroyed twice over, as FreeDV's own cleanup and the destructor do.
+bool aDeviceTheServerRefusesTheStreamForIsNotRunning()
+{
+    if (!soundServerReachable())
+    {
+        std::cout << "[no sound server to try this with] ";
+        return true;
+    }
+    useUsualSoundServer();
+
+    auto device = PulseAudioDeviceTestAccess::create(MISSING_DEVICE, IAudioEngine::AUDIO_ENGINE_IN, 48000, 2);
+
+    std::vector<std::string> reported;
+    device->setOnAudioError(&recordDeviceError, &reported);
+
+    device->start();
+    bool runningAfterRefusedConnect = device->isRunning();
+    device->stop();
+    device->stop();
+    bool runningAfterStop = device->isRunning();
+
+    useNoSoundServer();
+
+    bool refused = std::any_of(reported.begin(), reported.end(), [](std::string const& error) {
+        return error.find("Could not connect PulseAudio stream to ") != std::string::npos;
+    });
+
+    if (!refused)
+    {
+        // PipeWire records from the default source rather than refusing a
+        // name it doesn't have, so there's no refused stream to check here.
+        std::cout << "[the sound server took the missing device name] ";
+        return !runningAfterStop;
+    }
+
+    if (runningAfterRefusedConnect || runningAfterStop)
+    {
+        std::cout << "[running after start(): " << runningAfterRefusedConnect
+                  << ", after stop(): " << runningAfterStop << "] ";
+        return false;
+    }
+    return true;
+}
+
+// A device that never got a stream has no stream to be paced by, so the
+// wait its worker thread makes falls back to a plain sleep rather than to a
+// semaphore that start() never set up.
+bool aDeviceWithoutAStreamPacesWorkWithAPlainSleep()
+{
+    useNoSoundServer();
+
+    auto device = PulseAudioDeviceTestAccess::create(MISSING_DEVICE, IAudioEngine::AUDIO_ENGINE_IN, 8000, 1);
+    device->start();
+    if (device->isRunning())
+    {
+        std::cout << "[started without a sound server] ";
+        device->stop();
+        return false;
+    }
+
+    device->startRealTimeWork();
+    auto begin = std::chrono::steady_clock::now();
+    device->stopRealTimeWork();
+    auto waitedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - begin).count();
+    device->stop();
+
+    if (waitedMs < 0 || waitedMs > 500)
+    {
+        std::cout << "[waited " << waitedMs << " ms without a stream] ";
+        return false;
+    }
+    return true;
+}
+
+// Asking for devices uses the engine's connection, and stop() destroys it.
+// Unless both take the engine's start/stop lock, one thread can be left
+// holding a main loop and context that another has just freed. Built with
+// ThreadSanitizer, this fails if the two ever stop serializing.
+bool deviceEnumerationIsSerializedAgainstEngineStartAndStop()
+{
+    useNoSoundServer();
+
+    PulseAudioEngine engine;
+    std::atomic<bool> finished{false};
+    int numListed = 0;
+
+    std::thread startAndStop([&]() {
+        while (!finished.load())
+        {
+            engine.start();
+            engine.stop();
+        }
+    });
+
+    for (int iteration = 0; iteration < 200; iteration++)
+    {
+        numListed += engine.getAudioDeviceList(IAudioEngine::AUDIO_ENGINE_IN).size();
+        engine.getDefaultAudioDevice(IAudioEngine::AUDIO_ENGINE_IN);
+    }
+
+    finished.store(true);
+    startAndStop.join();
+
+    // With no sound server there's nothing to list either way; what matters
+    // is that the two never touched the connection at the same time.
+    return numListed == 0;
+}
 } // namespace
 
 int main()
@@ -1027,6 +1145,9 @@ int main()
     executeTestCase("aMovedStreamCarriesOnWithTheNewDeviceName", aMovedStreamCarriesOnWithTheNewDeviceName);
     executeTestCase("destroyingTheEngineWithoutStoppingItLeavesTheServerUsable", destroyingTheEngineWithoutStoppingItLeavesTheServerUsable);
     executeTestCase("deviceSpecificationsFallBackToTheirServerNamesForDisplay", deviceSpecificationsFallBackToTheirServerNamesForDisplay);
+    executeTestCase("aDeviceTheServerRefusesTheStreamForIsNotRunning", aDeviceTheServerRefusesTheStreamForIsNotRunning);
+    executeTestCase("aDeviceWithoutAStreamPacesWorkWithAPlainSleep", aDeviceWithoutAStreamPacesWorkWithAPlainSleep);
+    executeTestCase("deviceEnumerationIsSerializedAgainstEngineStartAndStop", deviceEnumerationIsSerializedAgainstEngineStartAndStop);
 
     return testResult();
 }

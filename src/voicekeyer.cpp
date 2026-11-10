@@ -11,6 +11,7 @@ extern std::atomic<SNDFILE*> g_sfRecMicFile;
 std::atomic<bool>   g_recVoiceKeyerFile;
 extern std::atomic<bool> g_voice_keyer_tx;
 extern wxMutex g_mutexProtectingCallbackData;
+extern std::mutex g_mutexProtectingRecordFiles;
 extern std::atomic<bool> endingTx;
 extern std::atomic<bool> g_monitorVoiceKeyerAudio;
 extern std::atomic<float> g_monitorVoiceKeyerAudioVol;
@@ -20,12 +21,24 @@ void MainFrame::OnTogBtnVoiceKeyerClick (wxCommandEvent& event)
     // If recording a new VK file, stop doing that now.
     if (g_recVoiceKeyerFile.load(std::memory_order_relaxed))
     {       
+        // The handle goes null under the mutex RecordStep's file thread
+        // takes around its write; the file is closed once that's dropped,
+        // so a write already under way can't land in a closed SNDFILE.
+        SNDFILE* micRecordFile = nullptr;
+        {
+            std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+            micRecordFile = g_sfRecMicFile.exchange(nullptr, std::memory_order_acq_rel);
+        }
+
         g_mutexProtectingCallbackData.Lock();
         g_recVoiceKeyerFile.store(false, std::memory_order_relaxed);
-        sf_close(g_sfRecMicFile.load(std::memory_order_acquire));
-        g_sfRecMicFile.store(nullptr, std::memory_order_release);
         SetStatusText(wxT(""));
         g_mutexProtectingCallbackData.Unlock();
+
+        if (micRecordFile != nullptr)
+        {
+            sf_close(micRecordFile);
+        }
         
         // Cache the newly recorded file for playback.
         vkFileCache_.preload(vkFileName_);

@@ -571,6 +571,11 @@ class MainFrame : public TopFrame
         std::shared_ptr<IAudioDevice> rxOutSoundDevice;
         std::shared_ptr<IAudioDevice> txInSoundDevice;
         std::shared_ptr<IAudioDevice> txOutSoundDevice;
+
+        // Clears all four (with takeSoundDevice(), at the end of this
+        // file), then releases them after unlocking, as tearing a device
+        // down can take a while.
+        void releaseSoundDevices_();
         
         unsigned int         m_timeSinceSyncLoss;
         bool        m_useMemory;
@@ -627,6 +632,7 @@ class MainFrame : public TopFrame
 
         bool terminating_; // used for terminating FreeDV
         bool closingReporterDialog_; // set while closing waits for the Reporter dialog's last messages
+        bool onOffInProgress_ = false; // set while a Start/Stop worker runs; UI thread only
         bool realigned_; // used to inhibit resize hack once already done
         bool syncState_; // GUI copy of current sync state
 
@@ -638,6 +644,9 @@ class MainFrame : public TopFrame
         // unresponsive one.
         std::future<void> rigPttDisconnectFuture_;
         std::future<void> rigFreqDisconnectFuture_;
+
+        // Waits up to 3 seconds for both of the above.
+        void waitForRigDisconnect_();
 
         // Caches appConfiguration.experimentalFeatures as of the last tab layout load
         // attempt, so exit-time save uses that instead of a possibly-since-toggled live
@@ -741,5 +750,28 @@ void my_put_next_rx_char(void *callback_state, char c);
 
 // helper complex freq shift function
 
+// Accessors for the shared_ptr handles that the UI thread and the
+// Start/Stop worker threads mutate concurrently (wxGetApp().rigPttController,
+// rigFrequencyController and m_pttInSerialPort, under a mutex in
+// util.cpp). snapshot*() copies the
+// handle, take*() copies and clears the global, publish*() stores a new
+// handle. Never touch those members directly outside these helpers.
+std::shared_ptr<IRigPttController> snapshotRigPttController();
+std::shared_ptr<IRigPttController> takeRigPttController();
+void publishRigPttController(std::shared_ptr<IRigPttController> ptr);
+std::shared_ptr<IRigFrequencyController> snapshotRigFrequencyController();
+std::shared_ptr<IRigFrequencyController> takeRigFrequencyController();
+void publishRigFrequencyController(std::shared_ptr<IRigFrequencyController> ptr);
+std::shared_ptr<SerialPortInRigController> snapshotPTTInSerialPort();
+std::shared_ptr<SerialPortInRigController> takePTTInSerialPort();
+void publishPTTInSerialPort(std::shared_ptr<SerialPortInRigController> ptr);
+
+// The same for MainFrame's rxIn/rxOut/txIn/txOutSoundDevice, which the
+// Start/Stop worker threads set and clear while the UI thread reads them
+// (under a second mutex). Pass the member itself; the lock is held
+// only for the copy, so stop() a taken device after the call, not under it.
+std::shared_ptr<IAudioDevice> snapshotSoundDevice(std::shared_ptr<IAudioDevice> const& device);
+std::shared_ptr<IAudioDevice> takeSoundDevice(std::shared_ptr<IAudioDevice>& device);
+void publishSoundDevice(std::shared_ptr<IAudioDevice>& device, std::shared_ptr<IAudioDevice> ptr);
 
 #endif //__FDMDV2_MAIN__

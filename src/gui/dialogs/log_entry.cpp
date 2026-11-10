@@ -228,7 +228,7 @@ void LogEntryDialog::OnOK(wxCommandEvent&)
         if (logger == nullptr && wxGetApp().appConfiguration.reportingConfiguration.udpReportingEnabled)
         {
             logger = std::make_shared<WSJTXNetworkLogger>(
-                (const char*)wxGetApp().appConfiguration.reportingConfiguration.udpReportingHostname->ToUTF8(),
+                (const char*)wxGetApp().appConfiguration.reportingConfiguration.udpReportingHostname.get().ToUTF8(),
                 wxGetApp().appConfiguration.reportingConfiguration.udpReportingPort);
         }
         if (logger != nullptr)
@@ -237,8 +237,8 @@ void LogEntryDialog::OnOK(wxCommandEvent&)
                 std::chrono::system_clock::from_time_t(timeSinceUnixEpoch),
                 (const char*)dxCall_->GetValue().ToUTF8(),
                 (const char*)dxGrid_->GetValue().ToUTF8(),
-                (const char*)wxGetApp().appConfiguration.reportingConfiguration.reportingCallsign->ToUTF8(),
-                (const char*)wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare->ToUTF8(),
+                (const char*)wxGetApp().appConfiguration.reportingConfiguration.reportingCallsign.get().ToUTF8(),
+                (const char*)wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare.get().ToUTF8(),
                 freqHz,
                 (const char*)rxReport_->GetValue().ToUTF8(),
                 (const char*)txReport_->GetValue().ToUTF8(),

@@ -23,6 +23,7 @@
 #define CONFIGURATION_DATA_ELEMENT_H
 
 #include <functional>
+#include <mutex>
 
 template<typename UnderlyingDataType>
 class ConfigurationDataElement
@@ -30,21 +31,33 @@ class ConfigurationDataElement
 public:
     ConfigurationDataElement(const char* elementName, UnderlyingDataType const& defaultVal);
     virtual ~ConfigurationDataElement() = default;
-    
+
+    // Elements are read and written from several threads (the UI thread,
+    // the start/stop worker threads, dialogs). Every access below is
+    // serialized by dataMutex_, and no accessor exposes the stored value
+    // itself, so a copy or assignment is always a consistent snapshot.
+    ConfigurationDataElement(const ConfigurationDataElement&) = delete;
+    ConfigurationDataElement& operator=(const ConfigurationDataElement&) = delete;
+
     const char* getElementName() const;
     
     void setDefaultVal(UnderlyingDataType& val); // useful for migration
-    UnderlyingDataType& getDefaultVal();
+    UnderlyingDataType getDefaultVal();
     
     // Allows usage of class as though it were defined directly as UnderlyingDataType.
     ConfigurationDataElement<UnderlyingDataType>& operator=(UnderlyingDataType val);
     operator UnderlyingDataType();
     
-    UnderlyingDataType* operator->();
-    
     UnderlyingDataType get();
     UnderlyingDataType getWithoutProcessing();
     void setWithoutProcessing(UnderlyingDataType const& val);
+
+    // Read-modify-write in one step: calls fn(value&) on the stored value
+    // under the lock (with no load/save processing, as operator-> did), so
+    // two threads updating it can't lose each other's changes. fn must not
+    // use this element itself.
+    template<typename Fn>
+    void update(Fn&& fn);
     
     void setSaveProcessor(std::function<UnderlyingDataType(UnderlyingDataType)> fn);
     void setLoadProcessor(std::function<UnderlyingDataType(UnderlyingDataType)> fn);
@@ -55,6 +68,9 @@ private:
     
     std::function<UnderlyingDataType(UnderlyingDataType)> saveProcessor_;
     std::function<UnderlyingDataType(UnderlyingDataType)> loadProcessor_;
+
+    // Guards data_, default_ and the two processors above.
+    mutable std::mutex dataMutex_;
 };
 
 template<typename UnderlyingDataType>
@@ -75,50 +91,58 @@ const char* ConfigurationDataElement<UnderlyingDataType>::getElementName() const
 }
 
 template<typename UnderlyingDataType>
-UnderlyingDataType& ConfigurationDataElement<UnderlyingDataType>::getDefaultVal()
+UnderlyingDataType ConfigurationDataElement<UnderlyingDataType>::getDefaultVal()
 {
+    std::lock_guard<std::mutex> lock(dataMutex_);
     return default_;
 }
 
 template<typename UnderlyingDataType>
 void ConfigurationDataElement<UnderlyingDataType>::setDefaultVal(UnderlyingDataType& val)
 {
+    std::lock_guard<std::mutex> lock(dataMutex_);
     default_ = val;
 }
 
 template<typename UnderlyingDataType>
 ConfigurationDataElement<UnderlyingDataType>& ConfigurationDataElement<UnderlyingDataType>::operator=(UnderlyingDataType val)
 {
+    std::lock_guard<std::mutex> lock(dataMutex_);
     if (saveProcessor_)
     {
         val = saveProcessor_(val);
     }
     
-    setWithoutProcessing(val);
+    data_ = val;
     return *this;
-}
-
-template<typename UnderlyingDataType>
-UnderlyingDataType* ConfigurationDataElement<UnderlyingDataType>::operator->()
-{
-    return &data_;
 }
 
 template<typename UnderlyingDataType>
 void ConfigurationDataElement<UnderlyingDataType>::setWithoutProcessing(UnderlyingDataType const& val)
 {
+    std::lock_guard<std::mutex> lock(dataMutex_);
     data_ = val;
+}
+
+template<typename UnderlyingDataType>
+template<typename Fn>
+void ConfigurationDataElement<UnderlyingDataType>::update(Fn&& fn)
+{
+    std::lock_guard<std::mutex> lock(dataMutex_);
+    fn(data_);
 }
 
 template<typename UnderlyingDataType>
 UnderlyingDataType ConfigurationDataElement<UnderlyingDataType>::getWithoutProcessing()
 {
+    std::lock_guard<std::mutex> lock(dataMutex_);
     return data_;
 }
 
 template<typename UnderlyingDataType>
 ConfigurationDataElement<UnderlyingDataType>::operator UnderlyingDataType()
 {
+    std::lock_guard<std::mutex> lock(dataMutex_);
     if (loadProcessor_)
     {
         return loadProcessor_(data_);
@@ -130,6 +154,7 @@ ConfigurationDataElement<UnderlyingDataType>::operator UnderlyingDataType()
 template<typename UnderlyingDataType>
 UnderlyingDataType ConfigurationDataElement<UnderlyingDataType>::get()
 {
+    std::lock_guard<std::mutex> lock(dataMutex_);
     if (loadProcessor_)
     {
         return loadProcessor_(data_);
@@ -141,12 +166,14 @@ UnderlyingDataType ConfigurationDataElement<UnderlyingDataType>::get()
 template<typename UnderlyingDataType>
 void ConfigurationDataElement<UnderlyingDataType>::setSaveProcessor(std::function<UnderlyingDataType(UnderlyingDataType)> fn)
 {
+    std::lock_guard<std::mutex> lock(dataMutex_);
     saveProcessor_ = std::move(fn);
 }
 
 template<typename UnderlyingDataType>
 void ConfigurationDataElement<UnderlyingDataType>::setLoadProcessor(std::function<UnderlyingDataType(UnderlyingDataType)> fn)
 {
+    std::lock_guard<std::mutex> lock(dataMutex_);
     loadProcessor_ = std::move(fn);
 }
 

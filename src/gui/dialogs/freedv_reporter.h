@@ -153,6 +153,7 @@ class FreeDVReporterDialog : public wxFrame
         void    OnStatusMessageContextMenuDelete(wxCommandEvent& event);
         void    OnStatusMessageContextMenuAdd(wxCommandEvent& event);
         wxListBox* getMsgPopup() const;
+        void    syncRecentStatusTexts_();
         void    OnSystemColorChanged(wxSysColourChangedEvent& event);
 
         void OnItemSelectionChanged(wxDataViewEvent& event);
