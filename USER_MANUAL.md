@@ -961,6 +961,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Let the radio's audio finish before releasing PTT in modes other than RADE, and don't play what's left into the radio after it returns to receive. (PR #1622)
     * Fix various audio thread races and teardown gaps. (PR #1620)
     * Send WSJT-X's Logged ADIF message when a QSO is logged, so that logging programs which save contacts from it (e.g. Log4OM) log FreeDV contacts automatically. (PR #1624)
+    * Cover a briefly late microphone with silence rather than leaving a gap in the transmitted signal. (PR #1621)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
 
