@@ -457,6 +457,11 @@ FreeDV supports integration with external logging utilities that support the WSJ
 the "Enable QSO Logging" option. By default, it sends packets to "localhost" (127.0.0.1) port 2237, but this
 can be changed if the logging computer is elsewhere on the network.
 
+As WSJT-X does, FreeDV sends each logged contact both as a "QSO Logged" message and as a "Logged ADIF" message 
+(an ADIF record of the contact, with mode DIGITALVOICE and submode FREEDV). Some logging programs, such as 
+Log4OM, save contacts from the latter: in Log4OM, make sure that the option to import QSOs from WSJT-X's 
+ADIF message (JT message #12) is enabled for the UDP connection that FreeDV sends to.
+
 Once FreeDV decodes a callsign, it will appear in the drop-down list on the bottom of the main window. To log
 this contact (or any other contact received by the application), simply choose that callsign from the list and
 click the "Log QSO" button on the left side of the window. You will then see a dialog box that will let you 

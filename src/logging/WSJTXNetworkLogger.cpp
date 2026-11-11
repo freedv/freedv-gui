@@ -21,6 +21,7 @@
 //==========================================================================
 
 #include "WSJTXNetworkLogger.h"
+#include "AdifRecord.h"
 #include "git_version.h"
 
 #include "../util/logging/ulog.h"
@@ -312,8 +313,32 @@ void WSJTXNetworkLogger::logContact(std::chrono::time_point<std::chrono::system_
             << std::string("")     // exchange RX
             << std::string("")     // ADIF propagation mode
                 ;
-    
+
     send(reportHostname_.c_str(), reportPort_, builder.getPacket(), builder.getPacketSize()).wait();
+
+    // And the same contact as an ADIF record, as WSJT-X also sends when a
+    // QSO is logged. Some logging programs (e.g. Log4OM) save the contact
+    // from this message rather than from QSO Logged above, which on its own
+    // leaves the user to finish logging it by hand. It also carries what
+    // QSO Logged has no field for, such as the FREEDV submode.
+    AdifContact adifContact;
+    adifContact.logTime = logTime;
+    adifContact.dxCall = dxCall;
+    adifContact.dxGrid = dxGrid;
+    adifContact.myCall = myCall;
+    adifContact.myGrid = myGrid;
+    adifContact.freqHz = freqHz;
+    adifContact.reportRx = reportRx;
+    adifContact.reportTx = reportTx;
+    adifContact.name = name;
+    adifContact.comments = comments;
+
+    PacketBuilder adifBuilder;
+    adifBuilder << (uint32_t)12
+                << UNIQUE_ID
+                << BuildLoggedAdif(adifContact, GetFreeDVVersion())
+                ;
+    send(reportHostname_.c_str(), reportPort_, adifBuilder.getPacket(), adifBuilder.getPacketSize()).wait();
 }
 
 void WSJTXNetworkLogger::sendHeartbeat_()
