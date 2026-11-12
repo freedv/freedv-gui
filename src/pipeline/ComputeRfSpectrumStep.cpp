@@ -32,6 +32,8 @@
 //
 //=========================================================================
 
+#include <algorithm>
+
 #include "ComputeRfSpectrumStep.h"
 #include "../defines.h"
 
@@ -44,7 +46,9 @@ ComputeRfSpectrumStep::ComputeRfSpectrumStep(
     rxSpectrum_ = new float[MODEM_STATS_NSPEC];
     assert(rxSpectrum_ != nullptr);
 
-    rxFdm_ = new RADE_COMP[FS];
+    // modem_stats_get_rx_spectrum() only holds a 2 * MODEM_STATS_NSPEC sample
+    // window, so blocks are broken into pieces that size before the call.
+    rxFdm_ = new RADE_COMP[2 * MODEM_STATS_NSPEC];
     assert(rxFdm_ != nullptr);
 }
 
@@ -66,18 +70,36 @@ int ComputeRfSpectrumStep::getOutputSampleRate() const FREEDV_NONBLOCKING
 
 short* ComputeRfSpectrumStep::execute(short* inputSamples, int numInputSamples, int* numOutputSamples) FREEDV_NONBLOCKING
 {
-    auto inputSamplesPtr = inputSamples;
-    for (int i = 0; i < numInputSamples; i++)
-    {
-        rxFdm_[i].real = inputSamplesPtr[i];
-    }
-    
-    modem_stats_get_rx_spectrum(modemStatsFn_(), rxSpectrum_, rxFdm_, numInputSamples);
-    
-    // Average rx spectrum data using a simple IIR low pass filter
+    // modem_stats_get_rx_spectrum() slides its 2 * MODEM_STATS_NSPEC sample
+    // window along by nin, so it can't be handed more samples than the window
+    // holds: beyond that the copy runs off the end of fft_buf, into the fft
+    // configuration pointer stored right behind it. Feed it the block in
+    // window-sized pieces, one spectrum per piece. A block smaller than the
+    // window -- what the audio callback delivers -- still yields exactly one
+    // spectrum per call, an empty one included.
+    constexpr int MAX_SAMPLES_PER_SPECTRUM = 2 * MODEM_STATS_NSPEC;
     auto avMagPtr = getAvMagFn_();
-    avMagPtr->write(rxSpectrum_, MODEM_STATS_NSPEC);
-    
+
+    for (int offset = 0; ; offset += MAX_SAMPLES_PER_SPECTRUM)
+    {
+        int chunk = std::min(numInputSamples - offset, MAX_SAMPLES_PER_SPECTRUM);
+
+        for (int i = 0; i < chunk; i++)
+        {
+            rxFdm_[i].real = inputSamples[offset + i];
+        }
+
+        modem_stats_get_rx_spectrum(modemStatsFn_(), rxSpectrum_, rxFdm_, chunk);
+
+        // Average rx spectrum data using a simple IIR low pass filter
+        avMagPtr->write(rxSpectrum_, MODEM_STATS_NSPEC);
+
+        if (offset + chunk >= numInputSamples)
+        {
+            break;
+        }
+    }
+
     // Tap only, no output.
     *numOutputSamples = 0;
 

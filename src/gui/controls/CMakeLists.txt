@@ -45,6 +45,7 @@ if(LINUX)
 endif(LINUX)
 
 if(UNITTEST)
-    # Header-only logic, so the test needs none of the plot classes.
+    # Header-only logic, so the tests need none of the plot classes.
     DefineFreeDVUnitTest(gui_controls WaterfallRowTest)
+    DefineFreeDVUnitTest(gui_controls WaterfallScaleTest)
 endif(UNITTEST)
