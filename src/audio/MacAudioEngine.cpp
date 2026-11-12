@@ -94,10 +94,7 @@ std::vector<AudioDeviceSpecification> MacAudioEngine::getAudioDeviceList(AudioDi
     );
     if (status != noErr)
     {
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, "Could not get number of audio devices", onAudioErrorState);
-        }
+        reportEngineError("Could not get number of audio devices");
         return result;
     }
     
@@ -116,10 +113,7 @@ std::vector<AudioDeviceSpecification> MacAudioEngine::getAudioDeviceList(AudioDi
     );
     if (status != noErr)
     {
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, "Could not get audio device IDs", onAudioErrorState);
-        }
+        reportEngineError("Could not get audio device IDs");
 
         delete[] ids;
         return result;
@@ -168,10 +162,7 @@ AudioDeviceSpecification MacAudioEngine::getDefaultAudioDevice(AudioDirection di
     );
     if (status != noErr)
     {
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, "Could not get default audio device", onAudioErrorState);
-        }
+        reportEngineError("Could not get default audio device");
         return AudioDeviceSpecification::GetInvalidDevice();
     }
     
@@ -245,10 +236,7 @@ std::vector<int> MacAudioEngine::getSupportedSampleRates(wxString deviceName, Au
             );
             if (status != noErr)
             {
-                if (onAudioErrorFunction)
-                {
-                    onAudioErrorFunction(*this, "Could not get size of sample rate list", onAudioErrorState);
-                }
+                reportEngineError("Could not get size of sample rate list");
                 return result;
             }
 
@@ -257,10 +245,7 @@ std::vector<int> MacAudioEngine::getSupportedSampleRates(wxString deviceName, Au
             AudioValueRange* rates = (AudioValueRange*)malloc(propertySize);
             if (rates == nullptr)
             {
-                if (onAudioErrorFunction)
-                {
-                    onAudioErrorFunction(*this, "Could not allocate memory for sample rate list", onAudioErrorState);
-                }
+                reportEngineError("Could not allocate memory for sample rate list");
                 return result;
             }
             
@@ -274,10 +259,7 @@ std::vector<int> MacAudioEngine::getSupportedSampleRates(wxString deviceName, Au
             );
             if (status != noErr)
             {
-                if (onAudioErrorFunction)
-                {
-                    onAudioErrorFunction(*this, "Could not get supported sample rates", onAudioErrorState);
-                }
+                reportEngineError("Could not get supported sample rates");
                 return result;
             }
             
@@ -326,10 +308,7 @@ AudioDeviceSpecification MacAudioEngine::getAudioSpecification_(int coreAudioId,
     );
     if (status != noErr)
     {
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, "Could not get audio device name", onAudioErrorState);
-        }
+        reportEngineError("Could not get audio device name");
         return AudioDeviceSpecification::GetInvalidDevice();
     }
     
@@ -351,10 +330,7 @@ AudioDeviceSpecification MacAudioEngine::getAudioSpecification_(int coreAudioId,
         );
         if (status != noErr)
         {
-            if (onAudioErrorFunction)
-            {
-                onAudioErrorFunction(*this, "Could not get audio device name", onAudioErrorState);
-            }
+            reportEngineError("Could not get audio device name");
             return AudioDeviceSpecification::GetInvalidDevice();
         }
 
@@ -433,10 +409,7 @@ int MacAudioEngine::getNumChannels_(int coreAudioId, AudioDirection direction)
         &propertySize);
     if (status != noErr)
     {
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, "Could not get audio stream configuration size", onAudioErrorState);
-        }
+        reportEngineError("Could not get audio stream configuration size");
         return 0;
     }
     
@@ -450,10 +423,7 @@ int MacAudioEngine::getNumChannels_(int coreAudioId, AudioDirection direction)
         &bufferListPointer);
     if (status != noErr)
     {
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, "Could not get audio stream configuration", onAudioErrorState);
-        }
+        reportEngineError("Could not get audio stream configuration");
         return 0;
     }
     

@@ -1279,7 +1279,12 @@ list gains focus without a click. (PR #1611)</li>
 (PR #1618)</li>
 <li>Windows: stop busy-waiting in the audio threads, which increased CPU
 usage in 2.4.1. (PR #1617)</li>
+<li>Let the radio’s audio finish before releasing PTT in modes other
+than RADE, and don’t play what’s left into the radio after it returns to
+receive. (PR #1622)</li>
 <li>Fix various audio thread races and teardown gaps. (PR #1620)</li>
+<li>Cover a briefly late microphone with silence rather than leaving a
+gap in the transmitted signal. (PR #1621)</li>
 </ul></li>
 <li>Documentation:
 <ul>
