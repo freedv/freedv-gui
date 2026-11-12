@@ -2096,7 +2096,7 @@ void MainFrame::OnTimer(wxTimerEvent &evt)
       else if (timerId == ID_TIMER_SPEECH_IN)
       {
           int numSpeechIn = DrainPlotFifo(g_plotSpeechInFifoAfterAGC, speechInPlotSamplesAfterAGC,
-                                          WAVEFORM_PLOT_BUF, PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF);
+                                          WAVEFORM_PLOT_BUF, PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF, plotSpeechInEmptyTicks_);
           if (numSpeechIn > 0)
           {
               m_panelSpeechIn->add_new_short_samples(speechInPlotSamplesAfterAGC, numSpeechIn, 32767);
@@ -2106,7 +2106,7 @@ void MainFrame::OnTimer(wxTimerEvent &evt)
       else if (timerId == ID_TIMER_SPEECH_OUT)
       {
           int numSpeechOut = DrainPlotFifo(g_plotSpeechOutFifo, speechOutPlotSamples,
-                                           WAVEFORM_PLOT_BUF, PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF);
+                                           WAVEFORM_PLOT_BUF, PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF, plotSpeechOutEmptyTicks_);
           if (numSpeechOut > 0)
           {
               m_panelSpeechOut->add_new_short_samples(speechOutPlotSamples, numSpeechOut, 32767);
@@ -2116,7 +2116,7 @@ void MainFrame::OnTimer(wxTimerEvent &evt)
       else if (timerId == ID_TIMER_DEMOD_IN)
       {
           int numDemodIn = DrainPlotFifo(g_plotDemodInFifo, demodInPlotSamples,
-                                         WAVEFORM_PLOT_BUF, PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF);
+                                         WAVEFORM_PLOT_BUF, PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF, plotDemodInEmptyTicks_);
           if (numDemodIn > 0)
           {
               m_panelDemodIn->add_new_short_samples(demodInPlotSamples, numDemodIn, 32767);

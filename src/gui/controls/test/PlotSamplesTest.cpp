@@ -25,9 +25,12 @@ GenericFIFO<short> makePlotFifo()
     return GenericFIFO<short>(PLOT_SAMPLES);
 }
 
+// One plot's state between ticks, as MainFrame keeps it.
+int emptyTicks = 0;
+
 int drain(GenericFIFO<short>& fifo, std::vector<short>& buffer)
 {
-    return DrainPlotFifo(fifo, buffer.data(), WAVEFORM_PLOT_BUF, PLOT_SAMPLES);
+    return DrainPlotFifo(fifo, buffer.data(), WAVEFORM_PLOT_BUF, PLOT_SAMPLES, emptyTicks);
 }
 
 // Writes `numSamples` samples all carrying the value `tag`.
@@ -53,6 +56,7 @@ bool sameSamples(const std::vector<short>& expected, const std::vector<short>& a
 bool aPartialTickIsPlottedRatherThanZeroed()
 {
     auto fifo = makePlotFifo();
+    emptyTicks = 0;
     std::vector<short> buffer(PLOT_SAMPLES);
 
     // 32 samples: less than the 40 a fixed read demanded.
@@ -75,6 +79,7 @@ bool aPartialTickIsPlottedRatherThanZeroed()
 bool aDriftingAudioClockLosesNothing()
 {
     auto fifo = makePlotFifo();
+    emptyTicks = 0;
     std::vector<short> buffer(PLOT_SAMPLES);
     std::vector<short> plotted;
     std::vector<short> expected;
@@ -115,6 +120,7 @@ bool aDriftingAudioClockLosesNothing()
 bool aBacklogIsPaidOff()
 {
     auto fifo = makePlotFifo();
+    emptyTicks = 0;
     std::vector<short> buffer(PLOT_SAMPLES);
 
     int written = 0;
@@ -140,6 +146,7 @@ bool aBacklogIsPaidOff()
 bool aSmallBacklogKeepsTheScrollSteady()
 {
     auto fifo = makePlotFifo();
+    emptyTicks = 0;
     std::vector<short> buffer(PLOT_SAMPLES);
 
     int queued = 0;
@@ -169,6 +176,7 @@ bool aSmallBacklogKeepsTheScrollSteady()
 bool theBufferIsNotOverrun()
 {
     auto fifo = makePlotFifo();
+    emptyTicks = 0;
     std::vector<short> buffer(100);
 
     for (int tag = 0; tag < 25; tag++)
@@ -180,7 +188,7 @@ bool theBufferIsNotOverrun()
         }
     }
 
-    int numRead = DrainPlotFifo(fifo, buffer.data(), WAVEFORM_PLOT_BUF, (int)buffer.size());
+    int numRead = DrainPlotFifo(fifo, buffer.data(), WAVEFORM_PLOT_BUF, (int)buffer.size(), emptyTicks);
     return (numRead == 100) && (fifo.numUsed() == 100);
 }
 
@@ -189,6 +197,7 @@ bool theBufferIsNotOverrun()
 bool anEmptyFifoPlotsNothing()
 {
     auto fifo = makePlotFifo();
+    emptyTicks = 0;
     std::vector<short> buffer(PLOT_SAMPLES, 123);
 
     if (drain(fifo, buffer) != 0)
@@ -209,6 +218,55 @@ bool anEmptyFifoPlotsNothing()
                                           "audio arriving after an empty tick");
 }
 
+// An input that has stopped -- Frm Mic while receiving in half duplex, where
+// the transmit pipeline doesn't run -- mustn't freeze the trace on the last
+// audio it showed. After a second of nothing, the trace scrolls silence.
+bool aStoppedInputScrollsSilence()
+{
+    auto fifo = makePlotFifo();
+    emptyTicks = 0;
+    std::vector<short> buffer(PLOT_SAMPLES, 123);
+
+    for (int tick = 0; tick < PLOT_FIFO_IDLE_TICKS; tick++)
+    {
+        if (drain(fifo, buffer) != 0)
+        {
+            std::cout << "[silence drawn after only " << (tick + 1) << " empty ticks] ";
+            return false;
+        }
+    }
+
+    // From here on, one tick's worth of silence per tick.
+    for (int tick = 0; tick < 3; tick++)
+    {
+        std::fill(buffer.begin(), buffer.end(), 123);
+        int numRead = drain(fifo, buffer);
+        std::vector<short> expected(WAVEFORM_PLOT_BUF, 0);
+        if ((numRead != WAVEFORM_PLOT_BUF) ||
+            !sameSamples(expected, std::vector<short>(buffer.begin(), buffer.begin() + numRead), "idle input"))
+        {
+            std::cout << "[idle tick read " << numRead << "] ";
+            return false;
+        }
+    }
+
+    // Audio coming back is plotted as it is, and the next gap is held again
+    // rather than filled.
+    if (!writeBlock(fifo, 9, 32))
+    {
+        std::cout << "[write failed] ";
+        return false;
+    }
+    int numRead = drain(fifo, buffer);
+    std::vector<short> expected(32, 9);
+    if ((numRead != 32) ||
+        !sameSamples(expected, std::vector<short>(buffer.begin(), buffer.begin() + numRead), "audio resuming"))
+    {
+        return false;
+    }
+    return drain(fifo, buffer) == 0;
+}
+
 }
 
 int main()
@@ -219,5 +277,6 @@ int main()
     executeTestCase("aSmallBacklogKeepsTheScrollSteady", aSmallBacklogKeepsTheScrollSteady);
     executeTestCase("theBufferIsNotOverrun", theBufferIsNotOverrun);
     executeTestCase("anEmptyFifoPlotsNothing", anEmptyFifoPlotsNothing);
+    executeTestCase("aStoppedInputScrollsSilence", aStoppedInputScrollsSilence);
     return testResult();
 }

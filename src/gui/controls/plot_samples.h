@@ -3,7 +3,7 @@
 
 #include <algorithm>
 
-#include "../../util/GenericFIFO.h"
+#include "GenericFIFO.h"
 
 // The waveform plots (Frm Radio, Frm Mic, Frm Decoder) are fed from a FIFO:
 // the audio pipeline writes decimated samples as it produces them, and the
@@ -29,15 +29,39 @@
 // the backlog is small, which keeps the trace scrolling at a steady rate; only
 // once more than a couple of ticks have piled up does it take everything.
 //
-// Returning nothing when the FIFO is empty is deliberate. An empty FIFO
-// usually just means the next burst hasn't landed yet, so drawing silence
-// would put a dropout in the trace that isn't in the audio; leaving the trace
-// alone for a tick does that no damage.
+// An empty FIFO usually just means the next burst hasn't landed yet, so for a
+// short while it returns nothing and the trace holds: drawing silence then
+// would put a dropout in the trace that isn't in the audio. But a FIFO can
+// also stay empty because nothing feeds it any more -- in half duplex the
+// transmit pipeline, and so Frm Mic, only runs while transmitting -- and the
+// trace mustn't freeze on the last audio it saw. Once the FIFO has been empty
+// for more than `idleTicksBeforeSilence` ticks in a row, each tick plots one
+// tick's worth of silence, as the old code did. `emptyTicks` carries that
+// count from one tick to the next; it starts at 0.
+
+// Ticks a plot FIFO may stay empty before its trace scrolls silence: 1s at the
+// plots' 100ms tick, longer than any modem frame.
+constexpr int PLOT_FIFO_IDLE_TICKS = 10;
 
 template <typename T>
-int DrainPlotFifo(GenericFIFO<T>& fifo, T* buffer, int steadySamples, int maxSamples)
+int DrainPlotFifo(GenericFIFO<T>& fifo, T* buffer, int steadySamples, int maxSamples, int& emptyTicks,
+                  int idleTicksBeforeSilence = PLOT_FIFO_IDLE_TICKS)
 {
     int numUsed = fifo.numUsed();
+    if (numUsed <= 0)
+    {
+        emptyTicks = std::min(emptyTicks + 1, idleTicksBeforeSilence + 1);
+        if (emptyTicks <= idleTicksBeforeSilence)
+        {
+            return 0;
+        }
+
+        int numSilent = std::min(steadySamples, maxSamples);
+        std::fill_n(buffer, numSilent, T());
+        return numSilent;
+    }
+
+    emptyTicks = 0;
     int numToRead = std::min(numUsed, (numUsed > 2 * steadySamples) ? maxSamples : steadySamples);
 
     if ((numToRead <= 0) || (fifo.read(buffer, numToRead) != 0))
