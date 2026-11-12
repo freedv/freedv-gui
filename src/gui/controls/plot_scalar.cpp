@@ -538,7 +538,9 @@ void PlotScalar::draw(wxGraphicsContext* ctx, bool repaintDataOnly)
         plotCtx->SetBrush(wxBrush(DARK_GREEN_COLOR));
 
         wxGraphicsPath path = plotCtx->CreatePath();
-        int from = repaintDataOnly && pixelsUpdated > 0 ? plotWidth - pixelsUpdated - 1: 0;
+        // pixelsUpdated is clamped to plotWidth, which would otherwise ask for
+        // the column left of the plot.
+        int from = repaintDataOnly && pixelsUpdated > 0 ? std::max(0, plotWidth - pixelsUpdated - 1) : 0;
         for (int index = from; index < plotWidth; index++)
         {
             auto item = &lineMap_[index];
