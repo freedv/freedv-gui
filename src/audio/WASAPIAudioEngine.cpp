@@ -79,10 +79,7 @@ void WASAPIAudioEngine::start()
             std::stringstream ss;
             ss << "Could not create MMDeviceEnumerator (hr = " << hr << ")";
             log_error("%s", ss.str().c_str());
-            if (onAudioErrorFunction)
-            {
-                onAudioErrorFunction(*this, ss.str(), onAudioErrorState); 
-            }
+            reportEngineError(ss.str());
             prom->set_value();
             return;
         }
@@ -94,10 +91,7 @@ void WASAPIAudioEngine::start()
             std::stringstream ss;
             ss << "Could not enumerate render endpoints (hr = " << hr << ")";
             log_error("%s", ss.str().c_str());
-            if (onAudioErrorFunction)
-            {
-                onAudioErrorFunction(*this, ss.str(), onAudioErrorState); 
-            }
+            reportEngineError(ss.str());
 
             devEnumerator_ = nullptr;
             prom->set_value();
@@ -110,10 +104,7 @@ void WASAPIAudioEngine::start()
             std::stringstream ss;
             ss << "Could not enumerate capture endpoints (hr = " << hr << ")";
             log_error("%s", ss.str().c_str());
-            if (onAudioErrorFunction)
-            {
-                onAudioErrorFunction(*this, ss.str(), onAudioErrorState); 
-            }
+            reportEngineError(ss.str());
 
             outputDeviceList_ = nullptr;
             devEnumerator_ = nullptr;
@@ -196,10 +187,7 @@ std::vector<AudioDeviceSpecification> WASAPIAudioEngine::getAudioDeviceList(Audi
                 std::stringstream ss;
                 ss << "Could not get device " << index << " (hr = " << hr << ")";
                 log_error("%s", ss.str().c_str());
-                if (onAudioErrorFunction)
-                {
-                    onAudioErrorFunction(*this, ss.str(), onAudioErrorState); 
-                }
+                reportEngineError(ss.str());
                 prom->set_value(result);
                 return;
             }
@@ -252,10 +240,7 @@ AudioDeviceSpecification WASAPIAudioEngine::getDefaultAudioDevice(AudioDirection
             std::stringstream ss;
             ss << "Could not get default device (hr = " << hr << ")";
             log_error("%s", ss.str().c_str());
-            if (onAudioErrorFunction)
-            {
-                onAudioErrorFunction(*this, ss.str(), onAudioErrorState); 
-            }
+            reportEngineError(ss.str());
             prom->set_value(AudioDeviceSpecification::GetInvalidDevice());
             return;
         }
@@ -322,10 +307,7 @@ std::shared_ptr<IAudioDevice> WASAPIAudioEngine::getAudioDevice(wxString deviceN
                     std::stringstream ss;
                     ss << "Could not get device " << dev.deviceId << " (hr = " << hr << ")";
                     log_error("%s", ss.str().c_str());
-                    if (onAudioErrorFunction)
-                    {
-                         onAudioErrorFunction(*this, ss.str(), onAudioErrorState); 
-                    }
+                    reportEngineError(ss.str());
                     break;
                 }
 
@@ -337,10 +319,7 @@ std::shared_ptr<IAudioDevice> WASAPIAudioEngine::getAudioDevice(wxString deviceN
                     std::stringstream ss;
                     ss << "Could not get client for device " << dev.deviceId << " (hr = " << hr << ")";
                     log_error("%s", ss.str().c_str());
-                    if (onAudioErrorFunction)
-                    {
-                         onAudioErrorFunction(*this, ss.str(), onAudioErrorState); 
-                    }
+                    reportEngineError(ss.str());
                     break;
                 }
 
@@ -394,10 +373,7 @@ AudioDeviceSpecification WASAPIAudioEngine::getDeviceSpecification_(ComPtr<IMMDe
         std::stringstream ss;
         ss << "Could not open device property store (hr = " << hr << ")";
         log_error("%s", ss.str().c_str());
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, ss.str(), onAudioErrorState); 
-        }
+        reportEngineError(ss.str());
         return AudioDeviceSpecification::GetInvalidDevice();
     }
 
@@ -409,10 +385,7 @@ AudioDeviceSpecification WASAPIAudioEngine::getDeviceSpecification_(ComPtr<IMMDe
         std::stringstream ss;
         ss << "Could not get device friendly name (hr = " << hr << ")";
         log_error("%s", ss.str().c_str());
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, ss.str(), onAudioErrorState); 
-        }
+        reportEngineError(ss.str());
         PropVariantClear(&friendlyName);
         return AudioDeviceSpecification::GetInvalidDevice();
     }
@@ -435,10 +408,7 @@ AudioDeviceSpecification WASAPIAudioEngine::getDeviceSpecification_(ComPtr<IMMDe
         std::stringstream ss;
         ss << "Could not get card name (hr = " << hr << ")";
         log_error("%s", ss.str().c_str());
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, ss.str(), onAudioErrorState); 
-        }
+        reportEngineError(ss.str());
         PropVariantClear(&friendlyName);
         return AudioDeviceSpecification::GetInvalidDevice();
     }
@@ -458,10 +428,7 @@ AudioDeviceSpecification WASAPIAudioEngine::getDeviceSpecification_(ComPtr<IMMDe
         std::stringstream ss;
         ss << "Could not get port name (hr = " << hr << ")";
         log_error("%s", ss.str().c_str());
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, ss.str(), onAudioErrorState); 
-        }
+        reportEngineError(ss.str());
         PropVariantClear(&friendlyName);
         return AudioDeviceSpecification::GetInvalidDevice();
     }
@@ -499,10 +466,7 @@ AudioDeviceSpecification WASAPIAudioEngine::getDeviceSpecification_(ComPtr<IMMDe
         std::stringstream ss;
         ss << "Could not activate IAudioClient for device " << spec.name << " (hr = " << hr << ")";
         log_error("%s", ss.str().c_str());
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, ss.str(), onAudioErrorState); 
-        }
+        reportEngineError(ss.str());
         PropVariantClear(&friendlyName);
         return AudioDeviceSpecification::GetInvalidDevice();
     }
@@ -514,10 +478,7 @@ AudioDeviceSpecification WASAPIAudioEngine::getDeviceSpecification_(ComPtr<IMMDe
         std::stringstream ss;
         ss << "Could not get stream format for device " << spec.name << " (hr = " << hr << ")";
         log_error("%s", ss.str().c_str());
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, ss.str(), onAudioErrorState); 
-        }
+        reportEngineError(ss.str());
         PropVariantClear(&friendlyName);
         return AudioDeviceSpecification::GetInvalidDevice();
     }

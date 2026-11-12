@@ -955,6 +955,10 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Windows: stop busy-waiting in the audio threads, which increased CPU usage in 2.4.1. (PR #1617)
     * Let the radio's audio finish before releasing PTT in modes other than RADE, and don't play what's left into the radio after it returns to receive. (PR #1622)
     * Fix various audio thread races and teardown gaps. (PR #1620)
+    * Fix memory corruption in the waterfall after a mode change, and in the RF spectrum with large audio blocks. (PR #1626)
+    * Fix races between audio engine error reports and FreeDV starting, stopping or exiting. (PR #1626)
+    * Fix a voice keyer recording being left unreadable when a new one is started before it's stopped, or corrupted when the new one is to the same file. (PR #1626)
+    * Fix the PTT dialog's Test button leaving a radio connection running after each test. (PR #1626)
     * Cover a briefly late microphone with silence rather than leaving a gap in the transmitted signal. (PR #1621)
     * Fix intermittent dropouts drawn in the Frm Radio, Frm Mic and Frm Decoder plots, and their traces falling behind the audio. (PR #1628)
 2. Documentation:

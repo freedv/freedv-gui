@@ -48,4 +48,5 @@ endif(LINUX)
 if(UNITTEST)
     # Header-only logic, so the test needs none of the plot classes.
     DefineFreeDVUnitTest(gui_controls PlotSamplesTest fdv_util)
+    DefineFreeDVUnitTest(gui_controls WaterfallScaleTest)
 endif(UNITTEST)

@@ -635,15 +635,20 @@ void ComPortsDlg::OnTest(wxCommandEvent&) {
                 });
             };
 
+            // These handlers are held by the controller itself, so they mustn't
+            // hold it back: that's a cycle, and the controller's own thread is
+            // only joined by its destructor, so a test would leave a thread and
+            // a controller running for as long as the program does.
+            std::weak_ptr<HamlibRigController> weakHamlib = hamlib;
             hamlib->onRigConnected += [=](IRigController*) {
-                hamlib->ptt(true);
+                if (auto rig = weakHamlib.lock()) rig->ptt(true);
             };
 
             hamlib->onPttChange += [=](IRigController*, bool state) {
                 if (state)
                 {
                     std::this_thread::sleep_for(1s);
-                    hamlib->ptt(false);
+                    if (auto rig = weakHamlib.lock()) rig->ptt(false);
                 }
                 else
                 {
@@ -754,15 +759,17 @@ void ComPortsDlg::OnTest(wxCommandEvent&) {
             });
         };
 
+        // (As above: the handlers the controller holds mustn't hold it back.)
+        std::weak_ptr<OmniRigController> weakRig = rig;
         rig->onRigConnected += [=](IRigController*) {
-            rig->ptt(true);
+            if (auto r = weakRig.lock()) r->ptt(true);
         };
 
         rig->onPttChange += [=](IRigController*, bool state) {
             if (state)
             {
                 std::this_thread::sleep_for(1s);
-                rig->ptt(false);
+                if (auto r = weakRig.lock()) r->ptt(false);
             }
             else
             {
