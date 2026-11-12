@@ -69,9 +69,15 @@ PulseAudioDevice::~PulseAudioDevice()
 
 bool PulseAudioDevice::isRunning()
 {
-    // A stream that was made but never connected carries nothing, and there
-    // was nothing set up to pace work to it either.
-    return stream_ != nullptr && streamConnected_.load(std::memory_order_acquire);
+    // streamConnected_ is what start() and stopImpl_() set, under objLock_,
+    // and the only part of the state that can be answered without taking it.
+    // stream_ itself is guarded by that lock: the application asks this from
+    // the "TurningOn" worker (startRxStream()) while a close that worker
+    // outlasts takes the devices down from the UI thread, and reading the
+    // pointer here would race with the write stopImpl_() makes. A stream
+    // that was made but never connected carries nothing, and there was
+    // nothing set up to pace work to it either.
+    return streamConnected_.load(std::memory_order_acquire);
 }
 
 void PulseAudioDevice::start()
@@ -186,6 +192,9 @@ void PulseAudioDevice::stopImpl_()
     std::unique_lock<std::mutex> lk(objLock_);
     if (stream_ != nullptr)
     {
+        // Say so before anything else goes away: isRunning() answers from
+        // this alone, and a stream part way down is not one to work to.
+        streamConnected_.store(false, std::memory_order_release);
         pa_threaded_mainloop_lock(mainloop_);
 
         // Disconnect stream and wait for response from mainloop. A stream
@@ -210,8 +219,6 @@ void PulseAudioDevice::stopImpl_()
             sem_destroy(&sem_);
             semReady_.store(false, std::memory_order_release);
         }
-
-        streamConnected_.store(false, std::memory_order_release);
     }
 
     // Only after the stream has terminated, as waiting for that needs the main loop.

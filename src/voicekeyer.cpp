@@ -134,13 +134,30 @@ void MainFrame::OnRecordNewVoiceKeyerFile( wxCommandEvent& )
     sfInfo.channels   = 1;
     sfInfo.samplerate = sample_rate;
 
-    g_sfRecMicFile.store(sf_open(soundFile.c_str(), SFM_WRITE, &sfInfo), std::memory_order_release);
-    if(g_sfRecMicFile.load(std::memory_order_acquire) == NULL)
+    // A recording still going is finished off first: RecordStep's file thread
+    // writes to whatever handle it's given, and a WAV's lengths are only
+    // written when it's closed, so a take that's just replaced is left on disk
+    // unreadable. It's detached under the mutex that thread takes around each
+    // write, so nothing can be part way into it when it's closed. And it's
+    // closed before the new file is opened, not after: the new one may be the
+    // same file (the dialog offers the last one), which opening truncates,
+    // and closing the old handle then would write its header and buffered
+    // audio into the new recording.
+    SNDFILE* previousFile;
+    {
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+        previousFile = g_sfRecMicFile.exchange(nullptr, std::memory_order_acq_rel);
+    }
+    if(previousFile != NULL) sf_close(previousFile);
+
+    SNDFILE* newFile = sf_open(soundFile.c_str(), SFM_WRITE, &sfInfo);
+    if(newFile == NULL)
     {
         wxString strErr = sf_strerror(NULL);
         wxMessageBox(strErr, wxT("Couldn't open sound file"), wxOK);
         return;
     }
+    g_sfRecMicFile.store(newFile, std::memory_order_release);
 
     SetStatusText(wxT("Recording file ") + soundFile + wxT(" from microphone") , 0);
     g_recVoiceKeyerFile.store(true, std::memory_order_relaxed);
