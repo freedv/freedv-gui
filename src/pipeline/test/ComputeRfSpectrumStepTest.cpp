@@ -217,6 +217,25 @@ bool emptyBlockStillProducesOneSpectrum()
     return true;
 }
 
+// A negative count is treated as an empty block. Passed through, it would
+// make the window's shift loop read before fft_buf and write past its end.
+bool negativeBlockIsAnEmptyOne()
+{
+    Fixture f;
+    short samples[16] = {};
+    int numOutput = -1;
+    f.step.execute(samples, -100, &numOutput);
+
+    if (numOutput != 0 || f.fifo.numUsed() != MODEM_STATS_NSPEC)
+    {
+        std::cout << "[negative block: " << numOutput << " output sample(s), "
+                  << f.fifo.numUsed() << " spectrum values, expected 0 and "
+                  << MODEM_STATS_NSPEC << "] ";
+        return false;
+    }
+    return true;
+}
+
 }
 
 int main()
@@ -229,5 +248,6 @@ int main()
     executeTestCase("oversizedBlocksProduceOneSpectrumPerWindow", oversizedBlocksProduceOneSpectrumPerWindow);
     executeTestCase("toneSurvivesAnOversizedBlock", toneSurvivesAnOversizedBlock);
     executeTestCase("emptyBlockStillProducesOneSpectrum", emptyBlockStillProducesOneSpectrum);
+    executeTestCase("negativeBlockIsAnEmptyOne", negativeBlockIsAnEmptyOne);
     return testResult();
 }

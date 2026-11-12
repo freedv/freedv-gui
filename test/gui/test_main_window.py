@@ -1070,6 +1070,52 @@ def test_voice_keyer_re_record():
         shutil.rmtree(folder, ignore_errors=True)
 
 
+def test_voice_keyer_re_record_same_file():
+    """Re-recording the voice keyer file being recorded, to the same file.
+
+    The save dialog offers the file last recorded, so picking it again while
+    that recording is still going is easy. Opening it for the new take
+    truncates it, so the take still going has to be closed first: closed
+    after, it writes its own header and buffered audio into the new one.
+    """
+    folder = tempfile.mkdtemp(prefix="freedvtest-rerecord-")
+    try:
+        path = os.path.join(folder, "keyer.wav")
+
+        with audio_devices():
+            with freedvtest.start(settings=settings()) as app:
+                app.wait_for_window("main")
+                start_modem(app)
+
+                with Tone(MICROPHONE):
+                    app.choose_next_path(path)
+                    app.context_menu("main.btnVoiceKeyer", choose="Record new voice keyer file...")
+                    check_equal(app.get("main")["status"], "Recording file %s from microphone" % path, "Status")
+                    time.sleep(3)
+
+                    app.choose_next_path(path)
+                    app.context_menu("main.btnVoiceKeyer", choose="Record new voice keyer file...")
+                    check_equal(app.get("main")["status"], "Recording file %s from microphone" % path,
+                                "Status for the second recording")
+                    time.sleep(2)
+
+                    app.click("main.btnVoiceKeyer")
+                    check_equal(app.get("main")["status"], "", "Status after stopping")
+
+                try:
+                    level, seconds = file_level(path)
+                except Exception as error:
+                    check(False, "The recording isn't a readable WAV file (%s)" % error)
+                # Only the second take: about 2 s, not the first one's 3 or
+                # the two together.
+                check(level > AUDIBLE and 1 <= seconds < 2.8,
+                      "The recording is %.1f s at level %d" % (seconds, level))
+
+                quit_and_check_log(app)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
 def test_recording():
     """The Record button."""
     folder = tempfile.mkdtemp(prefix="freedvtest-files-")
@@ -2729,6 +2775,7 @@ SCENARIOS = {
     "voice_keyer_reply": test_voice_keyer_reply,
     "voice_keyer_files": test_voice_keyer_files,
     "voice_keyer_re_record": test_voice_keyer_re_record,
+    "voice_keyer_re_record_same_file": test_voice_keyer_re_record_same_file,
     "recording": test_recording,
     "recording_options": test_recording_options,
     "unwritable_files": test_unwritable_files,

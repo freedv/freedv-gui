@@ -886,6 +886,10 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * RADE: fill in the missing high frequencies when transmitting with an 8 kHz mic (e.g. a Bluetooth headset). (PR #1614)
 2. Bugfixes:
     * Fix silence being mixed into the first half second of each transmission, and holes in the signal at its start. (PR #1562)
+    * Fix memory corruption in the waterfall after a mode change, and in the RF spectrum with large audio blocks. (PR #1625)
+    * Fix races between audio engine error reports and FreeDV starting, stopping or exiting. (PR #1625)
+    * Fix a voice keyer recording being left unreadable when a new one is started before it's stopped, or corrupted when the new one is to the same file. (PR #1625)
+    * Fix Settings' Test PTT leaving a radio connection running after each test. (PR #1625)
 3. Build system:
     * Update wxWidgets to 3.3.4. (PR #1560, #1556)
     * CI: only build with PGO, run the tests and report coverage on merges; other pushes get unsigned packages to try out. (PR #1563, #1585)

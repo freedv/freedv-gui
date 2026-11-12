@@ -11,6 +11,7 @@
 #include <thread>
 #include <vector>
 #include <atomic>
+#include <future>
 
 #include <semaphore.h>
 
@@ -1266,6 +1267,88 @@ bool engineErrorHandlersAreNotReplacedWhileReporting()
     }
     return true;
 }
+// Clearing the handler has to wait for a report another thread is already
+// making: ~MainFrame() clears it and goes on to free the MainFrame the handler
+// was handed, so a report still running then would use it after it's gone.
+std::atomic<bool> slowHandlerEntered{false};
+std::atomic<bool> slowHandlerReturned{false};
+
+void slowHandler(IAudioEngine&, std::string const&, void*)
+{
+    slowHandlerEntered.store(true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    slowHandlerReturned.store(true);
+}
+
+bool clearingTheHandlerWaitsForReportsInFlight()
+{
+    useNoSoundServer();
+
+    PulseAudioEngine engine;
+    slowHandlerEntered.store(false);
+    slowHandlerReturned.store(false);
+    engine.setOnEngineError(&slowHandler, nullptr);
+
+    // start() with no sound server to connect to reports one error.
+    std::thread reporting([&]() {
+        engine.start();
+        engine.stop();
+    });
+
+    while (!slowHandlerEntered.load())
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    engine.setOnEngineError(nullptr, nullptr);
+    bool returnedFirst = slowHandlerReturned.load();
+    reporting.join();
+
+    if (!returnedFirst)
+    {
+        std::cout << "[setOnEngineError() returned while the old handler was still running] ";
+        return false;
+    }
+    return true;
+}
+
+// A handler may replace the registration itself; the report it's being
+// called from mustn't then be one the replacement waits for.
+std::atomic<int> handlerReplacedItself{0};
+
+void replaceSelfHandler(IAudioEngine& engine, std::string const&, void*)
+{
+    engine.setOnEngineError(nullptr, nullptr);
+    handlerReplacedItself++;
+}
+
+bool handlerCanReplaceItsOwnRegistration()
+{
+    useNoSoundServer();
+
+    PulseAudioEngine engine;
+    handlerReplacedItself.store(0);
+    engine.setOnEngineError(&replaceSelfHandler, nullptr);
+
+    auto done = std::async(std::launch::async, [&]() {
+        engine.start();
+        engine.stop();
+    });
+    if (done.wait_for(std::chrono::seconds(10)) != std::future_status::ready)
+    {
+        // The report is stuck waiting for itself; nothing more can be done
+        // here than say so (the thread can't be joined).
+        std::cout << "[a handler replacing its own registration hangs] ";
+        std::_Exit(1);
+    }
+    done.get();
+
+    if (handlerReplacedItself.load() != 1)
+    {
+        std::cout << "[handler ran " << handlerReplacedItself.load() << " time(s)] ";
+        return false;
+    }
+    return true;
+}
 } // namespace
 
 int main()
@@ -1301,6 +1384,8 @@ int main()
     executeTestCase("deviceEnumerationIsSerializedAgainstEngineStartAndStop", deviceEnumerationIsSerializedAgainstEngineStartAndStop);
     executeTestCase("runningStateIsSynchronizedAgainstDeviceStartAndStop", runningStateIsSynchronizedAgainstDeviceStartAndStop);
     executeTestCase("engineErrorHandlersAreNotReplacedWhileReporting", engineErrorHandlersAreNotReplacedWhileReporting);
+    executeTestCase("clearingTheHandlerWaitsForReportsInFlight", clearingTheHandlerWaitsForReportsInFlight);
+    executeTestCase("handlerCanReplaceItsOwnRegistration", handlerCanReplaceItsOwnRegistration);
 
     return testResult();
 }

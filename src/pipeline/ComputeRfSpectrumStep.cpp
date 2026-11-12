@@ -80,6 +80,10 @@ short* ComputeRfSpectrumStep::execute(short* inputSamples, int numInputSamples, 
     constexpr int MAX_SAMPLES_PER_SPECTRUM = 2 * MODEM_STATS_NSPEC;
     auto avMagPtr = getAvMagFn_();
 
+    // A negative count is an empty block. Handed on, it would run the
+    // window's shift loop off both ends of fft_buf.
+    numInputSamples = std::max(numInputSamples, 0);
+
     for (int offset = 0; ; offset += MAX_SAMPLES_PER_SPECTRUM)
     {
         int chunk = std::min(numInputSamples - offset, MAX_SAMPLES_PER_SPECTRUM);

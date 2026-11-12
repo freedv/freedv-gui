@@ -33,9 +33,22 @@ int IAudioEngine::StandardSampleRates[] =
     -1          // negative terminated  list
 };
 
+thread_local IAudioEngine* IAudioEngine::reportingEngine_ = nullptr;
+thread_local int IAudioEngine::reportingDepth_ = 0;
+
 void IAudioEngine::setOnEngineError(AudioErrorCallbackFn fn, void* state)
 {
     std::unique_lock<std::mutex> lk(errorCallbacksMutex_);
+
+    // Swapping the pair under the lock is what keeps a report from reading
+    // half of one registration and half of another, but the report makes its
+    // call after letting go of the lock. Until the reports already under way
+    // on other threads have returned, the old handler can still be running
+    // with the old state -- the MainFrame being destroyed, say. A handler
+    // replacing the registration from inside a report isn't waited for.
+    int ownReports = (reportingEngine_ == this) ? reportingDepth_ : 0;
+    errorReportsDone_.wait(lk, [&]() { return errorReportsInFlight_ <= ownReports; });
+
     onAudioErrorFunction = std::move(fn);
     onAudioErrorState = state;
 }
@@ -53,7 +66,23 @@ void IAudioEngine::reportEngineError(std::string const& error)
         std::unique_lock<std::mutex> lk(errorCallbacksMutex_);
         fn = onAudioErrorFunction;
         state = onAudioErrorState;
+        if (!fn) return;
+        errorReportsInFlight_++;
     }
 
-    if (fn) fn(*this, error, state);
+    IAudioEngine* outerEngine = reportingEngine_;
+    int outerDepth = reportingDepth_;
+    reportingDepth_ = (outerEngine == this) ? outerDepth + 1 : 1;
+    reportingEngine_ = this;
+
+    fn(*this, error, state);
+
+    reportingEngine_ = outerEngine;
+    reportingDepth_ = outerDepth;
+
+    {
+        std::unique_lock<std::mutex> lk(errorCallbacksMutex_);
+        errorReportsInFlight_--;
+    }
+    errorReportsDone_.notify_all();
 }
