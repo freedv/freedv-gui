@@ -956,6 +956,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Let the radio's audio finish before releasing PTT in modes other than RADE, and don't play what's left into the radio after it returns to receive. (PR #1622)
     * Fix various audio thread races and teardown gaps. (PR #1620)
     * Cover a briefly late microphone with silence rather than leaving a gap in the transmitted signal. (PR #1621)
+    * Fix intermittent dropouts drawn in the Frm Radio, Frm Mic and Frm Decoder plots, and their traces falling behind the audio. (PR #XXXX)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
 
