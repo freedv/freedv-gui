@@ -35,6 +35,25 @@ int IAudioEngine::StandardSampleRates[] =
 
 void IAudioEngine::setOnEngineError(AudioErrorCallbackFn fn, void* state)
 {
+    std::unique_lock<std::mutex> lk(errorCallbacksMutex_);
     onAudioErrorFunction = std::move(fn);
     onAudioErrorState = state;
+}
+
+void IAudioEngine::reportEngineError(std::string const& error)
+{
+    // The handler and the state go together. Taking them under the lock is
+    // what keeps a thread reporting an error from calling a handler another
+    // thread has already let go, or from handing a handler the state some
+    // other registration installed. The call itself is made with the lock
+    // off, so a handler is free to talk back to the engine.
+    AudioErrorCallbackFn fn;
+    void* state;
+    {
+        std::unique_lock<std::mutex> lk(errorCallbacksMutex_);
+        fn = onAudioErrorFunction;
+        state = onAudioErrorState;
+    }
+
+    if (fn) fn(*this, error, state);
 }

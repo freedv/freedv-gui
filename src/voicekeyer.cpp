@@ -134,13 +134,25 @@ void MainFrame::OnRecordNewVoiceKeyerFile( wxCommandEvent& )
     sfInfo.channels   = 1;
     sfInfo.samplerate = sample_rate;
 
-    g_sfRecMicFile.store(sf_open(soundFile.c_str(), SFM_WRITE, &sfInfo), std::memory_order_release);
-    if(g_sfRecMicFile.load(std::memory_order_acquire) == NULL)
+    SNDFILE* newFile = sf_open(soundFile.c_str(), SFM_WRITE, &sfInfo);
+    if(newFile == NULL)
     {
         wxString strErr = sf_strerror(NULL);
         wxMessageBox(strErr, _("Couldn't open sound file"), wxOK);
         return;
     }
+
+    // A swap, not a replacement: RecordStep's file thread writes to whatever
+    // handle it's given, and a WAV's lengths are only written when it's
+    // closed, so a take that's just replaced is left on disk unreadable. The
+    // handover goes through the mutex that thread takes around each write, so
+    // nothing can be part way into the old file when it's closed.
+    SNDFILE* previousFile;
+    {
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+        previousFile = g_sfRecMicFile.exchange(newFile, std::memory_order_acq_rel);
+    }
+    if(previousFile != NULL) sf_close(previousFile);
 
     SetStatusText(wxString::Format(_("Recording file %s from microphone"), soundFile), 0);
     g_recVoiceKeyerFile.store(true, std::memory_order_relaxed);

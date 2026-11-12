@@ -1115,6 +1115,157 @@ bool deviceEnumerationIsSerializedAgainstEngineStartAndStop()
     // is that the two never touched the connection at the same time.
     return numListed == 0;
 }
+
+// A device's running state is asked from a thread other than the one that
+// starts and stops it: startRxStream() asks isRunning() on the "TurningOn"
+// worker, while a close that the worker outlasts takes the same devices down
+// from the UI thread (topFrame_OnClose() says so outright). start() and
+// stopImpl_() write the device's stream pointer under objLock_, and every
+// other read of it holds that lock -- but isRunning() read it with nothing,
+// so a reader could pick up the pointer of a stream another thread was in the
+// middle of freeing. Built with ThreadSanitizer, this fails if the two ever
+// touch it unsynchronized.
+bool runningStateIsSynchronizedAgainstDeviceStartAndStop()
+{
+    if (!soundServerReachable())
+    {
+        std::cout << "[no sound server to try this with] ";
+        return true;
+    }
+
+    useUsualSoundServer();
+
+    // A sink of our own, so that the connects and disconnects are real ones
+    // and take the time a real stream's teardown does.
+    auto module = loadNullSink("FreeDVTestRaceSink");
+    auto device = PulseAudioDeviceTestAccess::create("FreeDVTestRaceSink", IAudioEngine::AUDIO_ENGINE_OUT, 48000, 2);
+
+    std::atomic<bool> finished{false};
+    std::atomic<int> asked{0};
+    std::atomic<int> sawRunning{0};
+
+    std::thread startAndStop([&, module]() {
+        for (int iteration = 0; iteration < 100 && !finished.load(); iteration++)
+        {
+            device->start();
+            // Leave the stream up long enough for the other thread to ask
+            // about it while it's there, as it is between the check
+            // startRxStream() makes and a close that overtakes it.
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            device->stop();
+        }
+        finished.store(true);
+    });
+
+    std::thread asking([&]() {
+        while (!finished.load())
+        {
+            asked++;
+            if (device->isRunning()) sawRunning++;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    });
+
+    startAndStop.join();
+    asking.join();
+    unloadModule(module);
+    useNoSoundServer();
+
+    // Nothing may say it's running once the stream it was asked about is gone.
+    if (device->isRunning())
+    {
+        std::cout << "[running after the last stop()] ";
+        return false;
+    }
+
+    // The two did overlap: a reader that never caught a live stream never had
+    // a creation or a teardown to race with either.
+    if (asked.load() < 50 || sawRunning.load() == 0)
+    {
+        std::cout << "[" << asked.load() << " ask(s), " << sawRunning.load()
+                  << " of them while running] ";
+        return false;
+    }
+    return true;
+}
+
+// The handler an engine reports errors to is replaced by the application
+// while another thread may be reporting to it: ~MainFrame() and
+// stopRxStream() clear it on the UI thread while the "TurningOn" worker is
+// inside engine->start(). It's a std::function and a state pointer assigned
+// by two separate stores, so a thread reporting an error can read a handler
+// another thread is already freeing, or a handler paired with the state some
+// other registration installed. Each registration here checks that the state
+// it's handed is the one registered with it. Built with ThreadSanitizer, this
+// fails if the pair is ever touched unsynchronized.
+std::atomic<int> engineErrorReports{0};
+std::atomic<int> engineErrorMismatches{0};
+
+constexpr int FIRST_REGISTRATION = 1;
+constexpr int SECOND_REGISTRATION = 2;
+int firstState = FIRST_REGISTRATION;
+int secondState = SECOND_REGISTRATION;
+
+void checkFirstHandler(IAudioEngine&, std::string const&, void* state)
+{
+    engineErrorReports++;
+    if (state == nullptr || *static_cast<int*>(state) != FIRST_REGISTRATION) engineErrorMismatches++;
+}
+
+void checkSecondHandler(IAudioEngine&, std::string const&, void* state)
+{
+    engineErrorReports++;
+    if (state == nullptr || *static_cast<int*>(state) != SECOND_REGISTRATION) engineErrorMismatches++;
+}
+
+bool engineErrorHandlersAreNotReplacedWhileReporting()
+{
+    useNoSoundServer();
+
+    PulseAudioEngine engine;
+    std::atomic<bool> finished{false};
+    std::atomic<int> starts{0};
+    engineErrorReports.store(0);
+    engineErrorMismatches.store(0);
+
+    // Each start() with no sound server to connect to reports one error,
+    // which is one read of the handler and its state on this thread.
+    std::thread reporting([&]() {
+        while (!finished.load())
+        {
+            engine.start();
+            starts++;
+            engine.stop();
+        }
+    });
+
+    // Keep replacing the pair while the other thread works. A burst of its
+    // own would be over before a start() of theirs got as far as reporting.
+    while (starts.load() < 50)
+    {
+        engine.setOnEngineError(&checkFirstHandler, &firstState);
+        engine.setOnEngineError(&checkSecondHandler, &secondState);
+    }
+
+    finished.store(true);
+    reporting.join();
+    engine.setOnEngineError(nullptr, nullptr);
+
+    if (engineErrorMismatches.load() > 0)
+    {
+        std::cout << "[" << engineErrorMismatches.load() << " of " << engineErrorReports.load()
+                  << " report(s) got another registration's state] ";
+        return false;
+    }
+
+    // The two did overlap; otherwise there was nothing to race with.
+    if (engineErrorReports.load() == 0)
+    {
+        std::cout << "[the engine reported nothing while its handler was replaced] ";
+        return false;
+    }
+    return true;
+}
 } // namespace
 
 int main()
@@ -1148,6 +1299,8 @@ int main()
     executeTestCase("aDeviceTheServerRefusesTheStreamForIsNotRunning", aDeviceTheServerRefusesTheStreamForIsNotRunning);
     executeTestCase("aDeviceWithoutAStreamPacesWorkWithAPlainSleep", aDeviceWithoutAStreamPacesWorkWithAPlainSleep);
     executeTestCase("deviceEnumerationIsSerializedAgainstEngineStartAndStop", deviceEnumerationIsSerializedAgainstEngineStartAndStop);
+    executeTestCase("runningStateIsSynchronizedAgainstDeviceStartAndStop", runningStateIsSynchronizedAgainstDeviceStartAndStop);
+    executeTestCase("engineErrorHandlersAreNotReplacedWhileReporting", engineErrorHandlersAreNotReplacedWhileReporting);
 
     return testResult();
 }

@@ -28,6 +28,7 @@
 #include <vector>
 #include <functional>
 #include <atomic>
+#include <mutex>
 #include "AudioDeviceSpecification.h"
 
 class IAudioDevice;
@@ -53,14 +54,27 @@ public:
     //    1. Audio engine.
     //    2. String representing the error encountered.
     //    3. Pointer to user-provided state object (typically onAudioUnderflowState, defined below).
+    // Safe to call while another thread is reporting to a previous one: the
+    // application clears this on the UI thread (stopRxStream(), ~MainFrame())
+    // while an On/Off worker may be inside start() on its own.
     void setOnEngineError(AudioErrorCallbackFn fn, void* state);
-    
+
 protected:
     static int StandardSampleRates[];
-    
-    AudioErrorCallbackFn onAudioErrorFunction;
-    void* onAudioErrorState;
+
+    // Reports an error to whatever is registered, if anything is. The handler
+    // and the state it's handed are one registration, so they're read
+    // together, under the lock that keeps a replacement on another thread
+    // from leaving half of one and half of the other; the call itself is made
+    // once the lock is off, so a handler is never run holding it.
+    void reportEngineError(std::string const& error);
+
     std::atomic<int> initializedCount_;
+
+private:
+    std::mutex errorCallbacksMutex_;
+    AudioErrorCallbackFn onAudioErrorFunction;
+    void* onAudioErrorState = nullptr;
 };
 
 #endif // AUDIO_ENGINE_H
