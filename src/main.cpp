@@ -2031,6 +2031,7 @@ void MainFrame::OnTimer(wxTimerEvent &evt)
     short speechInPlotSamplesAfterAGC[PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF];
     short speechOutPlotSamples[PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF];
     short demodInPlotSamples[PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF];
+    int numDemodIn = 0; // valid samples in demodInPlotSamples, also used by the RX level meter
     bool txState = false;
     bool halfDuplexState = false;
     int syncState = 0;
@@ -2115,8 +2116,8 @@ void MainFrame::OnTimer(wxTimerEvent &evt)
       }
       else if (timerId == ID_TIMER_DEMOD_IN)
       {
-          int numDemodIn = DrainPlotFifo(g_plotDemodInFifo, demodInPlotSamples,
-                                         WAVEFORM_PLOT_BUF, PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF, plotDemodInEmptyTicks_);
+          numDemodIn = DrainPlotFifo(g_plotDemodInFifo, demodInPlotSamples,
+                                     WAVEFORM_PLOT_BUF, PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF, plotDemodInEmptyTicks_);
           if (numDemodIn > 0)
           {
               m_panelDemodIn->add_new_short_samples(demodInPlotSamples, numDemodIn, 32767);
@@ -2489,8 +2490,9 @@ void MainFrame::OnTimer(wxTimerEvent &evt)
     {
         // Level meter, RX: peak level of the radio's audio. Peak reading,
         // instant attack, then decays the linear peak by LEVEL_BETA per tick.
+        // Only the samples this tick read are valid (see DrainPlotFifo()).
         int maxDemodIn = 0;
-        for(int i=0; i<WAVEFORM_PLOT_BUF; i++)
+        for(int i=0; i<numDemodIn; i++)
         {
             if (maxDemodIn < abs(demodInPlotSamples[i]))
             {
