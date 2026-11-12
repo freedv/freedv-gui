@@ -29,6 +29,7 @@
 
 #include "plot_waterfall.h"
 #include "codec2_fdmdv.h" // for FDMDV_FCENTRE
+#include "waterfall_scale.h"
 
 #if defined(__APPLE__)
 wxGraphicsBitmap CreateWaterfallBitmapInWindowColorSpace(wxGraphicsContext* gc, wxWindow* window, const wxImage& image);
@@ -96,6 +97,7 @@ PlotWaterfall::PlotWaterfall(wxWindow* parent, float* magDb, bool graticule, int
     m_modem_stats_max_f_hz = MODEM_STATS_MAX_F_HZ;
     dyImageData_ = nullptr;
     dy_ = 0;
+    baseRowWidthPx_ = 0;
     tmpImage_ = nullptr;
 #if defined(__APPLE__)
     canvas_ = nullptr;
@@ -708,8 +710,9 @@ void PlotWaterfall::plotPixelData(wxGraphicsContext* gc)
     // update min and max amplitude estimates
     float max_mag = MIN_MAG_DB;
 
-    int min_fft_bin=((float)200/m_modem_stats_max_f_hz)*MODEM_STATS_NSPEC;
-    int max_fft_bin=((float)2800/m_modem_stats_max_f_hz)*MODEM_STATS_NSPEC;
+    WaterfallScale scale = waterfallScaleFor(m_modem_stats_max_f_hz, MODEM_STATS_NSPEC, MAX_F_HZ);
+    int min_fft_bin = scale.firstBin;
+    int max_fft_bin = scale.lastBin;
 
     bool silentRow = true;
     for(int i=min_fft_bin; i<max_fft_bin; i++) 
@@ -747,8 +750,11 @@ void PlotWaterfall::plotPixelData(wxGraphicsContext* gc)
     intensity_per_dB  = (float)256 /(m_max_mag - m_min_mag);
 
     // Draw last line of blocks using latest amplitude data ------------------
-    int baseRowWidthPixels = ((float)MODEM_STATS_NSPEC / (float)m_modem_stats_max_f_hz) * MAX_F_HZ;
-    if (dy_ != dy && dyImageData_ != nullptr)
+    int baseRowWidthPixels = scale.rowWidthPx;
+    // The buffer holds dy_ rows of baseRowWidthPx_ pixels. A sample rate change
+    // can leave the row height alone and still need a wider row, so both have
+    // to be checked before the buffer is reused.
+    if ((dy_ != dy || baseRowWidthPx_ != baseRowWidthPixels) && dyImageData_ != nullptr)
     {
         delete[] dyImageData_;
         dyImageData_ = nullptr;
@@ -764,6 +770,7 @@ void PlotWaterfall::plotPixelData(wxGraphicsContext* gc)
         tmpImage_ = new wxImage(baseRowWidthPixels, dy, (unsigned char*)dyImageData_, true);
     }
     dy_ = dy;
+    baseRowWidthPx_ = baseRowWidthPixels;
 
     for(px = 0; px < baseRowWidthPixels; px++)
     {
@@ -974,6 +981,7 @@ void PlotWaterfall::cleanupSlices_()
 #endif // defined(__APPLE__)
 
     dy_ = 0;
+    baseRowWidthPx_ = 0;
     if (dyImageData_ != nullptr)
     {
         delete[] dyImageData_;

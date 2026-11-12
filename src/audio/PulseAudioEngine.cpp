@@ -217,10 +217,7 @@ void PulseAudioEngine::start()
     auto error = CreateConnection(&mainloop_, &context_, false);
     if (!error.empty())
     {
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, error, onAudioErrorState);
-        }
+        reportEngineError(error);
         return;
     }
 

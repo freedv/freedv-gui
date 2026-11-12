@@ -27,6 +27,8 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <mutex>
+#include <condition_variable>
 #include "AudioDeviceSpecification.h"
 
 class IAudioDevice;
@@ -52,13 +54,39 @@ public:
     //    1. Audio engine.
     //    2. String representing the error encountered.
     //    3. Pointer to user-provided state object (typically onAudioUnderflowState, defined below).
+    // Safe to call while another thread is reporting to a previous one: the
+    // application clears this on the UI thread (stopRxStream(), ~MainFrame())
+    // while an On/Off worker may be inside start() on its own. It waits for
+    // reports other threads are making to finish, so once it returns no call
+    // to the previous handler is still running, and that handler's state can
+    // be freed. (A handler may call it itself: the report it's in is the
+    // only one it doesn't wait for.)
     void setOnEngineError(AudioErrorCallbackFn fn, void* state);
-    
+
 protected:
     static int StandardSampleRates[];
-    
+
+    // Reports an error to whatever is registered, if anything is. The handler
+    // and the state it's handed are one registration, so they're read
+    // together, under the lock that keeps a replacement on another thread
+    // from leaving half of one and half of the other; the call itself is made
+    // once the lock is off, so a handler is never run holding it. The report
+    // counts as in flight until the handler returns, which is what
+    // setOnEngineError() waits on.
+    void reportEngineError(std::string const& error);
+
+private:
+    std::mutex errorCallbacksMutex_;
+    std::condition_variable errorReportsDone_;
+    int errorReportsInFlight_ = 0;
     AudioErrorCallbackFn onAudioErrorFunction;
-    void* onAudioErrorState;
+    void* onAudioErrorState = nullptr;
+
+    // The engine this thread is reporting an error from, and how many reports
+    // deep, so that a handler replacing the registration doesn't wait for the
+    // report it's being called from.
+    static thread_local IAudioEngine* reportingEngine_;
+    static thread_local int reportingDepth_;
 };
 
 #endif // AUDIO_ENGINE_H
