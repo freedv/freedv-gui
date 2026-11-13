@@ -57,6 +57,7 @@
 
 #include "logging/WSJTXNetworkLogger.h"
 
+#include "gui/controls/plot_samples.h"
 #include "gui/dialogs/dlg_options.h"
 #include "gui/dialogs/dlg_filter.h"
 #include "gui/dialogs/dlg_easy_setup.h"
@@ -1985,9 +1986,14 @@ int MainFrame::getIdealStationsHeardColumnLength_(int col)
 //----------------------------------------------------------------
 void MainFrame::OnTimer(wxTimerEvent &evt)
 {
-    short speechInPlotSamples[WAVEFORM_PLOT_BUF];
-    short speechOutPlotSamples[WAVEFORM_PLOT_BUF];
-    short demodInPlotSamples[WAVEFORM_PLOT_BUF];
+    // Room for everything a plot FIFO can hold: each tick takes whatever is
+    // there rather than a fixed chunk (see DrainPlotFifo()).
+    short speechInPlotSamples[PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF];
+    short speechOutPlotSamples[PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF];
+    short demodInPlotSamples[PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF];
+    // Valid samples in those buffers this tick; the level meter uses them too.
+    int numSpeechIn = 0;
+    int numDemodIn = 0;
     bool txState = false;
     bool halfDuplexState = false;
     int syncState = 0;
@@ -2050,26 +2056,33 @@ void MainFrame::OnTimer(wxTimerEvent &evt)
       }
       else if (timerId == ID_TIMER_SPEECH_IN)
       {
-          if (g_plotSpeechInFifo.read(speechInPlotSamples, WAVEFORM_PLOT_BUF)) {
-              memset(speechInPlotSamples, 0, WAVEFORM_PLOT_BUF*sizeof(short));
+          numSpeechIn = DrainPlotFifo(g_plotSpeechInFifo, speechInPlotSamples,
+                                      WAVEFORM_PLOT_BUF, PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF, plotSpeechInEmptyTicks_);
+          if (numSpeechIn > 0)
+          {
+              m_panelSpeechIn->add_new_short_samples(speechInPlotSamples, numSpeechIn, 32767);
+              m_panelSpeechIn->refreshData();
           }
-          m_panelSpeechIn->add_new_short_samples(speechInPlotSamples, WAVEFORM_PLOT_BUF, 32767);
-          m_panelSpeechIn->refreshData();
       }
       else if (timerId == ID_TIMER_SPEECH_OUT)
       {
-          if (g_plotSpeechOutFifo.read(speechOutPlotSamples, WAVEFORM_PLOT_BUF))
-              memset(speechOutPlotSamples, 0, WAVEFORM_PLOT_BUF*sizeof(short));
-          m_panelSpeechOut->add_new_short_samples(speechOutPlotSamples, WAVEFORM_PLOT_BUF, 32767);
-          m_panelSpeechOut->refreshData();
+          int numSpeechOut = DrainPlotFifo(g_plotSpeechOutFifo, speechOutPlotSamples,
+                                           WAVEFORM_PLOT_BUF, PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF, plotSpeechOutEmptyTicks_);
+          if (numSpeechOut > 0)
+          {
+              m_panelSpeechOut->add_new_short_samples(speechOutPlotSamples, numSpeechOut, 32767);
+              m_panelSpeechOut->refreshData();
+          }
       }
       else if (timerId == ID_TIMER_DEMOD_IN)
       {
-          if (g_plotDemodInFifo.read(demodInPlotSamples, WAVEFORM_PLOT_BUF)) {
-              memset(demodInPlotSamples, 0, WAVEFORM_PLOT_BUF*sizeof(short));
+          numDemodIn = DrainPlotFifo(g_plotDemodInFifo, demodInPlotSamples,
+                                     WAVEFORM_PLOT_BUF, PLOT_BUF_MULTIPLIER * WAVEFORM_PLOT_BUF, plotDemodInEmptyTicks_);
+          if (numDemodIn > 0)
+          {
+              m_panelDemodIn->add_new_short_samples(demodInPlotSamples, numDemodIn, 32767);
+              m_panelDemodIn->refreshData();
           }
-          m_panelDemodIn->add_new_short_samples(demodInPlotSamples, WAVEFORM_PLOT_BUF, 32767);
-          m_panelDemodIn->refreshData();
       }
       else if (timerId == ID_TIMER_SNR)
       {
@@ -2565,8 +2578,9 @@ void MainFrame::OnTimer(wxTimerEvent &evt)
         if (timerId == ID_TIMER_DEMOD_IN && !txState && m_RxRunning.load(std::memory_order_acquire))
         {
             // receive mode - display From Radio peaks
+            // Only the samples this tick read are valid (see DrainPlotFifo()).
             int maxDemodIn = 0;
-            for(int i=0; i<WAVEFORM_PLOT_BUF; i++)
+            for(int i=0; i<numDemodIn; i++)
                 if (maxDemodIn < abs(demodInPlotSamples[i]))
                     maxDemodIn = abs(demodInPlotSamples[i]);
 
@@ -2582,7 +2596,7 @@ void MainFrame::OnTimer(wxTimerEvent &evt)
 
             // peak from this DT sampling period
             int maxSpeechIn = 0;
-            for(int i=0; i<WAVEFORM_PLOT_BUF; i++)
+            for(int i=0; i<numSpeechIn; i++)
                 if (maxSpeechIn < abs(speechInPlotSamples[i]))
                     maxSpeechIn = abs(speechInPlotSamples[i]);
 

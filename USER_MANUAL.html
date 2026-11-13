@@ -1283,8 +1283,20 @@ usage in 2.4.1. (PR #1617)</li>
 than RADE, and don’t play what’s left into the radio after it returns to
 receive. (PR #1622)</li>
 <li>Fix various audio thread races and teardown gaps. (PR #1620)</li>
+<li>Fix memory corruption in the waterfall after a mode change, and in
+the RF spectrum with large audio blocks. (PR #1626)</li>
+<li>Fix races between audio engine error reports and FreeDV starting,
+stopping or exiting. (PR #1626)</li>
+<li>Fix a voice keyer recording being left unreadable when a new one is
+started before it’s stopped, or corrupted when the new one is to the
+same file. (PR #1626)</li>
+<li>Fix the PTT dialog’s Test button leaving a radio connection running
+after each test. (PR #1626)</li>
 <li>Cover a briefly late microphone with silence rather than leaving a
 gap in the transmitted signal. (PR #1621)</li>
+<li>Fix intermittent dropouts drawn in the Frm Radio, Frm Mic and Frm
+Decoder plots, and their traces falling behind the audio. (PR
+#1628)</li>
 </ul></li>
 <li>Documentation:
 <ul>
