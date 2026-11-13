@@ -24,18 +24,9 @@
 #include "AdifRecord.h"
 
 #include <cstdio>
+#include <utility>
 
-namespace {
-
-struct AdifBand
-{
-    const char* name;
-    uint64_t lowerHz;
-    uint64_t upperHz;
-};
-
-// ADIF 3.1.6's Band enumeration, edges inclusive.
-const AdifBand ADIF_BANDS[] = {
+const AdifRecord::Band AdifRecord::BANDS_[] = {
     { "2190m",          135700,          137800 },
     { "630m",           472000,          479000 },
     { "560m",           501000,          504000 },
@@ -71,8 +62,25 @@ const AdifBand ADIF_BANDS[] = {
     { "submm",    300000000000ULL, 7500000000000ULL },
 };
 
-// "<name:length>value", or nothing if there's no value.
-void appendField(std::string& record, const char* name, std::string const& value)
+AdifRecord::AdifRecord(
+    std::chrono::system_clock::time_point logTime, std::string dxCall, std::string dxGrid,
+    std::string myCall, std::string myGrid, uint64_t freqHz, std::string reportRx,
+    std::string reportTx, std::string name, std::string comments)
+    : logTime_(logTime)
+    , dxCall_(std::move(dxCall))
+    , dxGrid_(std::move(dxGrid))
+    , myCall_(std::move(myCall))
+    , myGrid_(std::move(myGrid))
+    , freqHz_(freqHz)
+    , reportRx_(std::move(reportRx))
+    , reportTx_(std::move(reportTx))
+    , name_(std::move(name))
+    , comments_(std::move(comments))
+{
+    // empty
+}
+
+void AdifRecord::appendField_(std::string& record, const char* name, std::string const& value)
 {
     if (value.empty())
     {
@@ -90,11 +98,9 @@ void appendField(std::string& record, const char* name, std::string const& value
     record += value;
 }
 
-}
-
-std::string AdifBandForFrequency(uint64_t freqHz)
+std::string AdifRecord::BandForFrequency(uint64_t freqHz)
 {
-    for (auto const& band : ADIF_BANDS)
+    for (auto const& band : BANDS_)
     {
         if (freqHz >= band.lowerHz && freqHz <= band.upperHz)
         {
@@ -104,7 +110,7 @@ std::string AdifBandForFrequency(uint64_t freqHz)
     return "";
 }
 
-std::string AdifFrequencyMHz(uint64_t freqHz)
+std::string AdifRecord::FrequencyMHz(uint64_t freqHz)
 {
     // Integer arithmetic, so that it's exact (no 14.235999...).
     std::string result = std::to_string(freqHz / 1000000);
@@ -121,14 +127,14 @@ std::string AdifFrequencyMHz(uint64_t freqHz)
     return result;
 }
 
-std::string BuildLoggedAdif(AdifContact const& contact, std::string const& programVersion)
+std::string AdifRecord::toLoggedAdif(std::string const& programVersion) const
 {
     using namespace std::chrono;
 
     // ADIF dates and times are UTC, which system_clock is. Contacts are
     // logged when they end, so that's both the start and end time as far
     // as what's sent goes (as in the QSO Logged message).
-    auto logTime = floor<seconds>(contact.logTime);
+    auto logTime = floor<seconds>(logTime_);
     auto day = floor<days>(logTime);
     year_month_day date{day};
     hh_mm_ss<seconds> time{logTime - day};
@@ -142,23 +148,23 @@ std::string BuildLoggedAdif(AdifContact const& contact, std::string const& progr
 
     // Fields in the order WSJT-X sends them.
     std::string record;
-    appendField(record, "call", contact.dxCall);
-    appendField(record, "gridsquare", contact.dxGrid);
+    appendField_(record, "call", dxCall_);
+    appendField_(record, "gridsquare", dxGrid_);
     // FREEDV has been a DIGITALVOICE submode since ADIF 3.1.4.
-    appendField(record, "mode", "DIGITALVOICE");
-    appendField(record, "submode", "FREEDV");
-    appendField(record, "rst_sent", contact.reportTx);
-    appendField(record, "rst_rcvd", contact.reportRx);
-    appendField(record, "qso_date", dateStr);
-    appendField(record, "time_on", timeStr);
-    appendField(record, "qso_date_off", dateStr);
-    appendField(record, "time_off", timeStr);
-    appendField(record, "band", AdifBandForFrequency(contact.freqHz));
-    appendField(record, "freq", AdifFrequencyMHz(contact.freqHz));
-    appendField(record, "station_callsign", contact.myCall);
-    appendField(record, "my_gridsquare", contact.myGrid);
-    appendField(record, "comment", contact.comments);
-    appendField(record, "name", contact.name);
+    appendField_(record, "mode", "DIGITALVOICE");
+    appendField_(record, "submode", "FREEDV");
+    appendField_(record, "rst_sent", reportTx_);
+    appendField_(record, "rst_rcvd", reportRx_);
+    appendField_(record, "qso_date", dateStr);
+    appendField_(record, "time_on", timeStr);
+    appendField_(record, "qso_date_off", dateStr);
+    appendField_(record, "time_off", timeStr);
+    appendField_(record, "band", BandForFrequency(freqHz_));
+    appendField_(record, "freq", FrequencyMHz(freqHz_));
+    appendField_(record, "station_callsign", myCall_);
+    appendField_(record, "my_gridsquare", myGrid_);
+    appendField_(record, "comment", comments_);
+    appendField_(record, "name", name_);
 
     std::string header;
     header += "\n<adif_ver:5>3.1.4\n";

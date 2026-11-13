@@ -321,22 +321,13 @@ void WSJTXNetworkLogger::logContact(std::chrono::time_point<std::chrono::system_
     // from this message rather than from QSO Logged above, which on its own
     // leaves the user to finish logging it by hand. It also carries what
     // QSO Logged has no field for, such as the FREEDV submode.
-    AdifContact adifContact;
-    adifContact.logTime = logTime;
-    adifContact.dxCall = dxCall;
-    adifContact.dxGrid = dxGrid;
-    adifContact.myCall = myCall;
-    adifContact.myGrid = myGrid;
-    adifContact.freqHz = freqHz;
-    adifContact.reportRx = reportRx;
-    adifContact.reportTx = reportTx;
-    adifContact.name = name;
-    adifContact.comments = comments;
+    AdifRecord adifRecord(
+        logTime, dxCall, dxGrid, myCall, myGrid, freqHz, reportRx, reportTx, name, comments);
 
     PacketBuilder adifBuilder;
     adifBuilder << (uint32_t)12
                 << UNIQUE_ID
-                << BuildLoggedAdif(adifContact, GetFreeDVVersion())
+                << adifRecord.toLoggedAdif(GetFreeDVVersion())
                 ;
     send(reportHostname_.c_str(), reportPort_, adifBuilder.getPacket(), adifBuilder.getPacketSize()).wait();
 }

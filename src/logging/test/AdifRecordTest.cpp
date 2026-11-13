@@ -17,9 +17,31 @@ std::chrono::system_clock::time_point fromUnixMs(int64_t ms)
         std::chrono::duration_cast<std::chrono::system_clock::duration>(std::chrono::milliseconds(ms)));
 }
 
-AdifContact sampleContact()
+// What's logged about one contact, to make AdifRecords from.
+struct Contact
 {
-    AdifContact contact;
+    std::chrono::system_clock::time_point logTime;
+    std::string dxCall;
+    std::string dxGrid;
+    std::string myCall;
+    std::string myGrid;
+    uint64_t freqHz = 0;
+    std::string reportRx;
+    std::string reportTx;
+    std::string name;
+    std::string comments;
+};
+
+std::string loggedAdif(Contact const& c, std::string const& programVersion)
+{
+    AdifRecord record(
+        c.logTime, c.dxCall, c.dxGrid, c.myCall, c.myGrid, c.freqHz, c.reportRx, c.reportTx, c.name, c.comments);
+    return record.toLoggedAdif(programVersion);
+}
+
+Contact sampleContact()
+{
+    Contact contact;
     contact.logTime = fromUnixMs(1765542896789LL); // 2025-12-12 12:34:56.789 UTC
     contact.dxCall = "K6AQ";
     contact.dxGrid = "DM12";
@@ -59,19 +81,19 @@ std::string field(AdiFile const& file, const char* name)
 
 bool bandIs(uint64_t freqHz, const char* expected)
 {
-    return check(("band for " + std::to_string(freqHz) + " Hz").c_str(), AdifBandForFrequency(freqHz), expected);
+    return check(("band for " + std::to_string(freqHz) + " Hz").c_str(), AdifRecord::BandForFrequency(freqHz), expected);
 }
 
 bool frequencyIs(uint64_t freqHz, const char* expected)
 {
-    return check(("frequency for " + std::to_string(freqHz) + " Hz").c_str(), AdifFrequencyMHz(freqHz), expected);
+    return check(("frequency for " + std::to_string(freqHz) + " Hz").c_str(), AdifRecord::FrequencyMHz(freqHz), expected);
 }
 
 // Every field of a fully filled in contact, as a logging program reads it.
 bool recordHasEveryField()
 {
     AdiFile file;
-    if (!parses(BuildLoggedAdif(sampleContact(), "2.2.0"), file)) return false;
+    if (!parses(loggedAdif(sampleContact(), "2.2.0"), file)) return false;
 
     bool result = true;
     result &= check("call", field(file, "call"), "K6AQ");
@@ -98,7 +120,7 @@ bool recordHasEveryField()
 // can read ours.
 bool layoutMatchesWsjtx()
 {
-    std::string adif = BuildLoggedAdif(sampleContact(), "2.2.0");
+    std::string adif = loggedAdif(sampleContact(), "2.2.0");
     std::string expected =
         "\n<adif_ver:5>3.1.4\n<programid:6>FreeDV\n<programversion:5>2.2.0\n<EOH>\n"
         "<call:4>K6AQ <gridsquare:4>DM12 <mode:12>DIGITALVOICE <submode:6>FREEDV "
@@ -111,7 +133,7 @@ bool layoutMatchesWsjtx()
 bool headerNamesFreeDV()
 {
     AdiFile file;
-    if (!parses(BuildLoggedAdif(sampleContact(), "2.2.0"), file)) return false;
+    if (!parses(loggedAdif(sampleContact(), "2.2.0"), file)) return false;
 
     bool result = true;
     // ADIF 3.1.4 is the first with the FREEDV submode.
@@ -120,7 +142,7 @@ bool headerNamesFreeDV()
     result &= check("programversion", file.header["programversion"], "2.2.0");
 
     AdiFile noVersion;
-    if (!parses(BuildLoggedAdif(sampleContact(), ""), noVersion)) return false;
+    if (!parses(loggedAdif(sampleContact(), ""), noVersion)) return false;
     result &= check("programversion when unknown", std::to_string(noVersion.header.count("programversion")), "0");
     return result;
 }
@@ -129,7 +151,7 @@ bool headerNamesFreeDV()
 // the logging program might fill in itself (e.g. a grid from a callbook).
 bool leavesOutEmptyFields()
 {
-    AdifContact contact = sampleContact();
+    Contact contact = sampleContact();
     contact.dxGrid = "";
     contact.myGrid = "";
     contact.reportRx = "";
@@ -138,7 +160,7 @@ bool leavesOutEmptyFields()
     contact.comments = "";
 
     AdiFile file;
-    if (!parses(BuildLoggedAdif(contact, "2.2.0"), file)) return false;
+    if (!parses(loggedAdif(contact, "2.2.0"), file)) return false;
 
     bool result = true;
     for (const char* name : { "gridsquare", "my_gridsquare", "rst_sent", "rst_rcvd", "name", "comment" })
@@ -158,11 +180,11 @@ bool leavesOutEmptyFields()
 // and the fields after it in the right place.
 bool nonAsciiTextHasItsUtf8Length()
 {
-    AdifContact contact = sampleContact();
+    Contact contact = sampleContact();
     contact.name = "Jos\xc3\xa9 \xe5\xa4\xaa\xe9\x83\x8e"; // José 太郎
     contact.comments = std::string(500, 'x');
 
-    std::string adif = BuildLoggedAdif(contact, "2.2.0");
+    std::string adif = loggedAdif(contact, "2.2.0");
     AdiFile file;
     if (!parses(adif, file)) return false;
 
@@ -189,10 +211,10 @@ bool timesAreUtcToTheSecond()
     bool result = true;
     for (auto const& c : cases)
     {
-        AdifContact contact = sampleContact();
+        Contact contact = sampleContact();
         contact.logTime = fromUnixMs(c.unixMs);
         AdiFile file;
-        if (!parses(BuildLoggedAdif(contact, "2.2.0"), file)) return false;
+        if (!parses(loggedAdif(contact, "2.2.0"), file)) return false;
         result &= check("qso_date", field(file, "qso_date"), c.date);
         result &= check("time_on", field(file, "time_on"), c.time);
         result &= check("qso_date_off", field(file, "qso_date_off"), c.date);
@@ -237,11 +259,11 @@ bool bandFollowsAdifEnumeration()
 
 bool bandLeftOutOutsideEveryBand()
 {
-    AdifContact contact = sampleContact();
+    Contact contact = sampleContact();
     contact.freqHz = 11000000; // between 30m and 20m
 
     AdiFile file;
-    if (!parses(BuildLoggedAdif(contact, "2.2.0"), file)) return false;
+    if (!parses(loggedAdif(contact, "2.2.0"), file)) return false;
 
     bool result = true;
     result &= check("band sent", std::to_string(file.record.count("band")), "0");
