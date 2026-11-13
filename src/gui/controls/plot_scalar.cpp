@@ -274,6 +274,15 @@ void  PlotScalar::add_new_short_samples(short samples[], int length, float scale
 {
     int i;
 
+    // Only the newest m_samples can be shown; the plot FIFOs can hand over
+    // more than a tick's worth at a time.
+    if (length <= 0) return;
+    if (length > m_samples)
+    {
+        samples += length - m_samples;
+        length = m_samples;
+    }
+
     for(i = 0; i < m_samples-length; i++)
             m_mem[i] = m_mem[i+length];
     
@@ -591,7 +600,9 @@ void PlotScalar::draw(wxGraphicsContext* ctx, bool repaintDataOnly)
         plotCtx->SetBrush(wxBrush(DARK_GREEN_COLOR));
 
         wxGraphicsPath path = plotCtx->CreatePath();
-        int from = repaintDataOnly && pixelsUpdated > 0 ? plotWidth - pixelsUpdated - 1: 0;
+        // pixelsUpdated is clamped to plotWidth, which would otherwise ask for
+        // the column left of the plot.
+        int from = repaintDataOnly && pixelsUpdated > 0 ? std::max(0, plotWidth - pixelsUpdated - 1) : 0;
         for (int index = from; index < plotWidth; index++)
         {
             auto item = &lineMap_[index];

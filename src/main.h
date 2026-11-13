@@ -350,6 +350,12 @@ class MainFrame : public TopFrame
         wxTimer                 m_plotSpeechInTimer;
         wxTimer                 m_plotSpeechOutTimer;
         wxTimer                 m_plotDemodInTimer;
+
+        // Consecutive plot ticks that found each waveform plot's FIFO empty
+        // (see DrainPlotFifo()).
+        int                     plotSpeechInEmptyTicks_ = 0;
+        int                     plotSpeechOutEmptyTicks_ = 0;
+        int                     plotDemodInEmptyTicks_ = 0;
         wxTimer                 m_plotSNRTimer;
 
         // Time-Out Timer (TOT): stops TX after configured period

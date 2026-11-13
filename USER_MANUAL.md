@@ -960,6 +960,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Fix a voice keyer recording being left unreadable when a new one is started before it's stopped, or corrupted when the new one is to the same file. (PR #1626)
     * Fix the PTT dialog's Test button leaving a radio connection running after each test. (PR #1626)
     * Cover a briefly late microphone with silence rather than leaving a gap in the transmitted signal. (PR #1621)
+    * Fix intermittent dropouts drawn in the Frm Radio, Frm Mic and Frm Decoder plots, and their traces falling behind the audio. (PR #1628)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
 
