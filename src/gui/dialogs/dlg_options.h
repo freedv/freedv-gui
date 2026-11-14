@@ -50,12 +50,7 @@ class OptionsDlg : public wxDialog
 
         void DisplayFifoPACounters();
         
-        void setSessionActive(bool active) 
-        {
-            sessionActive_ = active; 
-        
-            updateReportingState();
-        }
+        void setSessionActive(bool active);
         
     protected:
 
@@ -323,6 +318,11 @@ class OptionsDlg : public wxDialog
          void testAudioInput(const wxString& inDevName, const wxString& outDevName, wxButton* btn);
 
          bool sessionActive_;
+
+         // Notes shown while FreeDV is running, on the pages whose settings
+         // only take effect when it's next started.
+         std::vector<wxStaticText*> nextStartNotes_;
+         wxStaticText* addNextStartNote_(wxWindow* page, wxString const& text, const char* name);
          bool isTesting_;
          std::thread* m_audioPlotThread;
 
