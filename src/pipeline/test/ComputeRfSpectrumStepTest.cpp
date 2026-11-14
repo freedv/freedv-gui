@@ -139,6 +139,103 @@ bool spectrumLevelFollowsSignalLevel()
     return true;
 }
 
+// modem_stats_get_rx_spectrum() slides a 2 * MODEM_STATS_NSPEC sample window
+// along by nin, so a block bigger than that has to be broken up before the
+// call: otherwise the copy runs off the end of the window's buffer, into the
+// fft configuration stored right behind it (found by fuzzing the step).
+bool oversizedBlocksProduceOneSpectrumPerWindow()
+{
+    const int WINDOW = 2 * MODEM_STATS_NSPEC;
+    const int cases[][2] = {
+        {160, 1}, {WINDOW, 1}, {WINDOW + 1, 2}, {2 * WINDOW, 2}, {3000, 3}, {8000, 8}
+    };
+
+    for (const int (&testCase)[2] : cases)
+    {
+        Fixture f;
+        std::vector<short> input(testCase[0], 0);
+        int numOutput = -1;
+        f.step.execute(input.data(), testCase[0], &numOutput);
+
+        int expected = MODEM_STATS_NSPEC * testCase[1];
+        if (f.fifo.numUsed() != expected)
+        {
+            std::cout << "[" << testCase[0] << " samples yielded " << f.fifo.numUsed()
+                      << " values, expected " << expected << "] ";
+            return false;
+        }
+    }
+    return true;
+}
+
+// The spectra the pieces produce have to be real spectra, not whatever the
+// window holds after a copy that ran past the end of it.
+bool toneSurvivesAnOversizedBlock()
+{
+    const double HZ_PER_BIN = (double)MODEM_STATS_MAX_F_HZ / MODEM_STATS_NSPEC;
+    const int NUM_SAMPLES = 3200;   // more than one window of a 1500 Hz tone
+
+    Fixture f;
+    std::vector<short> input(NUM_SAMPLES);
+    for (int i = 0; i < NUM_SAMPLES; i++)
+    {
+        input[i] = (short)(10000 * std::cos(2 * M_PI * 1500.0 * i / SAMPLE_RATE));
+    }
+
+    int numOutput = -1;
+    f.step.execute(input.data(), NUM_SAMPLES, &numOutput);
+
+    std::vector<float> spectrum(MODEM_STATS_NSPEC);
+    while (f.fifo.numUsed() >= MODEM_STATS_NSPEC)
+    {
+        f.fifo.read(spectrum.data(), MODEM_STATS_NSPEC);
+    }
+
+    double peakHz = peakBin(spectrum) * HZ_PER_BIN;
+    if (std::fabs(peakHz - 1500.0) > 2 * HZ_PER_BIN)
+    {
+        std::cout << "[1500 Hz tone in one oversized block peaks at " << peakHz << " Hz] ";
+        return false;
+    }
+    return true;
+}
+
+// An empty block still gets one spectrum, as it always did: the window is left
+// where it is and transformed again.
+bool emptyBlockStillProducesOneSpectrum()
+{
+    Fixture f;
+    int numOutput = -1;
+    f.step.execute(nullptr, 0, &numOutput);
+
+    if (f.fifo.numUsed() != MODEM_STATS_NSPEC)
+    {
+        std::cout << "[empty block yielded " << f.fifo.numUsed() << " values, expected "
+                  << MODEM_STATS_NSPEC << "] ";
+        return false;
+    }
+    return true;
+}
+
+// A negative count is treated as an empty block. Passed through, it would
+// make the window's shift loop read before fft_buf and write past its end.
+bool negativeBlockIsAnEmptyOne()
+{
+    Fixture f;
+    short samples[16] = {};
+    int numOutput = -1;
+    f.step.execute(samples, -100, &numOutput);
+
+    if (numOutput != 0 || f.fifo.numUsed() != MODEM_STATS_NSPEC)
+    {
+        std::cout << "[negative block: " << numOutput << " output sample(s), "
+                  << f.fifo.numUsed() << " spectrum values, expected 0 and "
+                  << MODEM_STATS_NSPEC << "] ";
+        return false;
+    }
+    return true;
+}
+
 }
 
 int main()
@@ -148,5 +245,9 @@ int main()
     executeTestCase("writesOneSpectrumPerCall", writesOneSpectrumPerCall);
     executeTestCase("spectrumPeaksAtToneFrequency", spectrumPeaksAtToneFrequency);
     executeTestCase("spectrumLevelFollowsSignalLevel", spectrumLevelFollowsSignalLevel);
+    executeTestCase("oversizedBlocksProduceOneSpectrumPerWindow", oversizedBlocksProduceOneSpectrumPerWindow);
+    executeTestCase("toneSurvivesAnOversizedBlock", toneSurvivesAnOversizedBlock);
+    executeTestCase("emptyBlockStillProducesOneSpectrum", emptyBlockStillProducesOneSpectrum);
+    executeTestCase("negativeBlockIsAnEmptyOne", negativeBlockIsAnEmptyOne);
     return testResult();
 }

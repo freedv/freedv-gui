@@ -2700,9 +2700,16 @@ void OptionsDlg::OnTestPTT(wxCommandEvent&)
                     finish();
                 });
             };
-            hamlib->onRigConnected += [=](IRigController*) { hamlib->ptt(true); };
+            // These handlers are held by the controller itself, so they mustn't
+            // hold it back: that's a cycle, and the controller's own thread is
+            // only joined by its destructor, so a test would leave a thread and
+            // a controller running for as long as the program does.
+            std::weak_ptr<HamlibRigController> weakHamlib = hamlib;
+            hamlib->onRigConnected += [=](IRigController*) {
+                if (auto rig = weakHamlib.lock()) rig->ptt(true);
+            };
             hamlib->onPttChange += [=](IRigController*, bool state) {
-                if (state) { std::this_thread::sleep_for(1s); hamlib->ptt(false); }
+                if (state) { std::this_thread::sleep_for(1s); if (auto rig = weakHamlib.lock()) rig->ptt(false); }
                 else        { finish(); }
             };
 
@@ -2766,9 +2773,13 @@ void OptionsDlg::OnTestPTT(wxCommandEvent&)
                 finish();
             });
         };
-        omniRig->onRigConnected += [=](IRigController*) { omniRig->ptt(true); };
+        // (As above: the handlers the controller holds mustn't hold it back.)
+        std::weak_ptr<OmniRigController> weakOmniRig = omniRig;
+        omniRig->onRigConnected += [=](IRigController*) {
+            if (auto rig = weakOmniRig.lock()) rig->ptt(true);
+        };
         omniRig->onPttChange += [=](IRigController*, bool state) {
-            if (state) { std::this_thread::sleep_for(1s); omniRig->ptt(false); }
+            if (state) { std::this_thread::sleep_for(1s); if (auto rig = weakOmniRig.lock()) rig->ptt(false); }
             else        { finish(); }
         };
 
