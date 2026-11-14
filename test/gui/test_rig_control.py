@@ -676,8 +676,14 @@ def test_settings_while_running():
             check(app.state()["running"], "Changing the radio's settings stopped FreeDV")
 
             # The new radio is put where FreeDV was, and followed from then on.
-            wait_for(lambda: second.frequency() == 14236000,
-                     lambda: "The new radio is on %d Hz, not 14236000" % second.frequency())
+            # FreeDV sets its frequency and then its mode, and sends the
+            # frequency again after a mode change (as some radios move a
+            # little on changing it), so its dial isn't turned until that's
+            # all done: a turn in between would be undone.
+            wait_for(lambda: (second.frequency(), second.mode()) == (14236000, "PKTUSB"),
+                     lambda: "The new radio is on %d Hz %s, not 14236000 Hz PKTUSB" %
+                             (second.frequency(), second.mode()))
+            time.sleep(1)
             check_equal(displayed_frequency(app), "14.2360", "Frequency displayed once reconnected")
             second.set_frequency(7177000)
             wait_for_frequency(app, "7.1770", "Frequency displayed after turning the new radio's dial")
