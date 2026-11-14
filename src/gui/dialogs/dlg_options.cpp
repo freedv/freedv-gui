@@ -177,7 +177,7 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     sizerVox->Add(m_ckLeftChannelVoxTone, 0, wxALIGN_LEFT|static_cast<int>(wxALIGN_CENTER_VERTICAL), 5);
     sizerRadio->Add(sizerVox, 0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), 5);
     sizerRadio->Add(
-        addNextStartNote_(m_radioTab, _("FreeDV is running: changes to CAT control and PTT ports take effect the next time it's started."), "nextStartNoteRadio"),
+        addNextStartNote_(m_radioTab, _("FreeDV is running: CAT and PTT port changes apply the next time it starts."), "nextStartNoteRadio"),
         0, static_cast<int>(wxEXPAND) | static_cast<int>(wxLEFT) | static_cast<int>(wxRIGHT), 10);
 
     // Hamlib settings

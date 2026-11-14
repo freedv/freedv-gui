@@ -1474,6 +1474,9 @@ def test_while_running():
         for tab, note in next_start_notes:
             go_to_tab(app, tab)
             check_equal(app.get(name(note))["shown"], shown, "Note on the %s page shown" % tab)
+        # The Radio page has little room left, so its note must fit on one line.
+        label = app.get(name("nextStartNoteRadio"))["label"]
+        check("\n" not in label, "Note on the Radio page wraps: %r" % label)
 
     settings = audio_settings()
     settings.update({
