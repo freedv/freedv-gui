@@ -36,6 +36,9 @@ public:
     
     virtual int getRigResponseTimeMicroseconds() override;
 
+protected:
+    virtual void onConnected_() override;
+
 private:
     bool useRTS_;
     bool rtsPos_;
