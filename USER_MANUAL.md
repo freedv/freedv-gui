@@ -891,10 +891,6 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * RADE: fill in the missing high frequencies when transmitting with an 8 kHz mic (e.g. a Bluetooth headset). (PR #1614)
 2. Bugfixes:
     * Fix silence being mixed into the first half second of each transmission, and holes in the signal at its start. (PR #1562)
-    * Fix memory corruption in the waterfall after a mode change, and in the RF spectrum with large audio blocks. (PR #1625)
-    * Fix races between audio engine error reports and FreeDV starting, stopping or exiting. (PR #1625)
-    * Fix a voice keyer recording being left unreadable when a new one is started before it's stopped, or corrupted when the new one is to the same file. (PR #1625)
-    * Fix Settings' Test PTT leaving a radio connection running after each test. (PR #1625)
 3. Build system:
     * Update wxWidgets to 3.3.4. (PR #1560, #1556)
     * CI: only build with PGO, run the tests and report coverage on merges; other pushes get unsigned packages to try out. (PR #1563, #1585)
@@ -909,6 +905,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Add tests of whole transmissions through the TX/RX threads without sound cards, and diagnostics for rade_loss test failures. (PR #1562)
     * Add translations for Swedish, Brazilian Portuguese and Latvian. (PR #1615)
     * Additional data race cleanup. (PR #1616)
+    * Add tests of audio device and engine thread safety, re-recording a voice keyer message, and Settings' Test PTT. (PR #1625)
 
 *Note: Legacy FreeDV modes (700D/700E/1600) have been removed due to low use. FreeDV 2.4.x is still available if one wishes to operate these modes.*
 
