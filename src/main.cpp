@@ -101,7 +101,6 @@ std::shared_ptr<TxRxThread> m_txThread;
 std::shared_ptr<TxRxThread> m_rxThread;
 float               g_pwr_scale;
 int                 g_clip;
-int                 g_freedv_verbose;
 
 // test Frames
 int                 g_testFrames;
@@ -154,7 +153,6 @@ std::atomic<bool>  g_bwExpandEnabled;
 // tx/rx processing states
 std::atomic<int>                 g_State, g_prev_State;
 paCallBackData     *g_rxUserdata;
-std::atomic<int>                 g_dump_timing;
 std::atomic<int>                 g_dump_fifo_state;
 time_t              g_sync_time;
 
@@ -1230,7 +1228,6 @@ void MainFrame::loadConfiguration_()
     {
         ulog_set_level(LOG_INFO);
     }
-    g_freedv_verbose = wxGetApp().appConfiguration.apiVerbose;
 
     wxGetApp().m_tone = 0;
     wxGetApp().m_tone_freq_hz = 1000;
@@ -1706,11 +1703,6 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, wxT("FreeDV 
     assert(ftest != NULL);
     #endif
 
-    /* experimental checkbox control of thread priority, used
-       to helpo debug 700D windows sound break up */
-
-    wxGetApp().m_txRxThreadHighPriority = true;
-    g_dump_timing.store(0, std::memory_order_relaxed);
     g_dump_fifo_state.store(0, std::memory_order_relaxed);
 }
 
@@ -3120,25 +3112,10 @@ void MainFrame::openRigControllers_()
     }
     #endif // defined(WIN32)
 
-    // Set frequency/mode to the one pre-selected by the user before start.
-    // If the user doesn't want frequencies saved and restored, the radio
-    // keeps its current frequency (and FreeDV picks it up from the radio).
-    bool saveRestoreFrequency = wxGetApp().appConfiguration.rigControlConfiguration.hamlibSaveRestoreFrequency;
-    auto rigController = snapshotRigFrequencyController();
-    if (rigController && 
-        (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges || wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly) &&
-        (!saveRestoreFrequency || wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency > 0))
-    {
-        if (saveRestoreFrequency)
-        {
-            rigController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
-        }
-
-        if (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
-        {
-            rigController->setMode(getCurrentMode_());
-        }
-    }
+    // The radio is set to FreeDV's frequency and mode once it's connected,
+    // by onRadioConnected_(). Asking for it here too queued a second request
+    // behind that one, which could put the radio back after it had been
+    // tuned elsewhere in the meantime.
 }
 
 void MainFrame::closeRigControllers_()
@@ -3346,6 +3323,15 @@ void MainFrame::tryApplyPendingSettings_()
     // Carried out the way a Start or Stop is, and with the same protection:
     // the On/Off, PTT, voice keyer and Tune buttons wait for it, and closing
     // the window waits for it too (see topFrame_OnClose()).
+    // Disabling the button that has the focus moves it on, and it can land
+    // in the frequency box, which stops the radio's frequency being shown
+    // while it's there (see OnReportFrequencySetFocus()). It's put back
+    // elsewhere afterwards, as after a Start, unless it was already there.
+    auto isInFrequencyBox = [this](wxWindow* window) {
+        return window != nullptr && (window == m_cboReportFrequency || m_cboReportFrequency->IsDescendant(window));
+    };
+    bool frequencyBoxHadFocus = isInFrequencyBox(wxWindow::FindFocus());
+
     applyingSettings_ = true;
     onOffInProgress_ = true;
     m_togBtnOnOff->Enable(false);
@@ -3354,7 +3340,7 @@ void MainFrame::tryApplyPendingSettings_()
     m_btnTogPTT->Enable(false);
     m_btnTogTune->Enable(false);
 
-    std::thread applyExec([this, from, to]()
+    std::thread applyExec([this, from, to, frequencyBoxHadFocus, isInFrequencyBox]()
     {
         SetThreadName("ApplySettings");
 
@@ -3388,6 +3374,11 @@ void MainFrame::tryApplyPendingSettings_()
             m_togBtnOnOff->Enable(true);
             onOffInProgress_ = false;
             applyingSettings_ = false;
+
+            if (!frequencyBoxHadFocus && isInFrequencyBox(wxWindow::FindFocus()))
+            {
+                m_auiNbookCtrl->SetFocus();
+            }
 
             // Anything saved while this was going on.
             tryApplyPendingSettings_();

@@ -93,7 +93,6 @@ public:
     ConfigurationDataElement<bool> snrSlow;
     
     ConfigurationDataElement<bool> debugVerbose;
-    ConfigurationDataElement<bool> apiVerbose;
     
     ConfigurationDataElement<int> waterfallColor;
     ConfigurationDataElement<unsigned int> statsResetTimeSecs;

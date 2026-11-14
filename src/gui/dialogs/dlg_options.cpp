@@ -118,11 +118,9 @@ extern std::atomic<int>    g_outfifo2_empty;
 extern std::atomic<int>    g_AEstatus1[4];
 extern std::atomic<int>    g_AEstatus2[4];
 extern wxDatagramSocket    *g_sock;
-extern std::atomic<int>    g_dump_timing;
 extern std::atomic<bool>   g_half_duplex;
 extern paCallBackData*     g_rxUserdata;
 extern std::atomic<int>    g_dump_fifo_state;
-extern int                 g_freedv_verbose;
 extern wxConfigBase *pConfig;
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=
@@ -1031,26 +1029,17 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
 
     wxBoxSizer* sbDebugOptionsSizer = new wxBoxSizer(wxHORIZONTAL);
     wxBoxSizer* sbDebugOptionsSizer2 = new wxBoxSizer(wxHORIZONTAL);
-    wxBoxSizer* sbDebugOptionsSizer3 = new wxBoxSizer(wxHORIZONTAL);
 
     m_ckboxVerbose = new wxCheckBox(sb_fifo2, wxID_ANY, _("Verbose"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
     sbDebugOptionsSizer->Add(m_ckboxVerbose, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);   
-    m_ckboxTxRxThreadPriority = new wxCheckBox(sb_fifo2, wxID_ANY, wxT("txRxThreadPriority"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
-    sbDebugOptionsSizer->Add(m_ckboxTxRxThreadPriority, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);
-    m_ckboxTxRxDumpTiming = new wxCheckBox(sb_fifo2, wxID_ANY, wxT("txRxDumpTiming"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
-    sbDebugOptionsSizer->Add(m_ckboxTxRxDumpTiming, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);
-    
     m_ckboxTxRxDumpFifoState = new wxCheckBox(sb_fifo2, wxID_ANY, wxT("txRxDumpFifoState"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
-    sbDebugOptionsSizer2->Add(m_ckboxTxRxDumpFifoState, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);   
-    m_ckboxFreeDVAPIVerbose = new wxCheckBox(sb_fifo2, wxID_ANY, wxT("APiVerbose"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
-    sbDebugOptionsSizer2->Add(m_ckboxFreeDVAPIVerbose, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);   
+    sbDebugOptionsSizer->Add(m_ckboxTxRxDumpFifoState, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);   
     
     m_experimentalFeatures = new wxCheckBox(sb_fifo2, wxID_ANY, _("Enable Experimental Features"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
-    sbDebugOptionsSizer3->Add(m_experimentalFeatures, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);   
+    sbDebugOptionsSizer2->Add(m_experimentalFeatures, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);   
 
     sbSizer_fifo2->Add(sbDebugOptionsSizer, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND) | 0);
     sbSizer_fifo2->Add(sbDebugOptionsSizer2, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND) | 0);
-    sbSizer_fifo2->Add(sbDebugOptionsSizer3, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND) | 0);
 
     sizerDebug->Add(
         addRunningNote_(m_debugTab, _("FreeDV is running: FIFO size changes briefly restart the audio when applied."), "runningNoteDebug"),
@@ -1145,10 +1134,7 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     m_txtCtrlFifoSize->MoveBeforeInTabOrder(m_BtnFifoReset);
     m_BtnFifoReset->MoveBeforeInTabOrder(m_ckboxVerbose);
 
-    m_ckboxVerbose->MoveBeforeInTabOrder(m_ckboxTxRxThreadPriority);
-    m_ckboxTxRxThreadPriority->MoveBeforeInTabOrder(m_ckboxTxRxDumpTiming);
-    m_ckboxTxRxDumpTiming->MoveBeforeInTabOrder(m_ckboxTxRxDumpFifoState);
-    m_ckboxTxRxDumpFifoState->MoveBeforeInTabOrder(m_ckboxFreeDVAPIVerbose);
+    m_ckboxVerbose->MoveBeforeInTabOrder(m_ckboxTxRxDumpFifoState);
 
 #ifdef __WXMSW__
     m_ckboxDebugConsole->MoveBeforeInTabOrder(m_txtCtrlFifoSize);
@@ -1266,11 +1252,8 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     m_buttonChooseCsvLogFilePath->SetName("settings.buttonChooseCsvLogFilePath");
     m_BtnFifoReset->SetName("settings.BtnFifoReset");
     m_txtCtrlFifoSize->SetName("settings.txtCtrlFifoSize");
-    m_ckboxTxRxThreadPriority->SetName("settings.ckboxTxRxThreadPriority");
-    m_ckboxTxRxDumpTiming->SetName("settings.ckboxTxRxDumpTiming");
     m_ckboxTxRxDumpFifoState->SetName("settings.ckboxTxRxDumpFifoState");
     m_ckboxVerbose->SetName("settings.ckboxVerbose");
-    m_ckboxFreeDVAPIVerbose->SetName("settings.ckboxFreeDVAPIVerbose");
     m_experimentalFeatures->SetName("settings.experimentalFeatures");
     m_showDecodeStats->SetName("settings.showDecodeStats");
     m_sdbSizer5OK->SetName("settings.sdbSizer5OK");
@@ -1591,11 +1574,8 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
 
         m_txtCtrlFifoSize->SetValue(wxString::Format(wxT("%i"),wxGetApp().appConfiguration.fifoSizeMs.get()));
 
-        m_ckboxTxRxThreadPriority->SetValue(wxGetApp().m_txRxThreadHighPriority);
-        m_ckboxTxRxDumpTiming->SetValue(g_dump_timing.load(std::memory_order_relaxed));
         m_ckboxTxRxDumpFifoState->SetValue(g_dump_fifo_state.load(std::memory_order_relaxed));
         m_ckboxVerbose->SetValue(wxGetApp().appConfiguration.debugVerbose);
-        m_ckboxFreeDVAPIVerbose->SetValue(g_freedv_verbose);
         m_showDecodeStats->SetValue(wxGetApp().appConfiguration.showDecodeStats);
 
         m_experimentalFeatures->SetValue(wxGetApp().appConfiguration.experimentalFeatures);
@@ -1820,8 +1800,6 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         m_txtCtrlFifoSize->GetValue().ToLong(&FifoSize_ms);
         wxGetApp().appConfiguration.fifoSizeMs = (int)FifoSize_ms;
 
-        wxGetApp().m_txRxThreadHighPriority = m_ckboxTxRxThreadPriority->GetValue();
-        g_dump_timing.store(m_ckboxTxRxDumpTiming->GetValue(), std::memory_order_relaxed);
         g_dump_fifo_state.store(m_ckboxTxRxDumpFifoState->GetValue(), std::memory_order_relaxed);
         wxGetApp().appConfiguration.debugVerbose = m_ckboxVerbose->GetValue();
         if (wxGetApp().appConfiguration.debugVerbose)
@@ -1832,7 +1810,6 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         {
             ulog_set_level(LOG_INFO);
         }
-        g_freedv_verbose = m_ckboxFreeDVAPIVerbose->GetValue();
 
         wxGetApp().appConfiguration.showDecodeStats = m_showDecodeStats->GetValue();
         
@@ -1955,7 +1932,6 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
 #endif
 
         if (storePersistent) {
-            wxGetApp().appConfiguration.apiVerbose = g_freedv_verbose;
             wxGetApp().appConfiguration.save(pConfig);
             
             // Save reporting frequency units last due to how the frequency list is stored.

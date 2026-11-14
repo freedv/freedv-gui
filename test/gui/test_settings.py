@@ -1308,8 +1308,8 @@ def test_modem_and_debugging():
         set_value(app, "statsResetTime", "25")
 
         go_to_tab(app, "Debugging")
-        check_values(app, {"txtCtrlFifoSize": "640", "ckboxVerbose": False, "ckboxFreeDVAPIVerbose": False,
-                           "experimentalFeatures": False, "ckboxTone": False})
+        check_values(app, {"txtCtrlFifoSize": "640", "ckboxVerbose": False, "experimentalFeatures": False,
+                           "ckboxTone": False})
 
         # The interfering tone's settings only apply when there is one.
         check_enabled(app, ["txtToneFreqHz", "txtToneAmplitude"], False)
@@ -1320,16 +1320,14 @@ def test_modem_and_debugging():
 
         set_value(app, "txtCtrlFifoSize", "480")
         set_value(app, "ckboxVerbose", True)
-        set_value(app, "ckboxFreeDVAPIVerbose", True)
         set_value(app, "experimentalFeatures", True)
-        for checkbox in ["ckboxTxRxThreadPriority", "ckboxTxRxDumpTiming", "ckboxTxRxDumpFifoState"]:
-            app.click(name(checkbox))
+        app.click(name("ckboxTxRxDumpFifoState"))
         app.click(name("BtnFifoReset"))
 
         press_ok(app)
         check_saved(app, {
             "/Rig/HalfDuplex": 0, "/Debug/showDecodeStats": 1, "/Stats/ResetTime": 25, "/Audio/fifoSize_ms": 480,
-            "/Debug/verbose": 1, "/Debug/APIverbose": 1, "/ExperimentalFeatures": 1,
+            "/Debug/verbose": 1, "/ExperimentalFeatures": 1,
         })
         check_equal(app.get("main.textBits")["shown"], True, "Decode stats shown in the main window")
 
@@ -1337,9 +1335,8 @@ def test_modem_and_debugging():
         open_settings(app, "Modem")
         check_values(app, {"ckHalfDuplex": False, "showDecodeStats": True, "statsResetTime": "25"})
         go_to_tab(app, "Debugging")
-        check_values(app, {"txtCtrlFifoSize": "480", "ckboxVerbose": True, "ckboxFreeDVAPIVerbose": True,
-                           "experimentalFeatures": True, "ckboxTone": True, "txtToneFreqHz": "1500",
-                           "txtToneAmplitude": "500"})
+        check_values(app, {"txtCtrlFifoSize": "480", "ckboxVerbose": True, "experimentalFeatures": True,
+                           "ckboxTone": True, "txtToneFreqHz": "1500", "txtToneAmplitude": "500"})
         set_value(app, "ckboxTone", False)
         set_value(app, "ckboxVerbose", False)
         go_to_tab(app, "Modem")

@@ -257,11 +257,8 @@ class OptionsDlg : public wxDialog
         wxStaticText  *m_textPA1;
         wxStaticText  *m_textPA2;
         wxTextCtrl    *m_txtCtrlFifoSize;
-        wxCheckBox    *m_ckboxTxRxThreadPriority;
-        wxCheckBox    *m_ckboxTxRxDumpTiming;
         wxCheckBox    *m_ckboxTxRxDumpFifoState;
         wxCheckBox    *m_ckboxVerbose;
-        wxCheckBox    *m_ckboxFreeDVAPIVerbose;
         wxCheckBox    *m_experimentalFeatures;
         wxCheckBox    *m_showDecodeStats;
         

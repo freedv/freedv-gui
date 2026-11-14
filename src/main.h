@@ -254,7 +254,6 @@ class MainApp : public wxApp
 
         // debugging 700D audio break up
 
-        bool       m_txRxThreadHighPriority;
 
         int        m_prevMode;
         

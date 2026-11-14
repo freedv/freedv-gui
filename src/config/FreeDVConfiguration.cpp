@@ -86,7 +86,6 @@ FreeDVConfiguration::FreeDVConfiguration()
     , snrSlow("/Audio/snrSlow", false)
         
     , debugVerbose("/Debug/verbose", false)
-    , apiVerbose("/Debug/APIverbose", false)
         
     , waterfallColor("/Waterfall/Color", 0)
     , statsResetTimeSecs("/Stats/ResetTime", 10)
@@ -207,7 +206,6 @@ void FreeDVConfiguration::load(wxConfigBase* config)
     load_(config, snrSlow);
     
     load_(config, debugVerbose);
-    load_(config, apiVerbose);
     
     load_(config, waterfallColor);
     
@@ -295,7 +293,6 @@ void FreeDVConfiguration::save(wxConfigBase* config)
     save_(config, snrSlow);
     
     save_(config, debugVerbose);
-    save_(config, apiVerbose);
     
     save_(config, waterfallColor);
     

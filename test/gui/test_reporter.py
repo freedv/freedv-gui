@@ -1360,8 +1360,9 @@ def test_qsy_with_radio():
 
 
 def test_new_callsign():
-    """Changing who FreeDV reports as, which can only be done while it's
-    stopped: it's listed under the new callsign from then on."""
+    """Changing who FreeDV reports as while it's stopped: it's listed under
+    the new callsign from then on. (For changing it while running, see
+    test_settings_while_running().)"""
     with audio_devices(), ReporterServer() as server:
         watcher = server.viewer()
         settings = reporter_settings(server.hostname)
@@ -1382,11 +1383,16 @@ def test_new_callsign():
                 app.wait_for_window_closed("settings")
                 check_equal(app.message_boxes(), [], "Messages displayed")
 
+            # Settings saved without changing any of these doesn't reconnect.
             open_settings()
             for control in ["txt_callsign", "txt_grid_square", "freedvReporterHostname"]:
-                check_equal(app.get("settings." + control)["enabled"], False, control + " enabled while running")
+                check_equal(app.get("settings." + control)["enabled"], True, control + " enabled while running")
+            connections = len(watcher.events("new_connection", CALLSIGN_OF_FREEDV))
             close_settings()
+            time.sleep(3)
             check_equal(watcher.callsigns(), [CALLSIGN_OF_FREEDV], "Listed on the server after closing Settings")
+            check_equal(len(watcher.events("new_connection", CALLSIGN_OF_FREEDV)), connections,
+                        "Times FreeDV connected again after closing Settings")
 
             stop_modem(app)
             app.wait_until(lambda: watcher.callsigns() == [], timeout=20,
