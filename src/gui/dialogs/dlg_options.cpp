@@ -61,8 +61,8 @@ extern FreeDVInterface freedvInterface;
 constexpr int WXK_F13_LINUX = 436;
 constexpr int WXK_F24_LINUX = WXK_F13_LINUX + 11;
 
-// Space either side of the notes about settings that wait for the next start.
-constexpr int NEXT_START_NOTE_BORDER = 5;
+// Space either side of the notes about what applying settings does while running.
+constexpr int RUNNING_NOTE_BORDER = 5;
 
 // Returns a human-readable name for a PTT key code.
 static wxString getPTTKeyName(int keyCode)
@@ -180,8 +180,8 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     sizerVox->Add(m_ckLeftChannelVoxTone, 0, wxALIGN_LEFT|static_cast<int>(wxALIGN_CENTER_VERTICAL), 5);
     sizerRadio->Add(sizerVox, 0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), 5);
     sizerRadio->Add(
-        addNextStartNote_(m_radioTab, _("FreeDV is running: CAT and PTT port changes apply the next time it starts."), "nextStartNoteRadio"),
-        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxLEFT) | static_cast<int>(wxRIGHT), NEXT_START_NOTE_BORDER);
+        addRunningNote_(m_radioTab, _("FreeDV is running: CAT and PTT port changes reconnect to the radio when applied."), "runningNoteRadio"),
+        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxLEFT) | static_cast<int>(wxRIGHT), RUNNING_NOTE_BORDER);
 
     // Hamlib settings
     wxStaticBox* hamlibBox = new wxStaticBox(m_radioTab, wxID_ANY, _("Hamlib Settings"));
@@ -576,6 +576,9 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     sbSizer_hamlib->Add(m_ckboxFrequencyEntryAsKHz, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);
 
     sizerRigControl->Add(sbSizer_hamlib,0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND), 5);
+    sizerRigControl->Add(
+        addRunningNote_(m_rigControlTab, _("FreeDV is running: frequency/mode control changes reconnect to the radio when applied."), "runningNoteRigControl"),
+        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), RUNNING_NOTE_BORDER);
     
     wxStaticBoxSizer* sbSizer_freqList;
     wxStaticBox *sb_freqList = new wxStaticBox(m_rigControlTab, wxID_ANY, _("Predefined Frequencies"));
@@ -726,8 +729,8 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     {
         wxBoxSizer* sizerRxAudio = new wxBoxSizer(wxVERTICAL);
         sizerRxAudio->Add(
-            addNextStartNote_(m_rxAudioTab, _("FreeDV is running: changes on this page apply the next time it starts."), "nextStartNoteRxAudio"),
-            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), NEXT_START_NOTE_BORDER);
+            addRunningNote_(m_rxAudioTab, _("FreeDV is running: changes on this page briefly restart the audio when applied."), "runningNoteRxAudio"),
+            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), RUNNING_NOTE_BORDER);
 
         // SC1 In
         sizerRxAudio->Add(new wxStaticText(m_rxAudioTab, wxID_ANY, _("Input To Computer From Radio:")), 0, wxLEFT | wxTOP, 5);
@@ -788,8 +791,8 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     {
         wxBoxSizer* sizerTxAudio = new wxBoxSizer(wxVERTICAL);
         sizerTxAudio->Add(
-            addNextStartNote_(m_txAudioTab, _("FreeDV is running: changes on this page apply the next time it starts."), "nextStartNoteTxAudio"),
-            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), NEXT_START_NOTE_BORDER);
+            addRunningNote_(m_txAudioTab, _("FreeDV is running: changes on this page briefly restart the audio when applied."), "runningNoteTxAudio"),
+            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), RUNNING_NOTE_BORDER);
 
         m_ckTxReceiveOnly = new wxCheckBox(m_txAudioTab, wxID_ANY, _("Receive only (I will not be transmitting)"));
         sizerTxAudio->Add(m_ckTxReceiveOnly, 0, wxALL, 5);
@@ -1050,8 +1053,8 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     sbSizer_fifo2->Add(sbDebugOptionsSizer3, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND) | 0);
 
     sizerDebug->Add(
-        addNextStartNote_(m_debugTab, _("FreeDV is running: FIFO and thread priority changes apply the next time it starts."), "nextStartNoteDebug"),
-        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), NEXT_START_NOTE_BORDER);
+        addRunningNote_(m_debugTab, _("FreeDV is running: FIFO size changes briefly restart the audio when applied."), "runningNoteDebug"),
+        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), RUNNING_NOTE_BORDER);
     sizerDebug->Add(sbSizer_fifo,0, static_cast<int>(wxALL)|static_cast<int>(wxEXPAND), 3);
     sizerDebug->Add(sbSizer_fifo2,0, static_cast<int>(wxALL)|static_cast<int>(wxEXPAND), 3);
 
@@ -1970,6 +1973,10 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
 void OptionsDlg::OnOK(wxCommandEvent&)
 {
     ExchangeData(EXCHANGE_DATA_OUT, true);
+    if (onSettingsSaved_)
+    {
+        onSettingsSaved_();
+    }
     //this->EndModal(wxID_OK);
     EndModal(wxOK);
     
@@ -1999,6 +2006,10 @@ void OptionsDlg::OnApply(wxCommandEvent&)
     bool oldFreqAsKHz = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz;
     
     ExchangeData(EXCHANGE_DATA_OUT, true);
+    if (onSettingsSaved_)
+    {
+        onSettingsSaved_();
+    }
     
     bool khzChanged = 
         wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz != oldFreqAsKHz;
@@ -2124,7 +2135,8 @@ void OptionsDlg::OnFifoReset(wxCommandEvent&)
 
 void OptionsDlg::updateReportingState()
 {    
-    if (!sessionActive_)
+    // All of these can be changed while FreeDV is running too: the reporters
+    // reconnect with the new settings once they're applied.
     {
         m_ckbox_use_utc_time->Enable(true);
         m_ckboxReportingEnable->Enable(true);
@@ -2184,29 +2196,6 @@ void OptionsDlg::updateReportingState()
             m_ckboxUDPBroadcastEnable->Enable(false);
         }
     }
-    else
-    {
-        // Txt Msg/Reporter options cannot be modified during a session.
-        m_ckboxReportingEnable->Enable(false);
-        m_txt_callsign->Enable(false);
-        m_txt_grid_square->Enable(false);
-        m_ckboxManualFrequencyReporting->Enable(false);
-        m_ckboxPskReporterEnable->Enable(false);
-        m_ckboxFreeDVReporterEnable->Enable(false);
-        m_useMetricDistances->Enable(false);
-        m_freedvReporterHostname->Enable(false);
-        m_ckboxFreeDVReporterUseTls->Enable(false);
-        m_ckboxFreeDVReporterForceReceiveOnly->Enable(false);
-        m_useCardinalDirections->Enable(false);
-        m_udpHostname->Enable(false);
-        m_udpPort->Enable(false);
-        m_ckboxUDPReportingEnable->Enable(false);
-        m_udpBroadcastAddress->Enable(false);
-        m_udpBroadcastPort->Enable(false);
-        m_ckboxUDPBroadcastEnable->Enable(false);
-
-        m_ckbox_use_utc_time->Enable(false);
-    }
 }
 
 void OptionsDlg::updateToneState()
@@ -2217,28 +2206,13 @@ void OptionsDlg::updateToneState()
 
 void OptionsDlg::updateRigControlState()
 {
-    if (!sessionActive_)
-    {
-        m_ckboxEnableFreqModeChanges->Enable(true);
-        m_ckboxEnableFreqChangesOnly->Enable(true);
-        m_ckboxNoFreqModeChanges->Enable(true);
-        m_ckboxUseAnalogModes->Enable(m_ckboxEnableFreqModeChanges->GetValue());
-        m_ckboxSaveRestoreFrequency->Enable(!m_ckboxNoFreqModeChanges->GetValue());
-    }
-    else
-    {
-        // Rig control settings cannot be updated during a session.
-        m_ckboxUseAnalogModes->Enable(false);
-        m_ckboxSaveRestoreFrequency->Enable(false);
-        m_ckboxEnableFreqModeChanges->Enable(false);
-        m_ckboxEnableFreqChangesOnly->Enable(false);
-        m_ckboxNoFreqModeChanges->Enable(false);
-    }
-
-    // The PTT key and the TX/RX delay are read each time they're used, so
-    // they can be changed while FreeDV is running.
-    m_ckboxEnableSpacebarForPTT->Enable(true);
-    m_txtTxRxDelayMilliseconds->Enable(true);
+    // These can be changed while FreeDV is running too: the radio is
+    // reconnected with them once they're applied.
+    m_ckboxEnableFreqModeChanges->Enable(true);
+    m_ckboxEnableFreqChangesOnly->Enable(true);
+    m_ckboxNoFreqModeChanges->Enable(true);
+    m_ckboxUseAnalogModes->Enable(m_ckboxEnableFreqModeChanges->GetValue());
+    m_ckboxSaveRestoreFrequency->Enable(!m_ckboxNoFreqModeChanges->GetValue());
 }
 
 void OptionsDlg::setSessionActive(bool active)
@@ -2248,7 +2222,7 @@ void OptionsDlg::setSessionActive(bool active)
     updateReportingState();
     updateRigControlState();
 
-    for (auto& [note, text] : nextStartNotes_)
+    for (auto& [note, text] : runningNotes_)
     {
         if (active)
         {
@@ -2256,7 +2230,7 @@ void OptionsDlg::setSessionActive(bool active)
             // wherever it fits, and wraps rather than being cut off where it
             // doesn't (e.g. in a longer translation).
             note->SetLabel(text);
-            int width = note->GetParent()->GetClientSize().GetWidth() - 2 * NEXT_START_NOTE_BORDER;
+            int width = note->GetParent()->GetClientSize().GetWidth() - 2 * RUNNING_NOTE_BORDER;
             if (width > 0)
             {
                 note->Wrap(width);
@@ -2267,12 +2241,12 @@ void OptionsDlg::setSessionActive(bool active)
     }
 }
 
-wxStaticText* OptionsDlg::addNextStartNote_(wxWindow* page, wxString const& text, const char* name)
+wxStaticText* OptionsDlg::addRunningNote_(wxWindow* page, wxString const& text, const char* name)
 {
     auto note = new wxStaticText(page, wxID_ANY, text);
     note->SetName(wxString("settings.") + name);
     note->Hide();
-    nextStartNotes_.emplace_back(note, text);
+    runningNotes_.emplace_back(note, text);
     return note;
 }
     

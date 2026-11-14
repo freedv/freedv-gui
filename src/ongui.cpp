@@ -152,7 +152,8 @@ void MainFrame::OnToolsSetupWizard(wxCommandEvent&)
 
 void MainFrame::OnToolsSetupWizardUI(wxUpdateUIEvent& event)
 {
-    event.Enable(!m_RxRunning.load(std::memory_order_acquire));
+    // (m_RxRunning is briefly clear while settings are applied, as the audio restarts.)
+    event.Enable(!m_RxRunning.load(std::memory_order_acquire) && !applyingSettings_);
 }
 
 //-------------------------------------------------------------------------
@@ -185,9 +186,18 @@ void MainFrame::OnToolsOptions(wxCommandEvent& event)
 
     wxUnusedVar(event);
 
+    if (optionsDlg != nullptr && optionsDlg->IsModal())
+    {
+        // Already showing: e.g. applying what it saved couldn't find a sound
+        // card, which opens Settings to fix that.
+        optionsDlg->Raise();
+        return;
+    }
+
     if (optionsDlg == nullptr)
     {
         optionsDlg = new OptionsDlg(NULL);
+        optionsDlg->setOnSettingsSaved([this]() { onSettingsSaved(); });
         // Initialize the session-active state so controls are displayed
         // correctly in case a session is already running.
         optionsDlg->setSessionActive(m_RxRunning.load(std::memory_order_acquire));
@@ -308,8 +318,9 @@ void MainFrame::OnToolsOptions(wxCommandEvent& event)
             }
         }
 
-        // Initialize FreeDV Reporter if required.
-        if (!m_RxRunning.load(std::memory_order_acquire))
+        // Initialize FreeDV Reporter if required. While running, it's done
+        // if need be as the new settings are applied (see onSettingsSaved()).
+        if (!m_RxRunning.load(std::memory_order_acquire) && !applyingSettings_)
         {
             initializeFreeDVReporter_();
         }
@@ -769,7 +780,8 @@ void MainFrame::OnDeleteConfig(wxCommandEvent&)
 //-------------------------------------------------------------------------
 void MainFrame::OnDeleteConfigUI( wxUpdateUIEvent& event )
 {
-    event.Enable(!m_RxRunning.load(std::memory_order_acquire));
+    // (m_RxRunning is briefly clear while settings are applied, as the audio restarts.)
+    event.Enable(!m_RxRunning.load(std::memory_order_acquire) && !applyingSettings_);
 }
 
 //-------------------------------------------------------------------------
@@ -1380,6 +1392,16 @@ void MainFrame::togglePTT(void) {
     // as doing so causes the text on the button to be unreadable.
     if (txChangeoverOccurring_) 
     {
+        return;
+    }
+
+    // Settings are being applied, which can mean the audio is being
+    // restarted: there's nothing to transmit with until that's done. The
+    // PTT button is disabled meanwhile; this covers the PTT key and a PTT
+    // input port, which go straight here.
+    if (applyingSettings_)
+    {
+        m_btnTogPTT->SetValue(g_tx.load(std::memory_order_acquire));
         return;
     }
     txChangeoverOccurring_ = true;
@@ -2386,12 +2408,14 @@ void MainFrame::OnToggleReporterVisibility (wxCommandEvent&)
 
 void MainFrame::OnToolsExportConfigUI(wxUpdateUIEvent& event)
 {
-    event.Enable(!m_RxRunning.load(std::memory_order_acquire));
+    // (m_RxRunning is briefly clear while settings are applied, as the audio restarts.)
+    event.Enable(!m_RxRunning.load(std::memory_order_acquire) && !applyingSettings_);
 }
 
 void MainFrame::OnToolsImportConfigUI(wxUpdateUIEvent& event)
 {
-    event.Enable(!m_RxRunning.load(std::memory_order_acquire));
+    // (m_RxRunning is briefly clear while settings are applied, as the audio restarts.)
+    event.Enable(!m_RxRunning.load(std::memory_order_acquire) && !applyingSettings_);
 }
 
 void MainFrame::OnToolsExportConfig(wxCommandEvent& event)
@@ -2470,7 +2494,8 @@ void MainFrame::OnToolsImportConfig(wxCommandEvent& event)
 
 void MainFrame::OnToolsLoadDefaultConfigUI(wxUpdateUIEvent& event)
 {
-    event.Enable(!m_RxRunning.load(std::memory_order_acquire));
+    // (m_RxRunning is briefly clear while settings are applied, as the audio restarts.)
+    event.Enable(!m_RxRunning.load(std::memory_order_acquire) && !applyingSettings_);
 }
 
 void MainFrame::OnToolsLoadDefaultConfig(wxCommandEvent& event)

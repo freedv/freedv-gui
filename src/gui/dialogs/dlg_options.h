@@ -26,6 +26,7 @@
 #include <wx/listctrl.h>
 #include <map>
 #include <vector>
+#include <functional>
 #include <wx/propgrid/property.h>
 #include <wx/propgrid/props.h>
 
@@ -51,6 +52,9 @@ class OptionsDlg : public wxDialog
         void DisplayFifoPACounters();
         
         void setSessionActive(bool active);
+
+        // Called once OK or Apply has saved the settings.
+        void setOnSettingsSaved(std::function<void()> fn) { onSettingsSaved_ = std::move(fn); }
         
     protected:
 
@@ -318,11 +322,12 @@ class OptionsDlg : public wxDialog
          void testAudioInput(const wxString& inDevName, const wxString& outDevName, wxButton* btn);
 
          bool sessionActive_;
+         std::function<void()> onSettingsSaved_;
 
          // Notes shown while FreeDV is running, on the pages whose settings
          // only take effect when it's next started.
-         std::vector<std::pair<wxStaticText*, wxString>> nextStartNotes_;
-         wxStaticText* addNextStartNote_(wxWindow* page, wxString const& text, const char* name);
+         std::vector<std::pair<wxStaticText*, wxString>> runningNotes_;
+         wxStaticText* addRunningNote_(wxWindow* page, wxString const& text, const char* name);
          bool isTesting_;
          std::thread* m_audioPlotThread;
 

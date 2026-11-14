@@ -1455,23 +1455,23 @@ def test_auto_start():
 
 
 def test_while_running():
-    """Some settings can't be changed while FreeDV is running, and some can
-    but only take effect the next time it's started, which the pages they're
-    on say."""
+    """Everything in Settings can be changed while FreeDV is running. The
+    pages where applying a change restarts the audio or reconnects to the
+    radio say so."""
     reporting = ["ckboxReportingEnable", "txt_callsign", "txt_grid_square", "ckboxManualFrequencyReporting",
                  "ckboxPskReporterEnable", "ckboxFreeDVReporterEnable", "useMetricDistances",
                  "freedvReporterHostname", "ckboxFreeDVReporterUseTls", "ckboxFreeDVReporterForceReceiveOnly",
                  "useCardinalDirections", "ckboxUDPReportingEnable", "ckboxUDPBroadcastEnable",
                  "ckbox_use_utc_time"]
     rig_control = ["ckboxEnableFreqModeChanges", "ckboxEnableFreqChangesOnly", "ckboxNoFreqModeChanges",
-                   "ckboxUseAnalogModes", "ckboxSaveRestoreFrequency"]
-    # Read each time they're used, so they can always be changed.
-    ptt = ["ckboxEnableSpacebarForPTT", "txtTxRxDelayMilliseconds"]
-    next_start_notes = [("RX Audio", "nextStartNoteRxAudio"), ("TX Audio", "nextStartNoteTxAudio"),
-                        ("Radio", "nextStartNoteRadio"), ("Debugging", "nextStartNoteDebug")]
+                   "ckboxUseAnalogModes", "ckboxSaveRestoreFrequency", "ckboxEnableSpacebarForPTT",
+                   "txtTxRxDelayMilliseconds"]
+    running_notes = [("RX Audio", "runningNoteRxAudio"), ("TX Audio", "runningNoteTxAudio"),
+                     ("Radio", "runningNoteRadio"), ("Rig Control", "runningNoteRigControl"),
+                     ("Debugging", "runningNoteDebug")]
 
     def check_notes(shown):
-        for tab, note in next_start_notes:
+        for tab, note in running_notes:
             go_to_tab(app, tab)
             check_equal(app.get(name(note))["shown"], shown, "Note on the %s page shown" % tab)
             # Each note fits on one line.
@@ -1491,27 +1491,29 @@ def test_while_running():
             check_enabled(app, reporting, True)
             go_to_tab(app, "Rig Control")
             check_enabled(app, rig_control, True)
-            check_enabled(app, ptt, True)
             check_notes(False)
             press_cancel(app)
 
             start_modem(app)
             open_settings(app, "Reporting")
-            check_enabled(app, reporting, False)
+            check_enabled(app, reporting, True)
             go_to_tab(app, "Rig Control")
-            check_enabled(app, rig_control, False)
-            check_enabled(app, ptt, True)
+            check_enabled(app, rig_control, True)
             check_notes(True)
 
-            # Everything else still can be, and is saved.
+            # What's changed is saved, and FreeDV carries on running.
             go_to_tab(app, "Rig Control")
             set_value(app, "txtTxRxDelayMilliseconds", "250")
             go_to_tab(app, "Modem")
             set_value(app, "statsResetTime", "30")
+            go_to_tab(app, "Reporting")
+            set_value(app, "txt_callsign", "AB2YYY")
             press_ok(app)
+            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="the settings to be applied")
             check_saved(app, {"/Stats/ResetTime": 30, "/Audio/TxRxDelayMilliseconds": 250,
-                              "/Reporting/Enable": 1, "/Reporting/Callsign": "AA1ZZZ"})
+                              "/Reporting/Enable": 1, "/Reporting/Callsign": "AB2YYY"})
             check(app.state()["running"], "Changing settings stopped FreeDV")
+            check_equal(app.message_boxes(), [], "Errors displayed")
 
             stop_modem(app)
             open_settings(app, "Reporting")

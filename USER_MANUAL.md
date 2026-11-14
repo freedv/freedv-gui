@@ -536,6 +536,14 @@ this window as well.
 
 ## Settings - Edit Settings
 
+Settings can be changed while FreeDV is running, and take effect when OK or Apply is pressed:
+
+* Changes to the sound devices, or to the FIFO size, briefly restart the audio. Recordings and file playback are stopped, and FreeDV needs to sync again.
+* Changes to CAT control, PTT or frequency/mode control reconnect to the radio. As when FreeDV stops and starts, the radio may first go back to the frequency it had before FreeDV was started, and is then set to FreeDV's frequency.
+* Changes to reporting reconnect to PSK Reporter, FreeDV Reporter and the other reporting services.
+
+While transmitting (or using the voice keyer or Tune), changes like these are saved but only applied once FreeDV is back on receive. The Setup Wizard and the configuration import and reset options remain unavailable until FreeDV is stopped.
+
 ### Modem Options
 
 Control | Description
@@ -890,6 +898,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Hamlib/OmniRig: add option to disable saving and restoring the radio's frequency on start and stop. (PR #1600)
     * RADE: fill in the missing high frequencies when transmitting with an 8 kHz mic (e.g. a Bluetooth headset). (PR #1614)
     * Settings: apply half duplex and the VOX tone immediately while running, allow changing the PTT key and TX/RX delay, and note which settings take effect the next time FreeDV starts. (PR #1631)
+    * Settings: apply every setting while running, restarting the audio or reconnecting to the radio and reporting services as needed, once back on receive. (PR #TBD)
 2. Bugfixes:
     * Fix silence being mixed into the first half second of each transmission, and holes in the signal at its start. (PR #1562)
 3. Build system:
