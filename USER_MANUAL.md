@@ -891,6 +891,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * RADE: fill in the missing high frequencies when transmitting with an 8 kHz mic (e.g. a Bluetooth headset). (PR #1614)
 2. Bugfixes:
     * Fix silence being mixed into the first half second of each transmission, and holes in the signal at its start. (PR #1562)
+    * Fix intermittent dropouts drawn in the Frm Radio, Frm Mic and Frm Decoder plots, and their traces falling behind the audio. (PR #1627)
 3. Build system:
     * Update wxWidgets to 3.3.4. (PR #1560, #1556)
     * CI: only build with PGO, run the tests and report coverage on merges; other pushes get unsigned packages to try out. (PR #1563, #1585)
