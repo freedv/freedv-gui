@@ -1,5 +1,5 @@
-#ifndef ADI_PARSER_H
-#define ADI_PARSER_H
+#ifndef ADIF_PARSER_H
+#define ADIF_PARSER_H
 
 #include <cctype>
 #include <cstdlib>
@@ -11,16 +11,16 @@
 // field's value is exactly the number of bytes its length says, which is
 // what catches a wrong length. Field names are case-insensitive in ADIF, so
 // they're returned in lower case.
-struct AdiFile
+struct AdifFile
 {
     std::map<std::string, std::string> header;
     std::map<std::string, std::string> record;
     std::string error; // empty if the file was read successfully
 };
 
-inline AdiFile ParseAdi(std::string const& text)
+inline AdifFile ParseAdif(std::string const& text)
 {
-    AdiFile file;
+    AdifFile file;
     bool inHeader = true;
     bool sawEor = false;
     size_t pos = 0;
@@ -119,4 +119,4 @@ inline AdiFile ParseAdi(std::string const& text)
     return file;
 }
 
-#endif // ADI_PARSER_H
+#endif // ADIF_PARSER_H

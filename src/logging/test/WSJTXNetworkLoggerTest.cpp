@@ -19,7 +19,7 @@
 #endif // defined(WIN32) || defined(__MINGW32__)
 
 #include "../WSJTXNetworkLogger.h"
-#include "AdiParser.h"
+#include "AdifParser.h"
 #include "git_version.h"
 #include "util/logging/ulog.h"
 #include "../../test/UnitTestCommon.h"
@@ -378,7 +378,7 @@ bool checkLoggedAdif(Receiver& receiver, Contact const& contact)
     std::string adif = reader->str();
     bool result = checkTrue("logged ADIF message is the wrong length", reader->finished());
 
-    AdiFile file = ParseAdi(adif);
+    AdifFile file = ParseAdif(adif);
     if (!file.error.empty())
     {
         std::cout << "[ADIF didn't parse: " << file.error << "] ";

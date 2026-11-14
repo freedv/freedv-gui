@@ -3,7 +3,7 @@
 #include <string>
 
 #include "../AdifRecord.h"
-#include "AdiParser.h"
+#include "AdifParser.h"
 #include "../../test/UnitTestCommon.h"
 
 // The ADIF record sent in the WSJT-X "Logged ADIF" message. See
@@ -62,9 +62,9 @@ bool check(const char* what, std::string const& actual, std::string const& expec
     return false;
 }
 
-bool parses(std::string const& adif, AdiFile& file)
+bool parses(std::string const& adif, AdifFile& file)
 {
-    file = ParseAdi(adif);
+    file = ParseAdif(adif);
     if (!file.error.empty())
     {
         std::cout << "[ADIF didn't parse: " << file.error << "] ";
@@ -73,7 +73,7 @@ bool parses(std::string const& adif, AdiFile& file)
     return true;
 }
 
-std::string field(AdiFile const& file, const char* name)
+std::string field(AdifFile const& file, const char* name)
 {
     auto it = file.record.find(name);
     return it == file.record.end() ? "(missing)" : it->second;
@@ -92,7 +92,7 @@ bool frequencyIs(uint64_t freqHz, const char* expected)
 // Every field of a fully filled in contact, as a logging program reads it.
 bool recordHasEveryField()
 {
-    AdiFile file;
+    AdifFile file;
     if (!parses(loggedAdif(sampleContact(), "2.2.0"), file)) return false;
 
     bool result = true;
@@ -132,7 +132,7 @@ bool layoutMatchesWsjtx()
 
 bool headerNamesFreeDV()
 {
-    AdiFile file;
+    AdifFile file;
     if (!parses(loggedAdif(sampleContact(), "2.2.0"), file)) return false;
 
     bool result = true;
@@ -141,7 +141,7 @@ bool headerNamesFreeDV()
     result &= check("programid", file.header["programid"], "FreeDV");
     result &= check("programversion", file.header["programversion"], "2.2.0");
 
-    AdiFile noVersion;
+    AdifFile noVersion;
     if (!parses(loggedAdif(sampleContact(), ""), noVersion)) return false;
     result &= check("programversion when unknown", std::to_string(noVersion.header.count("programversion")), "0");
     return result;
@@ -159,7 +159,7 @@ bool leavesOutEmptyFields()
     contact.name = "";
     contact.comments = "";
 
-    AdiFile file;
+    AdifFile file;
     if (!parses(loggedAdif(contact, "2.2.0"), file)) return false;
 
     bool result = true;
@@ -185,7 +185,7 @@ bool nonAsciiTextHasItsUtf8Length()
     contact.comments = std::string(500, 'x');
 
     std::string adif = loggedAdif(contact, "2.2.0");
-    AdiFile file;
+    AdifFile file;
     if (!parses(adif, file)) return false;
 
     bool result = true;
@@ -213,7 +213,7 @@ bool timesAreUtcToTheSecond()
     {
         Contact contact = sampleContact();
         contact.logTime = fromUnixMs(c.unixMs);
-        AdiFile file;
+        AdifFile file;
         if (!parses(loggedAdif(contact, "2.2.0"), file)) return false;
         result &= check("qso_date", field(file, "qso_date"), c.date);
         result &= check("time_on", field(file, "time_on"), c.time);
@@ -262,7 +262,7 @@ bool bandLeftOutOutsideEveryBand()
     Contact contact = sampleContact();
     contact.freqHz = 11000000; // between 30m and 20m
 
-    AdiFile file;
+    AdifFile file;
     if (!parses(loggedAdif(contact, "2.2.0"), file)) return false;
 
     bool result = true;
