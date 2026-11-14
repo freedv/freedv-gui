@@ -1047,7 +1047,7 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     sbSizer_fifo2->Add(sbDebugOptionsSizer3, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND) | 0);
 
     sizerDebug->Add(
-        addNextStartNote_(m_debugTab, _("FreeDV is running: changes to the FIFO size and txRxThreadPriority take effect the next time it's started."), "nextStartNoteDebug"),
+        addNextStartNote_(m_debugTab, _("FreeDV is running: FIFO and thread priority changes apply the next time it starts."), "nextStartNoteDebug"),
         0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), 5);
     sizerDebug->Add(sbSizer_fifo,0, static_cast<int>(wxALL)|static_cast<int>(wxEXPAND), 3);
     sizerDebug->Add(sbSizer_fifo2,0, static_cast<int>(wxALL)|static_cast<int>(wxEXPAND), 3);
