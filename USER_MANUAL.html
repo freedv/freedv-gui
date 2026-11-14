@@ -574,6 +574,12 @@ going to Settings-&gt;Edit Settings-&gt;Reporting and enabling the
 “Enable QSO Logging” option. By default, it sends packets to “localhost”
 (127.0.0.1) port 2237, but this can be changed if the logging computer
 is elsewhere on the network.</p>
+<p>As WSJT-X does, FreeDV sends each logged contact both as a “QSO
+Logged” message and as a “Logged ADIF” message (an ADIF record of the
+contact, with mode DIGITALVOICE and submode FREEDV). Some logging
+programs, such as Log4OM, save contacts from the latter: in Log4OM, make
+sure that the option to import QSOs from WSJT-X’s ADIF message (JT
+message #12) is enabled for the UDP connection that FreeDV sends to.</p>
 <p>Once FreeDV decodes a callsign, it will appear in the drop-down list
 on the bottom of the main window. To log this contact (or any other
 contact received by the application), simply choose that callsign from
@@ -1221,6 +1227,23 @@ usage in 2.4.1. (PR #1617)</li>
 than RADE, and don’t play what’s left into the radio after it returns to
 receive. (PR #1622)</li>
 <li>Fix various audio thread races and teardown gaps. (PR #1620)</li>
+<li>Send WSJT-X’s Logged ADIF message when a QSO is logged, so that
+logging programs which save contacts from it (e.g. Log4OM) log FreeDV
+contacts automatically. (PR #1624)</li>
+<li>Fix memory corruption in the waterfall after a mode change, and in
+the RF spectrum with large audio blocks. (PR #1626)</li>
+<li>Fix races between audio engine error reports and FreeDV starting,
+stopping or exiting. (PR #1626)</li>
+<li>Fix a voice keyer recording being left unreadable when a new one is
+started before it’s stopped, or corrupted when the new one is to the
+same file. (PR #1626)</li>
+<li>Fix the PTT dialog’s Test button leaving a radio connection running
+after each test. (PR #1626)</li>
+<li>Cover a briefly late microphone with silence rather than leaving a
+gap in the transmitted signal. (PR #1621)</li>
+<li>Fix intermittent dropouts drawn in the Frm Radio, Frm Mic and Frm
+Decoder plots, and their traces falling behind the audio. (PR
+#1628)</li>
 </ul></li>
 <li>Documentation:
 <ul>

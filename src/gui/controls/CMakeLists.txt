@@ -48,4 +48,5 @@ if(UNITTEST)
     # Header-only logic, so the tests need none of the plot classes.
     DefineFreeDVUnitTest(gui_controls WaterfallRowTest)
     DefineFreeDVUnitTest(gui_controls WaterfallScaleTest)
+    DefineFreeDVUnitTest(gui_controls PlotSamplesTest fdv_util)
 endif(UNITTEST)

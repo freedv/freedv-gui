@@ -840,6 +840,7 @@ void TxRxThread::txProcessing_(IRealtimeHelper* helper) FREEDV_NONBLOCKING
             clearFifos_();
             pendingEooCount_ = 0;
             reachedMinimumTxInput_ = false;
+            coveredInputSamples_ = 0;
 
             // return out and begin processing on the next loop
             return;
@@ -869,6 +870,17 @@ void TxRxThread::txProcessing_(IRealtimeHelper* helper) FREEDV_NONBLOCKING
         int nsam_in_48 = (inputSampleRate_ * FRAME_DURATION_MS) / MS_TO_SEC;
         assert(nsam_in_48 > 0);
 
+        // When what's queued for the radio drops below this, late microphone
+        // audio is covered with silence rather than waited for (see below):
+        // about two of this thread's turns, so the radio's sound card can't
+        // run dry before the next one.
+        int coverBelowOutputSamples = 2 * (outputSampleRate_ * FRAME_DURATION_MS) / MS_TO_SEC;
+
+        // The most microphone audio covered in any one shortfall: enough
+        // for the modem to finish the frame it's building, and no more.
+        int maxCoveredInputSamples =
+            (int)(((long)nsam_one_modem_frame * inputSampleRate_) / outputSampleRate_) + nsam_in_48;
+
         int             nout;
 
         while(!helper->mustStopWork() && (unsigned)cbData->outfifo1->numFree() >= nsam_one_modem_frame) {
@@ -884,11 +896,9 @@ void TxRxThread::txProcessing_(IRealtimeHelper* helper) FREEDV_NONBLOCKING
             processingStats_.start();
 #endif // defined(ENABLE_PROCESSING_STATS)
 
-            // infifo2 is written to by another sound card so it may
-            // over or underflow, but we don't really care.  It will
-            // just result in a short interruption in audio being fed
-            // to codec2_enc, possibly making a click every now and
-            // again in the decoded audio at the other end.
+            // infifo2 is written to by another sound card, so it may run
+            // late (see below) or overflow, which makes a click in the
+            // decoded audio at the other end.
 
             // There may be recorded audio left to encode while ending TX. To handle this,
             // we keep reading from the FIFO until we have less than nsam_in_48 samples available.
@@ -950,7 +960,50 @@ void TxRxThread::txProcessing_(IRealtimeHelper* helper) FREEDV_NONBLOCKING
 
             if (nread != 0)
             {
-                break;
+                // Less than a frame of microphone audio. Usually it just
+                // hasn't arrived yet, and what's already queued for the radio
+                // covers the wait, so the thread waits for it rather than
+                // putting silence into what's being said. But when that has
+                // nearly run out, waiting would leave a hole in the signal,
+                // and a hole can cost a receiving station its sync, where a
+                // moment of silence costs nothing.
+                // So then what there is gets sent, made up to a frame with
+                // silence -- for no more than the modem needs to finish the
+                // frame it's building. A microphone that stays dry beyond
+                // that leaves the signal to end, as it always has. Never
+                // while transmit is ending: nothing goes after the end of an
+                // over (see above).
+                bool transmitting = !tmpHalfDuplex || g_tx.load(std::memory_order_acquire);
+                int available = std::min(cbData->infifo2->numUsed(), nsam_in_48);
+                if (!transmitting ||
+                    cbData->outfifo1->numUsed() >= coverBelowOutputSamples ||
+                    coveredInputSamples_ + (nsam_in_48 - available) > maxCoveredInputSamples)
+                {
+                    break;
+                }
+
+                if (available > 0 && cbData->infifo2->read(inputPtr, available) != 0)
+                {
+                    available = 0;
+                }
+                int covered = nsam_in_48 - available;
+                memset(inputPtr + available, 0, covered * sizeof(short));
+
+                if (covered > 0 && coveredInputSamples_ == 0)
+                {
+                    FREEDV_BEGIN_VERIFIED_SAFE
+                    log_warn("Microphone audio late with the radio's nearly run out; covering it with silence (queued for radio=%d)", cbData->outfifo1->numUsed());
+                    FREEDV_END_VERIFIED_SAFE
+                }
+                coveredInputSamples_ += covered;
+                totalCoveredInputSamples_ += covered;
+            }
+            else if (coveredInputSamples_ > 0)
+            {
+                FREEDV_BEGIN_VERIFIED_SAFE
+                log_info("Microphone audio caught up after %d ms of it was covered with silence", coveredInputSamples_ * MS_TO_SEC / inputSampleRate_);
+                FREEDV_END_VERIFIED_SAFE
+                coveredInputSamples_ = 0;
             }
 
             auto outputSamples = pipeline_->execute(inputPtr, nsam_in_48, &nout);

@@ -70,6 +70,13 @@ private:
     static const std::string LOG_MODE;
     static const std::string LOG_SUBMODE;
     static constexpr uint32_t MAX_SCHEMA_VER = 2;
+
+    // Message types, as numbered in WSJT-X's NetworkMessage.hpp.
+    static constexpr uint32_t MSG_HEARTBEAT = 0;
+    static constexpr uint32_t MSG_STATUS = 1;
+    static constexpr uint32_t MSG_DECODE = 2;
+    static constexpr uint32_t MSG_QSO_LOGGED = 5;
+    static constexpr uint32_t MSG_LOGGED_ADIF = 12;
     
     // Source: https://stackoverflow.com/questions/33964461/handling-julian-days-in-c11-14
     struct jdate_clock

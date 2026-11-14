@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <vector>
@@ -18,6 +19,7 @@
 #endif // defined(WIN32) || defined(__MINGW32__)
 
 #include "../WSJTXNetworkLogger.h"
+#include "AdifParser.h"
 #include "git_version.h"
 #include "util/logging/ulog.h"
 #include "../../test/UnitTestCommon.h"
@@ -39,6 +41,7 @@ constexpr uint32_t MSG_HEARTBEAT = 0;
 constexpr uint32_t MSG_STATUS = 1;
 constexpr uint32_t MSG_DECODE = 2;
 constexpr uint32_t MSG_QSO_LOGGED = 5;
+constexpr uint32_t MSG_LOGGED_ADIF = 12;
 
 constexpr int RECEIVE_TIMEOUT_MS = 2000;
 constexpr int NOTHING_MORE_TIMEOUT_MS = 250;
@@ -365,6 +368,44 @@ bool checkQsoLogged(Receiver& receiver, Contact const& contact, WireDateTime* ti
     return result;
 }
 
+// Followed by the same contact as an ADIF record, which is what some
+// logging programs (e.g. Log4OM) actually log from.
+bool checkLoggedAdif(Receiver& receiver, Contact const& contact)
+{
+    auto reader = receiveMessage(receiver, MSG_LOGGED_ADIF);
+    if (!reader) return false;
+
+    std::string adif = reader->str();
+    bool result = checkTrue("logged ADIF message is the wrong length", reader->finished());
+
+    AdifFile file = ParseAdif(adif);
+    if (!file.error.empty())
+    {
+        std::cout << "[ADIF didn't parse: " << file.error << "] ";
+        return false;
+    }
+
+    auto field = [&](const char* name) {
+        auto it = file.record.find(name);
+        return it == file.record.end() ? std::string() : it->second;
+    };
+    result &= check("ADIF programid", file.header["programid"], "FreeDV");
+    result &= check("ADIF call", field("call"), contact.dxCall);
+    result &= check("ADIF gridsquare", field("gridsquare"), contact.dxGrid);
+    result &= check("ADIF mode", field("mode"), "DIGITALVOICE");
+    result &= check("ADIF submode", field("submode"), "FREEDV");
+    result &= check("ADIF rst_sent", field("rst_sent"), contact.reportTx);
+    result &= check("ADIF rst_rcvd", field("rst_rcvd"), contact.reportRx);
+    result &= check("ADIF station_callsign", field("station_callsign"), contact.myCall);
+    result &= check("ADIF my_gridsquare", field("my_gridsquare"), contact.myGrid);
+    result &= check("ADIF name", field("name"), contact.name);
+    result &= check("ADIF comment", field("comment"), contact.comments);
+    result &= checkTrue("ADIF freq missing", !field("freq").empty());
+    result &= checkTrue("ADIF qso_date missing", field("qso_date").size() == 8);
+    result &= checkTrue("ADIF time_on missing", field("time_on").size() == 6);
+    return result;
+}
+
 bool sendsHeartbeatWhenCreated()
 {
     Fixture f;
@@ -380,7 +421,7 @@ bool sendsHeartbeatWhenCreated()
     return result;
 }
 
-bool logContactSendsStatusDecodeAndQsoLogged()
+bool logContactSendsStatusDecodeQsoLoggedAndAdif()
 {
     Fixture f;
     if (!f.skipHeartbeat()) return false;
@@ -394,6 +435,7 @@ bool logContactSendsStatusDecodeAndQsoLogged()
         checkStatus(f.receiver, contact) &&
         checkDecode(f.receiver, contact) &&
         checkQsoLogged(f.receiver, contact) &&
+        checkLoggedAdif(f.receiver, contact) &&
         nothingMoreReceived(f.receiver);
 }
 
@@ -409,6 +451,7 @@ bool omitsDecodeWhenSnrUnknown()
     return
         checkStatus(f.receiver, contact) &&
         checkQsoLogged(f.receiver, contact) &&
+        checkLoggedAdif(f.receiver, contact) &&
         nothingMoreReceived(f.receiver);
 }
 
@@ -424,7 +467,8 @@ bool sendsNegativeSnr()
     return
         checkStatus(f.receiver, contact) &&
         checkDecode(f.receiver, contact) &&
-        checkQsoLogged(f.receiver, contact);
+        checkQsoLogged(f.receiver, contact) &&
+        checkLoggedAdif(f.receiver, contact);
 }
 
 bool sendsOptionalFieldsWhenEmpty()
@@ -443,7 +487,8 @@ bool sendsOptionalFieldsWhenEmpty()
     return
         checkStatus(f.receiver, contact) &&
         checkDecode(f.receiver, contact) &&
-        checkQsoLogged(f.receiver, contact);
+        checkQsoLogged(f.receiver, contact) &&
+        checkLoggedAdif(f.receiver, contact);
 }
 
 bool sendsFrequenciesAbove4GHz()
@@ -459,7 +504,8 @@ bool sendsFrequenciesAbove4GHz()
     return
         checkStatus(f.receiver, contact) &&
         checkDecode(f.receiver, contact) &&
-        checkQsoLogged(f.receiver, contact);
+        checkQsoLogged(f.receiver, contact) &&
+        checkLoggedAdif(f.receiver, contact);
 }
 
 bool sendsLongAndNonAsciiText()
@@ -475,7 +521,8 @@ bool sendsLongAndNonAsciiText()
     return
         checkStatus(f.receiver, contact) &&
         checkDecode(f.receiver, contact) &&
-        checkQsoLogged(f.receiver, contact);
+        checkQsoLogged(f.receiver, contact) &&
+        checkLoggedAdif(f.receiver, contact);
 }
 
 // Logs a contact at the given time and checks the date and time that a
@@ -493,7 +540,8 @@ bool logTimeIs(int64_t unixMs, int64_t expectedJulianDay, uint32_t expectedMsSin
     WireDateTime timeOff;
     if (!checkStatus(f.receiver, contact) ||
         !checkDecode(f.receiver, contact, &decodeTime) ||
-        !checkQsoLogged(f.receiver, contact, &timeOff))
+        !checkQsoLogged(f.receiver, contact, &timeOff) ||
+        !checkLoggedAdif(f.receiver, contact))
     {
         return false;
     }
@@ -577,8 +625,10 @@ bool eachContactIsSentSeparately()
         checkStatus(f.receiver, first) &&
         checkDecode(f.receiver, first) &&
         checkQsoLogged(f.receiver, first) &&
+        checkLoggedAdif(f.receiver, first) &&
         checkStatus(f.receiver, second) &&
         checkQsoLogged(f.receiver, second) &&
+        checkLoggedAdif(f.receiver, second) &&
         nothingMoreReceived(f.receiver);
 }
 
@@ -642,13 +692,17 @@ bool heartbeatsContinueAroundLoggedContacts()
 
     // Heartbeats may land anywhere among the contact's messages, but each
     // message arrives whole and in order.
-    uint32_t expected[] = { MSG_STATUS, MSG_DECODE, MSG_QSO_LOGGED };
+    uint32_t expected[] = { MSG_STATUS, MSG_DECODE, MSG_QSO_LOGGED, MSG_LOGGED_ADIF };
     size_t numContactMessages = 0;
     int numHeartbeats = 0;
-    while (numContactMessages < 3 || numHeartbeats < 2)
+    // Heartbeats keep arriving whatever else does, so a message that never
+    // comes has to be caught by a deadline rather than by receive() timing
+    // out, or this would wait forever.
+    auto deadline = std::chrono::steady_clock::now() + 10s;
+    while (numContactMessages < std::size(expected) || numHeartbeats < 2)
     {
         auto packet = receiver.receive();
-        if (!packet)
+        if (!packet || std::chrono::steady_clock::now() > deadline)
         {
             std::cout << "[only received " << numContactMessages << " contact message(s) and "
                       << numHeartbeats << " heartbeat(s)] ";
@@ -663,7 +717,7 @@ bool heartbeatsContinueAroundLoggedContacts()
         {
             numHeartbeats++;
         }
-        else if (numContactMessages < 3 && type == expected[numContactMessages])
+        else if (numContactMessages < std::size(expected) && type == expected[numContactMessages])
         {
             numContactMessages++;
         }
@@ -732,7 +786,7 @@ int main()
     ulog_set_quiet(true);
 
     executeTestCase("sendsHeartbeatWhenCreated", sendsHeartbeatWhenCreated);
-    executeTestCase("logContactSendsStatusDecodeAndQsoLogged", logContactSendsStatusDecodeAndQsoLogged);
+    executeTestCase("logContactSendsStatusDecodeQsoLoggedAndAdif", logContactSendsStatusDecodeQsoLoggedAndAdif);
     executeTestCase("omitsDecodeWhenSnrUnknown", omitsDecodeWhenSnrUnknown);
     executeTestCase("sendsNegativeSnr", sendsNegativeSnr);
     executeTestCase("sendsOptionalFieldsWhenEmpty", sendsOptionalFieldsWhenEmpty);

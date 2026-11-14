@@ -253,7 +253,7 @@ jobs:
         brew install automake libtool numpy sox llvm@20 lld@20 gettext # note: LLVM 21 introduces incompatibilities - see https://github.com/Homebrew/homebrew-core/issues/235411
 
     - uses: ./.github/actions/setup-macos-virtual-audio
-      timeout-minutes: 3
+      timeout-minutes: 6
 
     - name: Build instrumented freedv-gui
       shell: bash
@@ -414,7 +414,7 @@ jobs:
         brew install automake libtool sox 
 
     - uses: ./.github/actions/setup-macos-virtual-audio
-      timeout-minutes: 3
+      timeout-minutes: 6
 
     - uses: ./.github/actions/setup-rade-python-env
       with:
