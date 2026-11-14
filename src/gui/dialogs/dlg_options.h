@@ -321,7 +321,7 @@ class OptionsDlg : public wxDialog
 
          // Notes shown while FreeDV is running, on the pages whose settings
          // only take effect when it's next started.
-         std::vector<wxStaticText*> nextStartNotes_;
+         std::vector<std::pair<wxStaticText*, wxString>> nextStartNotes_;
          wxStaticText* addNextStartNote_(wxWindow* page, wxString const& text, const char* name);
          bool isTesting_;
          std::thread* m_audioPlotThread;

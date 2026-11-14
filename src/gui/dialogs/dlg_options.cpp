@@ -61,6 +61,9 @@ extern FreeDVInterface freedvInterface;
 constexpr int WXK_F13_LINUX = 436;
 constexpr int WXK_F24_LINUX = WXK_F13_LINUX + 11;
 
+// Space either side of the notes about settings that wait for the next start.
+constexpr int NEXT_START_NOTE_BORDER = 5;
+
 // Returns a human-readable name for a PTT key code.
 static wxString getPTTKeyName(int keyCode)
 {
@@ -178,7 +181,7 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     sizerRadio->Add(sizerVox, 0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), 5);
     sizerRadio->Add(
         addNextStartNote_(m_radioTab, _("FreeDV is running: CAT and PTT port changes apply the next time it starts."), "nextStartNoteRadio"),
-        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxLEFT) | static_cast<int>(wxRIGHT), 10);
+        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxLEFT) | static_cast<int>(wxRIGHT), NEXT_START_NOTE_BORDER);
 
     // Hamlib settings
     wxStaticBox* hamlibBox = new wxStaticBox(m_radioTab, wxID_ANY, _("Hamlib Settings"));
@@ -723,8 +726,8 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     {
         wxBoxSizer* sizerRxAudio = new wxBoxSizer(wxVERTICAL);
         sizerRxAudio->Add(
-            addNextStartNote_(m_rxAudioTab, _("FreeDV is running: changes on this page take effect the next time it's started."), "nextStartNoteRxAudio"),
-            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), 5);
+            addNextStartNote_(m_rxAudioTab, _("FreeDV is running: changes on this page apply the next time it starts."), "nextStartNoteRxAudio"),
+            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), NEXT_START_NOTE_BORDER);
 
         // SC1 In
         sizerRxAudio->Add(new wxStaticText(m_rxAudioTab, wxID_ANY, _("Input To Computer From Radio:")), 0, wxLEFT | wxTOP, 5);
@@ -785,8 +788,8 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     {
         wxBoxSizer* sizerTxAudio = new wxBoxSizer(wxVERTICAL);
         sizerTxAudio->Add(
-            addNextStartNote_(m_txAudioTab, _("FreeDV is running: changes on this page take effect the next time it's started."), "nextStartNoteTxAudio"),
-            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), 5);
+            addNextStartNote_(m_txAudioTab, _("FreeDV is running: changes on this page apply the next time it starts."), "nextStartNoteTxAudio"),
+            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), NEXT_START_NOTE_BORDER);
 
         m_ckTxReceiveOnly = new wxCheckBox(m_txAudioTab, wxID_ANY, _("Receive only (I will not be transmitting)"));
         sizerTxAudio->Add(m_ckTxReceiveOnly, 0, wxALL, 5);
@@ -1048,7 +1051,7 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
 
     sizerDebug->Add(
         addNextStartNote_(m_debugTab, _("FreeDV is running: FIFO and thread priority changes apply the next time it starts."), "nextStartNoteDebug"),
-        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), 5);
+        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), NEXT_START_NOTE_BORDER);
     sizerDebug->Add(sbSizer_fifo,0, static_cast<int>(wxALL)|static_cast<int>(wxEXPAND), 3);
     sizerDebug->Add(sbSizer_fifo2,0, static_cast<int>(wxALL)|static_cast<int>(wxEXPAND), 3);
 
@@ -2245,8 +2248,20 @@ void OptionsDlg::setSessionActive(bool active)
     updateReportingState();
     updateRigControlState();
 
-    for (auto note : nextStartNotes_)
+    for (auto& [note, text] : nextStartNotes_)
     {
+        if (active)
+        {
+            // Wrapped to the page it's on, so that it stays on one line
+            // wherever it fits, and wraps rather than being cut off where it
+            // doesn't (e.g. in a longer translation).
+            note->SetLabel(text);
+            int width = note->GetParent()->GetClientSize().GetWidth() - 2 * NEXT_START_NOTE_BORDER;
+            if (width > 0)
+            {
+                note->Wrap(width);
+            }
+        }
         note->Show(active);
         note->GetParent()->Layout();
     }
@@ -2255,10 +2270,9 @@ void OptionsDlg::setSessionActive(bool active)
 wxStaticText* OptionsDlg::addNextStartNote_(wxWindow* page, wxString const& text, const char* name)
 {
     auto note = new wxStaticText(page, wxID_ANY, text);
-    note->Wrap(500);
     note->SetName(wxString("settings.") + name);
     note->Hide();
-    nextStartNotes_.push_back(note);
+    nextStartNotes_.emplace_back(note, text);
     return note;
 }
     

@@ -1475,8 +1475,9 @@ def test_while_running():
             go_to_tab(app, tab)
             check_equal(app.get(name(note))["shown"], shown, "Note on the %s page shown" % tab)
             # Each note fits on one line.
-            label = app.get(name(note))["label"]
-            check("\n" not in label, "Note on the %s page wraps: %r" % (tab, label))
+            info = app.get(name(note))
+            check("\n" not in info["label"], "Note on the %s page wraps at %d pixels: %r"
+                  % (tab, info["clientSize"][0], info["label"]))
 
     settings = audio_settings()
     settings.update({
