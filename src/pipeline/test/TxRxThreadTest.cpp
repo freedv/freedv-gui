@@ -2966,8 +2966,10 @@ public:
         size_t first = 0, last = sent.size();
         while (first < sent.size() && sent[first] == 0) first++;
         while (last > first && sent[last - 1] == 0) last--;
-        // Less the AGC's look-ahead, which holds the last few ms of it.
-        long expected = (long)SPEAKING_TURNS * BLOCK - AGC_LOOKAHEAD_SAMPLES;
+        // All of it: the AGC's look-ahead holds back the last few ms, but
+        // when the microphone goes dry the moment of silence that covers it
+        // (see transmitterCoversALateMicrophone) pushes those out too.
+        long expected = (long)SPEAKING_TURNS * BLOCK;
         if ((long)(last - first) != expected)
         {
             std::cout << "[" << (last - first) << " samples of signal sent for " << expected
