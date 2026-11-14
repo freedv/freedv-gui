@@ -2505,14 +2505,18 @@ def test_receive_reports():
         shutil.rmtree(folder, ignore_errors=True)
 
 
-def set_debugging(app, **values):
+def change_settings(app, tab, **values):
     app.menu("Settings/Edit Settings...")
     app.wait_for_window("settings")
-    app.set_value("settings.notebook", "Debugging")
+    app.set_value("settings.notebook", tab)
     for name, value in values.items():
         app.set_value("settings." + name, value)
     app.click("settings.sdbSizer5OK")
     app.wait_for_window_closed("settings")
+
+
+def set_debugging(app, **values):
+    change_settings(app, "Debugging", **values)
 
 
 def test_test_tone():
@@ -2592,7 +2596,54 @@ def test_test_tone():
             app.click("main.btnPTT")
             wait_for_transmit(app, False)
             check_silent(RADIO_TX_MONITOR, "Something is still being sent to the radio after transmitting")
+
+            # Turned off while FreeDV is running, the next transmission goes
+            # out without it.
+            change_settings(app, "Radio", ckLeftChannelVoxTone=False)
+            app.click("main.btnPTT")
+            wait_for_transmit(app)
+            def vox_gone():
+                last[:] = heard(RADIO_TX_MONITOR)
+                left, right = last
+                return tone_share(left, 1000) < 0.2 and \
+                    math.sqrt(sum(sample * sample for sample in right) / len(right)) > AUDIBLE
+            try:
+                app.wait_until(vox_gone, timeout=10)
+            except freedvtest.FreeDVError:
+                left, right = last
+                check(False, "After turning the VOX tone off, the left channel is %.2f VOX tone"
+                      % tone_share(left, 1000))
+            app.click("main.btnPTT")
+            wait_for_transmit(app, False)
             stop_modem(app)
+            quit_and_check_log(app)
+
+
+def test_duplex_while_running():
+    """Half or full duplex can be changed while FreeDV is running. With what
+    it sends to the radio fed back into what it hears, it only receives its
+    own transmission in full duplex."""
+    with audio_devices(), Loopback(RADIO_TX, RADIO_RX):
+        with freedvtest.start(settings=settings(Rig__HalfDuplex=True)) as app:
+            app.wait_for_window("main")
+            start_modem(app)
+
+            app.click("main.btnPTT")
+            wait_for_transmit(app)
+            time.sleep(10)
+            check_equal(app.state()["sync"], 0, "Sync with its own transmission in half duplex")
+            app.click("main.btnPTT")
+            wait_for_transmit(app, False)
+
+            change_settings(app, "Modem", ckHalfDuplex=False)
+            app.click("main.btnPTT")
+            wait_for_transmit(app)
+            app.wait_until(lambda: app.state()["sync"] == 1, timeout=20,
+                           description="FreeDV to sync to its own transmission once in full duplex")
+            app.click("main.btnPTT")
+            wait_for_transmit(app, False)
+            stop_modem(app)
+            check_equal(freedvtest.read_config(app.config_path).get("/Rig/HalfDuplex"), "0", "Saved half duplex")
             quit_and_check_log(app)
 
 
@@ -2703,6 +2754,7 @@ SCENARIOS = {
     "window_geometry": test_window_geometry,
     "receive_reports": test_receive_reports,
     "test_tone": test_test_tone,
+    "duplex_while_running": test_duplex_while_running,
     "exit_while_tuning": test_exit_while_tuning,
     "old_settings": test_old_settings,
     "bad_command_line": test_bad_command_line,

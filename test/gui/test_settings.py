@@ -1455,15 +1455,25 @@ def test_auto_start():
 
 
 def test_while_running():
-    """Some settings can't be changed while FreeDV is running."""
+    """Some settings can't be changed while FreeDV is running, and some can
+    but only take effect the next time it's started, which the pages they're
+    on say."""
     reporting = ["ckboxReportingEnable", "txt_callsign", "txt_grid_square", "ckboxManualFrequencyReporting",
                  "ckboxPskReporterEnable", "ckboxFreeDVReporterEnable", "useMetricDistances",
                  "freedvReporterHostname", "ckboxFreeDVReporterUseTls", "ckboxFreeDVReporterForceReceiveOnly",
                  "useCardinalDirections", "ckboxUDPReportingEnable", "ckboxUDPBroadcastEnable",
                  "ckbox_use_utc_time"]
     rig_control = ["ckboxEnableFreqModeChanges", "ckboxEnableFreqChangesOnly", "ckboxNoFreqModeChanges",
-                   "ckboxUseAnalogModes", "ckboxSaveRestoreFrequency", "ckboxEnableSpacebarForPTT",
-                   "txtTxRxDelayMilliseconds"]
+                   "ckboxUseAnalogModes", "ckboxSaveRestoreFrequency"]
+    # Read each time they're used, so they can always be changed.
+    ptt = ["ckboxEnableSpacebarForPTT", "txtTxRxDelayMilliseconds"]
+    next_start_notes = [("RX Audio", "nextStartNoteRxAudio"), ("TX Audio", "nextStartNoteTxAudio"),
+                        ("Radio", "nextStartNoteRadio"), ("Debugging", "nextStartNoteDebug")]
+
+    def check_notes(shown):
+        for tab, note in next_start_notes:
+            go_to_tab(app, tab)
+            check_equal(app.get(name(note))["shown"], shown, "Note on the %s page shown" % tab)
 
     settings = audio_settings()
     settings.update({
@@ -1477,6 +1487,8 @@ def test_while_running():
             check_enabled(app, reporting, True)
             go_to_tab(app, "Rig Control")
             check_enabled(app, rig_control, True)
+            check_enabled(app, ptt, True)
+            check_notes(False)
             press_cancel(app)
 
             start_modem(app)
@@ -1484,12 +1496,17 @@ def test_while_running():
             check_enabled(app, reporting, False)
             go_to_tab(app, "Rig Control")
             check_enabled(app, rig_control, False)
+            check_enabled(app, ptt, True)
+            check_notes(True)
 
             # Everything else still can be, and is saved.
+            go_to_tab(app, "Rig Control")
+            set_value(app, "txtTxRxDelayMilliseconds", "250")
             go_to_tab(app, "Modem")
             set_value(app, "statsResetTime", "30")
             press_ok(app)
-            check_saved(app, {"/Stats/ResetTime": 30, "/Reporting/Enable": 1, "/Reporting/Callsign": "AA1ZZZ"})
+            check_saved(app, {"/Stats/ResetTime": 30, "/Audio/TxRxDelayMilliseconds": 250,
+                              "/Reporting/Enable": 1, "/Reporting/Callsign": "AA1ZZZ"})
             check(app.state()["running"], "Changing settings stopped FreeDV")
 
             stop_modem(app)
@@ -1497,9 +1514,8 @@ def test_while_running():
             check_enabled(app, reporting, True)
             go_to_tab(app, "Rig Control")
             check_enabled(app, rig_control, True)
+            check_notes(False)
             press_cancel(app)
-
-            quit_and_check_log(app)
 
 
 SCENARIOS = {

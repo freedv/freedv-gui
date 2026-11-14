@@ -116,6 +116,8 @@ extern std::atomic<int>    g_AEstatus1[4];
 extern std::atomic<int>    g_AEstatus2[4];
 extern wxDatagramSocket    *g_sock;
 extern std::atomic<int>    g_dump_timing;
+extern std::atomic<bool>   g_half_duplex;
+extern paCallBackData*     g_rxUserdata;
 extern std::atomic<int>    g_dump_fifo_state;
 extern int                 g_freedv_verbose;
 extern wxConfigBase *pConfig;
@@ -174,6 +176,9 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     m_ckLeftChannelVoxTone = new wxCheckBox(voxBox, wxID_ANY, _("Left Channel Vox Tone"), wxDefaultPosition, wxSize(-1,-1), 0);
     sizerVox->Add(m_ckLeftChannelVoxTone, 0, wxALIGN_LEFT|static_cast<int>(wxALIGN_CENTER_VERTICAL), 5);
     sizerRadio->Add(sizerVox, 0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), 5);
+    sizerRadio->Add(
+        addNextStartNote_(m_radioTab, _("FreeDV is running: changes to CAT control and PTT ports take effect the next time it's started."), "nextStartNoteRadio"),
+        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxLEFT) | static_cast<int>(wxRIGHT), 10);
 
     // Hamlib settings
     wxStaticBox* hamlibBox = new wxStaticBox(m_radioTab, wxID_ANY, _("Hamlib Settings"));
@@ -717,6 +722,9 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     //----------------------------------------------------------------------
     {
         wxBoxSizer* sizerRxAudio = new wxBoxSizer(wxVERTICAL);
+        sizerRxAudio->Add(
+            addNextStartNote_(m_rxAudioTab, _("FreeDV is running: changes on this page take effect the next time it's started."), "nextStartNoteRxAudio"),
+            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), 5);
 
         // SC1 In
         sizerRxAudio->Add(new wxStaticText(m_rxAudioTab, wxID_ANY, _("Input To Computer From Radio:")), 0, wxLEFT | wxTOP, 5);
@@ -776,6 +784,9 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     //----------------------------------------------------------------------
     {
         wxBoxSizer* sizerTxAudio = new wxBoxSizer(wxVERTICAL);
+        sizerTxAudio->Add(
+            addNextStartNote_(m_txAudioTab, _("FreeDV is running: changes on this page take effect the next time it's started."), "nextStartNoteTxAudio"),
+            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), 5);
 
         m_ckTxReceiveOnly = new wxCheckBox(m_txAudioTab, wxID_ANY, _("Receive only (I will not be transmitting)"));
         sizerTxAudio->Add(m_ckTxReceiveOnly, 0, wxALL, 5);
@@ -1035,6 +1046,9 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     sbSizer_fifo2->Add(sbDebugOptionsSizer2, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND) | 0);
     sbSizer_fifo2->Add(sbDebugOptionsSizer3, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND) | 0);
 
+    sizerDebug->Add(
+        addNextStartNote_(m_debugTab, _("FreeDV is running: changes to the FIFO size and txRxThreadPriority take effect the next time it's started."), "nextStartNoteDebug"),
+        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), 5);
     sizerDebug->Add(sbSizer_fifo,0, static_cast<int>(wxALL)|static_cast<int>(wxEXPAND), 3);
     sizerDebug->Add(sbSizer_fifo2,0, static_cast<int>(wxALL)|static_cast<int>(wxEXPAND), 3);
 
@@ -1725,6 +1739,8 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly = m_ckboxEnableFreqChangesOnly->GetValue();
         
         wxGetApp().appConfiguration.halfDuplexMode = m_ckHalfDuplex->GetValue();
+        // Read by the audio threads as they go, so it applies while running too.
+        g_half_duplex.store(wxGetApp().appConfiguration.halfDuplexMode, std::memory_order_release);
         
         /* Plot settings */
         wxGetApp().appConfiguration.currentSpectrumAveraging = m_cbxNumSpectrumAveraging->GetSelection();
@@ -1882,6 +1898,12 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         
         // Radio tab settings
         wxGetApp().appConfiguration.rigControlConfiguration.leftChannelVoxTone = m_ckLeftChannelVoxTone->GetValue();
+        if (g_rxUserdata != nullptr)
+        {
+            // FreeDV is running: the radio's audio callback reads this as it goes.
+            g_rxUserdata->leftChannelVoxTone.store(
+                wxGetApp().appConfiguration.rigControlConfiguration.leftChannelVoxTone, std::memory_order_release);
+        }
 
         wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseForPTT = m_ckUseHamlibPTT->GetValue();
         wxGetApp().m_intHamlibRig = m_cbRigName->GetSelection();
@@ -2197,8 +2219,6 @@ void OptionsDlg::updateRigControlState()
         m_ckboxEnableFreqModeChanges->Enable(true);
         m_ckboxEnableFreqChangesOnly->Enable(true);
         m_ckboxNoFreqModeChanges->Enable(true);
-        m_ckboxEnableSpacebarForPTT->Enable(true);
-        m_txtTxRxDelayMilliseconds->Enable(true);
         m_ckboxUseAnalogModes->Enable(m_ckboxEnableFreqModeChanges->GetValue());
         m_ckboxSaveRestoreFrequency->Enable(!m_ckboxNoFreqModeChanges->GetValue());
     }
@@ -2210,9 +2230,36 @@ void OptionsDlg::updateRigControlState()
         m_ckboxEnableFreqModeChanges->Enable(false);
         m_ckboxEnableFreqChangesOnly->Enable(false);
         m_ckboxNoFreqModeChanges->Enable(false);
-        m_ckboxEnableSpacebarForPTT->Enable(false);
-        m_txtTxRxDelayMilliseconds->Enable(false);
     }
+
+    // The PTT key and the TX/RX delay are read each time they're used, so
+    // they can be changed while FreeDV is running.
+    m_ckboxEnableSpacebarForPTT->Enable(true);
+    m_txtTxRxDelayMilliseconds->Enable(true);
+}
+
+void OptionsDlg::setSessionActive(bool active)
+{
+    sessionActive_ = active;
+
+    updateReportingState();
+    updateRigControlState();
+
+    for (auto note : nextStartNotes_)
+    {
+        note->Show(active);
+        note->GetParent()->Layout();
+    }
+}
+
+wxStaticText* OptionsDlg::addNextStartNote_(wxWindow* page, wxString const& text, const char* name)
+{
+    auto note = new wxStaticText(page, wxID_ANY, text);
+    note->Wrap(500);
+    note->SetName(wxString("settings.") + name);
+    note->Hide();
+    nextStartNotes_.push_back(note);
+    return note;
 }
     
 void OptionsDlg::OnReportingEnable(wxCommandEvent&)
