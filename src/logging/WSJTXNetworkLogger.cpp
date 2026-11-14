@@ -242,7 +242,7 @@ void WSJTXNetworkLogger::logContact(std::chrono::time_point<std::chrono::system_
 
     // Send status message so loggers have the correct RX frequency
     PacketBuilder statusBuilder;
-    statusBuilder << (uint32_t)1
+    statusBuilder << MSG_STATUS
                   << UNIQUE_ID
                   << freqHz
                   << LOG_MODE
@@ -276,7 +276,7 @@ void WSJTXNetworkLogger::logContact(std::chrono::time_point<std::chrono::system_
     if (snr > UNKNOWN_SNR)
     {
         PacketBuilder decodeBuilder;
-        decodeBuilder << (uint32_t)2
+        decodeBuilder << MSG_DECODE
                       << UNIQUE_ID
                       << false
                       << msSinceMidnight // time
@@ -293,7 +293,7 @@ void WSJTXNetworkLogger::logContact(std::chrono::time_point<std::chrono::system_
     
     // Send actual log request
     PacketBuilder builder;
-    builder << (uint32_t)5
+    builder << MSG_QSO_LOGGED
             << UNIQUE_ID
             << currentTimeAsJulian // time off
             << dxCall
@@ -325,7 +325,7 @@ void WSJTXNetworkLogger::logContact(std::chrono::time_point<std::chrono::system_
         logTime, dxCall, dxGrid, myCall, myGrid, freqHz, reportRx, reportTx, name, comments);
 
     PacketBuilder adifBuilder;
-    adifBuilder << (uint32_t)12
+    adifBuilder << MSG_LOGGED_ADIF
                 << UNIQUE_ID
                 << adifRecord.toLoggedAdif(GetFreeDVVersion())
                 ;
@@ -335,7 +335,7 @@ void WSJTXNetworkLogger::logContact(std::chrono::time_point<std::chrono::system_
 void WSJTXNetworkLogger::sendHeartbeat_()
 {
     PacketBuilder builder;
-    builder << (uint32_t)0;
+    builder << MSG_HEARTBEAT;
     builder << UNIQUE_ID;
     builder << MAX_SCHEMA_VER;
     builder << GetFreeDVVersion();
