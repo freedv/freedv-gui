@@ -898,7 +898,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Hamlib/OmniRig: add option to disable saving and restoring the radio's frequency on start and stop. (PR #1600)
     * RADE: fill in the missing high frequencies when transmitting with an 8 kHz mic (e.g. a Bluetooth headset). (PR #1614)
     * Settings: apply half duplex and the VOX tone immediately while running, allow changing the PTT key and TX/RX delay, and note which settings take effect the next time FreeDV starts. (PR #1631)
-    * Settings: apply every setting while running, restarting the audio or reconnecting to the radio and reporting services as needed, once back on receive. (PR #TBD)
+    * Settings: apply every setting while running, restarting the audio or reconnecting to the radio and reporting services as needed, once back on receive. (PR #1632)
 2. Bugfixes:
     * Fix silence being mixed into the first half second of each transmission, and holes in the signal at its start. (PR #1562)
 3. Build system:
