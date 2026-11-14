@@ -7,7 +7,7 @@
 #include "../../test/UnitTestCommon.h"
 
 // The ADIF record sent in the WSJT-X "Logged ADIF" message. See
-// https://adif.org.uk/316/ADIF_316.htm for the format.
+// https://adif.org.uk/314/ADIF_314.htm for the format.
 
 namespace {
 

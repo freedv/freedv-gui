@@ -59,7 +59,7 @@ private:
         uint64_t upperHz;
     };
 
-    // ADIF 3.1.6's Band enumeration, edges inclusive.
+    // ADIF 3.1.4's Band enumeration (unchanged through 3.1.6), edges inclusive.
     static const Band BANDS_[];
 
     // Appends "<name:length>value" to the record, or nothing if there's no
