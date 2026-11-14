@@ -2084,6 +2084,116 @@ public:
         return result;
     }
 
+    // ---------------------------------------------------------------------
+    // A transmission in a digital mode with the cards kept in step, 20 ms a
+    // turn, except where micBlocks says otherwise: how many 20 ms blocks the
+    // microphone hands over on each turn (0 = it's late or dry). Reports how
+    // the radio's sound card fared and how much the thread covered.
+    // ---------------------------------------------------------------------
+    struct DigitalTransmit
+    {
+        int firstFullTurn = -1;     // first turn the radio's card got a whole block
+        int shortTurnsWhileSpeaking = 0; // after that, turns it got less, before the speech ended
+        int turnsGivenAnythingAtTheEnd = 0; // over the last endTurns turns
+        long coveredInputSamples = 0;
+        int maxCoveredInputSamples = 0;
+    };
+
+    static DigitalTransmit transmitDigitally(std::function<int(int)> micBlocks, int turns, int speechEndsTurn, int endTurns)
+    {
+        resetGlobals();
+        g_tx = true;
+        SoundCardFifos fifos(TEST_SAMPLE_RATE);
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(true, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr, makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+
+        FakeRealtimeHelper helper;
+        constexpr int BLOCK = TEST_SAMPLE_RATE / 50;
+        const double step = 2.0 * M_PI * 500.0 / TEST_SAMPLE_RATE;
+
+        DigitalTransmit result;
+        long written = 0;
+
+        for (int turn = 0; turn < turns; turn++)
+        {
+            int numSamples = micBlocks(turn) * BLOCK;
+            std::vector<short> block(numSamples);
+            for (int i = 0; i < numSamples; i++)
+            {
+                block[i] = (short)(8000.0 * std::sin(step * (written + i) + 0.25));
+            }
+            written += numSamples;
+            if (numSamples > 0) g_rxUserdata->infifo2->write(block.data(), numSamples);
+
+            thread.txProcessing_(&helper);
+
+            int available = std::min(g_rxUserdata->outfifo1->numUsed(), BLOCK);
+            std::vector<short> taken(BLOCK, 0);
+            if (available > 0) g_rxUserdata->outfifo1->read(taken.data(), available);
+
+            if (result.firstFullTurn < 0 && available == BLOCK) result.firstFullTurn = turn;
+            else if (result.firstFullTurn >= 0 && turn < speechEndsTurn && available < BLOCK) result.shortTurnsWhileSpeaking++;
+            if (turn >= turns - endTurns && available > 0) result.turnsGivenAnythingAtTheEnd++;
+        }
+
+        result.coveredInputSamples = thread.totalCoveredInputSamples_;
+        unsigned int nsamOneModemFrame = (freedvInterface.getTxNNomModemSamples() * TEST_SAMPLE_RATE) / freedvInterface.getTxModemSampleRate();
+        result.maxCoveredInputSamples = (int)nsamOneModemFrame + BLOCK;
+        return result;
+    }
+
+    // A microphone that's a little late now and then (a fraction of a second
+    // here, as a busy machine or two sound cards' clocks drifting apart can
+    // make it) doesn't put a hole in the signal: the radio's sound card is
+    // given something every turn, and what covers the wait is no more than
+    // the modem needs to carry on.
+    static bool transmitterCoversALateMicrophone()
+    {
+        // Speaks for three seconds, 20 ms a turn, but runs 140 ms late twice
+        // and makes it up all at once each time.
+        auto mic = [](int turn) {
+            if (turn >= 150) return 0;
+            if ((turn >= 60 && turn < 67) || (turn >= 110 && turn < 117)) return 0;
+            if (turn == 67 || turn == 117) return 8;
+            return 1;
+        };
+        auto sent = transmitDigitally(mic, 150, 150, 0);
+
+        bool result = true;
+        result &= checkBetween("first turn the radio was given a whole block", sent.firstFullTurn, 0, 40);
+        result &= check("turns the radio was given less than a block while the microphone was speaking", sent.shortTurnsWhileSpeaking, 0);
+        result &= checkBetween("microphone audio covered with silence", (int)sent.coveredInputSamples, 1, 2 * sent.maxCoveredInputSamples);
+        return result;
+    }
+
+    // A microphone that keeps time has nothing of its audio covered with
+    // silence: what was said goes out as it was said.
+    static bool transmitterAddsNoSilenceWhenTheMicrophoneKeepsUp()
+    {
+        auto sent = transmitDigitally([](int) { return 1; }, 250, 250, 0);
+
+        bool result = true;
+        result &= check("microphone audio covered with silence", sent.coveredInputSamples, 0L);
+        result &= check("turns the radio was given less than a block", sent.shortTurnsWhileSpeaking, 0);
+        return result;
+    }
+
+    // A microphone that stops altogether part of the way through an over
+    // only has as much covered as lets the modem finish its frame; then the
+    // signal ends, rather than silence being made up for as long as the
+    // transmitter is keyed.
+    static bool transmitterLetsTheSignalEndWhenTheMicrophoneStops()
+    {
+        auto sent = transmitDigitally([](int turn) { return turn < 50 ? 1 : 0; }, 150, 50, 50);
+
+        bool result = true;
+        result &= checkBetween("microphone audio covered with silence", (int)sent.coveredInputSamples, 0, sent.maxCoveredInputSamples);
+        result &= check("of the last second, turns the radio was given anything", sent.turnsGivenAnythingAtTheEnd, 0);
+        return result;
+    }
+
     static bool startStopRunsRealTimeHelperLifecycle()
     {
         resetGlobals();
@@ -2721,9 +2831,16 @@ public:
     // made and then stops: the carrier goes down with it rather than the
     // thread inventing samples to keep it up. (Keeping the carrier up
     // through a dry microphone means mixing in fabricated audio, which is
-    // the very complaint #1567 set out to fix; whether the holes are worse
-    // than the fabrication is for a station on the air to judge, so this
-    // pins the honest behaviour and leaves that question open.)
+    // the very complaint #1567 set out to fix.) The one exception is a
+    // microphone that's only late: when what's queued for the radio has
+    // nearly run out, the thread covers the shortfall with silence, but
+    // only for as long as the modem needs to finish the frame it's
+    // building, since in a digital mode a hole in the signal costs the
+    // receiving station its sync where a moment of silence costs nothing
+    // (see transmitterCoversALateMicrophone and
+    // transmitterLetsTheSignalEndWhenTheMicrophoneStops, below). In the
+    // analog mode these two tests use, that silence is indistinguishable
+    // from the hole, so what they check is unchanged.
     // ---------------------------------------------------------------------
     static bool transmitterPrimesWithSpeechBeforeItsFirstFrame()
     {
@@ -2849,8 +2966,10 @@ public:
         size_t first = 0, last = sent.size();
         while (first < sent.size() && sent[first] == 0) first++;
         while (last > first && sent[last - 1] == 0) last--;
-        // Less the AGC's look-ahead, which holds the last few ms of it.
-        long expected = (long)SPEAKING_TURNS * BLOCK - AGC_LOOKAHEAD_SAMPLES;
+        // All of it: the AGC's look-ahead holds back the last few ms, but
+        // when the microphone goes dry the moment of silence that covers it
+        // (see transmitterCoversALateMicrophone) pushes those out too.
+        long expected = (long)SPEAKING_TURNS * BLOCK;
         if ((long)(last - first) != expected)
         {
             std::cout << "[" << (last - first) << " samples of signal sent for " << expected
@@ -3359,6 +3478,9 @@ int main()
     executeTestCase("radioAudioReachesTheMicrophoneChainWhenRecordingIt", &TxRxThreadTest::radioAudioReachesTheMicrophoneChainWhenRecordingIt);
     executeTestCase("analogAudioReachesTheSpeakerWithoutAMicLink", &TxRxThreadTest::analogAudioReachesTheSpeakerWithoutAMicLink);
     executeTestCase("endOfOverIsKeptWhenThereIsNoRoomForIt", &TxRxThreadTest::endOfOverIsKeptWhenThereIsNoRoomForIt);
+    executeTestCase("transmitterCoversALateMicrophone", &TxRxThreadTest::transmitterCoversALateMicrophone);
+    executeTestCase("transmitterAddsNoSilenceWhenTheMicrophoneKeepsUp", &TxRxThreadTest::transmitterAddsNoSilenceWhenTheMicrophoneKeepsUp);
+    executeTestCase("transmitterLetsTheSignalEndWhenTheMicrophoneStops", &TxRxThreadTest::transmitterLetsTheSignalEndWhenTheMicrophoneStops);
 
     freedvInterface.stop();
 
