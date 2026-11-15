@@ -925,6 +925,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Fix the PTT dialog's Test button leaving a radio connection running after each test. (PR #1626)
     * Cover a briefly late microphone with silence rather than leaving a gap in the transmitted signal. (PR #1621)
     * Fix intermittent dropouts drawn in the Frm Radio, Frm Mic and Frm Decoder plots, and their traces falling behind the audio. (PR #1628)
+    * Hamlib: fix rigctld sometimes dropping FreeDV's connection when Test PTT is clicked again, or another program disconnects from rigctld, just as FreeDV connects. (PR #1633)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
 
