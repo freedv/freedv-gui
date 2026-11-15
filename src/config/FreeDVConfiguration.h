@@ -125,10 +125,10 @@ public:
     // meanwhile are left as they are unless edited changed them too. Says
     // what the changes need to take effect (ConfigChange::Effect flags), and
     // if that's anything, tells onChanged too.
-    unsigned mergeChangesFrom(FreeDVConfiguration& original, FreeDVConfiguration& edited);
+    uint32_t mergeChangesFrom(FreeDVConfiguration& original, FreeDVConfiguration& edited);
 
     // Told of mergeChangesFrom()'s changes, on the thread it's called on.
-    EventHandler<unsigned> onChanged;
+    EventHandler<uint32_t> onChanged;
 };
 
 #endif // FREEDV_CONFIGURATION_H

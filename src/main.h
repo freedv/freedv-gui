@@ -685,13 +685,17 @@ class MainFrame : public TopFrame
         void startSessionTimers_();
         void stopSessionTimers_();
 
+        // Has RADE send the callsign being reported, in its end-of-over text.
+        // On the UI thread, with the modem started.
+        void setReliableTextCallsign_();
+
         // What the settings changed while running still need to take effect
         // (ConfigChange::Effect flags), from FreeDVConfiguration::onChanged.
         // UI thread only, like applyingSettings_.
-        unsigned pendingChangeEffects_ = 0;
+        uint32_t pendingChangeEffects_ = 0;
         bool applyingSettings_ = false;
 
-        void onSettingsChanged_(unsigned effects);
+        void onSettingsChanged_(uint32_t effects);
 
         // Updates the running audio's copies of settings it keeps (see
         // ConfigChange::UPDATES_RUNNING_AUDIO), unless it's being started,
@@ -708,7 +712,7 @@ class MainFrame : public TopFrame
         // and nothing else is being started, stopped or applied, and
         // otherwise as soon as it is.
         void tryApplyPendingSettings_();
-        void applySettingsWhileRunning_(unsigned effects);
+        void applySettingsWhileRunning_(uint32_t effects);
         void updateTransmitControls_();
 
         void executeOnUiThreadAndWait_(std::function<void()> fn);

@@ -1548,7 +1548,7 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, wxT("FreeDV 
 
     // Settings changed while running (by Settings, merging what was edited
     // in it into the configuration) are applied to the running session.
-    wxGetApp().appConfiguration.onChanged += [this](unsigned effects) {
+    wxGetApp().appConfiguration.onChanged += [this](uint32_t effects) {
         onSettingsChanged_(effects);
     };
 
@@ -2966,6 +2966,16 @@ void MainFrame::performFreeDVOff_()
     });
 }
 
+void MainFrame::setReliableTextCallsign_()
+{
+    // As much of the callsign as RADE's end-of-over text carries.
+    constexpr size_t MAX_CALLSIGN_LENGTH = 8;
+    char callsign[MAX_CALLSIGN_LENGTH + 1] = { 0 };
+    strncpy(callsign, wxGetApp().appConfiguration.reportingConfiguration.reportingCallsign.get().ToUTF8(), MAX_CALLSIGN_LENGTH);
+    log_info("Setting callsign to %s", callsign);
+    freedvInterface.setReliableText(callsign);
+}
+
 void MainFrame::startModem_()
 {
     freedvInterface.start(wxGetApp().appConfiguration.fifoSizeMs, wxGetApp().appConfiguration.reportingConfiguration.reportingEnabled, wxGetApp().appConfiguration.debugVerbose);
@@ -2973,11 +2983,7 @@ void MainFrame::startModem_()
     // Text field/callsign callbacks.
     if (wxGetApp().appConfiguration.reportingConfiguration.reportingEnabled)
     {
-        char temp[9];
-        memset(temp, 0, 9);
-        strncpy(temp, wxGetApp().appConfiguration.reportingConfiguration.reportingCallsign.get().ToUTF8(), 8); // One less than the size of temp to ensure we don't overwrite the null.
-        log_info("Setting callsign to %s", temp);
-        freedvInterface.setReliableText(temp);
+        setReliableTextCallsign_();
     }
 
     log_debug("freedv_get_n_speech_samples(tx): %d", freedvInterface.getTxNumSpeechSamples());
@@ -3241,7 +3247,7 @@ bool MainFrame::isTransmitBusy_()
         g_recFileFromMic.load(std::memory_order_acquire);
 }
 
-void MainFrame::onSettingsChanged_(unsigned effects)
+void MainFrame::onSettingsChanged_(uint32_t effects)
 {
     if (effects & ConfigChange::UPDATES_RUNNING_AUDIO)
     {
@@ -3278,7 +3284,7 @@ void MainFrame::tryApplyPendingSettings_()
         return;
     }
 
-    unsigned effects = pendingChangeEffects_;
+    uint32_t effects = pendingChangeEffects_;
     pendingChangeEffects_ = 0;
 
     // Carried out the way a Start or Stop is, and with the same protection:
@@ -3363,7 +3369,7 @@ void MainFrame::updateTransmitControls_()
     m_btnTogTune->Enable(running && g_nSoundCards.load(std::memory_order_acquire) > 1);
 }
 
-void MainFrame::applySettingsWhileRunning_(unsigned effects)
+void MainFrame::applySettingsWhileRunning_(uint32_t effects)
 {
     bool restartAudio = (effects & ConfigChange::RESTARTS_AUDIO) != 0;
     bool reopenRig = (effects & ConfigChange::RECONNECTS_RADIO) != 0;
@@ -3463,11 +3469,7 @@ void MainFrame::applySettingsWhileRunning_(unsigned effects)
             if (!restartAudio && wxGetApp().appConfiguration.reportingConfiguration.reportingEnabled)
             {
                 // A restarted modem already has the new callsign.
-                char temp[9];
-                memset(temp, 0, 9);
-                strncpy(temp, wxGetApp().appConfiguration.reportingConfiguration.reportingCallsign.get().ToUTF8(), 8);
-                log_info("Setting callsign to %s", temp);
-                freedvInterface.setReliableText(temp);
+                setReliableTextCallsign_();
             }
 
             if (reconnectFreeDVReporter)

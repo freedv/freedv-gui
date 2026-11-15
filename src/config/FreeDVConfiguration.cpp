@@ -321,7 +321,7 @@ void FreeDVConfiguration::save(wxConfigBase* config)
     config->Flush();
 }
 
-unsigned FreeDVConfiguration::mergeChangesFrom(FreeDVConfiguration& original, FreeDVConfiguration& edited)
+uint32_t FreeDVConfiguration::mergeChangesFrom(FreeDVConfiguration& original, FreeDVConfiguration& edited)
 {
     // Not at all if they don't pair up: that would copy settings into others.
     auto mine = elements();
@@ -333,7 +333,7 @@ unsigned FreeDVConfiguration::mergeChangesFrom(FreeDVConfiguration& original, Fr
         return ConfigChange::NONE;
     }
 
-    unsigned effects = ConfigChange::NONE;
+    uint32_t effects = ConfigChange::NONE;
     for (size_t index = 0; index < mine.size(); index++)
     {
         if (!edits[index]->hasSameValueAs(*originals[index]) && !mine[index]->hasSameValueAs(*edits[index]))

@@ -33,12 +33,12 @@ struct Merge
     FreeDVConfiguration original;
     FreeDVConfiguration edited;
 
-    std::vector<unsigned> eventsSeen;
+    std::vector<uint32_t> eventsSeen;
 
     Merge()
     {
         loadDefaults(live);
-        live.onChanged += [this](unsigned effects) { eventsSeen.push_back(effects); };
+        live.onChanged += [this](uint32_t effects) { eventsSeen.push_back(effects); };
         original.copyFrom(live);
         edited.copyFrom(live);
     }
@@ -150,32 +150,32 @@ bool saysWhatChangesNeed()
         Merge m;
         m.edited.audioConfiguration.soundCard2In.deviceName = "Radio";
         m.edited.rigControlConfiguration.hamlibSerialPort = "/dev/ttyUSB0";
-        result &= check("audio and radio", m.merge(), (unsigned)(ConfigChange::RESTARTS_AUDIO | ConfigChange::RECONNECTS_RADIO));
-        result &= check("events", m.eventsSeen, std::vector<unsigned>{ ConfigChange::RESTARTS_AUDIO | ConfigChange::RECONNECTS_RADIO });
+        result &= check("audio and radio", m.merge(), (uint32_t)(ConfigChange::RESTARTS_AUDIO | ConfigChange::RECONNECTS_RADIO));
+        result &= check("events", m.eventsSeen, std::vector<uint32_t>{ ConfigChange::RESTARTS_AUDIO | ConfigChange::RECONNECTS_RADIO });
     }
     {
         Merge m;
         m.edited.reportingConfiguration.udpReportingPort = 2238;
         m.edited.rigControlConfiguration.serialPTTInputPort = "/dev/ttyUSB1";
-        result &= check("reporting and PTT input", m.merge(), (unsigned)(ConfigChange::RESTARTS_REPORTING | ConfigChange::REOPENS_PTT_INPUT));
+        result &= check("reporting and PTT input", m.merge(), (uint32_t)(ConfigChange::RESTARTS_REPORTING | ConfigChange::REOPENS_PTT_INPUT));
     }
     {
         Merge m;
         m.edited.reportingConfiguration.reportingCallsign = "AA1ZZZ";
-        result &= check("callsign", m.merge(), (unsigned)(ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER));
+        result &= check("callsign", m.merge(), (uint32_t)(ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER));
     }
     {
         // Kept by the running audio, which is told without restarting.
         Merge m;
         m.edited.rigControlConfiguration.leftChannelVoxTone = true;
-        result &= check("VOX tone", m.merge(), (unsigned)ConfigChange::UPDATES_RUNNING_AUDIO);
+        result &= check("VOX tone", m.merge(), (uint32_t)ConfigChange::UPDATES_RUNNING_AUDIO);
     }
     {
         // Taken up as they're used: nothing to do, and no event.
         Merge m;
         m.edited.transmitLevel = -10;
         m.edited.halfDuplexMode = false;
-        result &= check("used as they are", m.merge(), (unsigned)ConfigChange::NONE);
+        result &= check("used as they are", m.merge(), (uint32_t)ConfigChange::NONE);
         result &= check("used as they are: values", m.live.transmitLevel.get(), -10);
         result &= check("used as they are: events", m.eventsSeen.size(), (size_t)0);
     }
@@ -184,14 +184,14 @@ bool saysWhatChangesNeed()
         Merge m;
         m.edited.fifoSizeMs = m.live.fifoSizeMs.get() + 100;
         m.edited.fifoSizeMs = m.live.fifoSizeMs.get();
-        result &= check("edited back", m.merge(), (unsigned)ConfigChange::NONE);
+        result &= check("edited back", m.merge(), (uint32_t)ConfigChange::NONE);
     }
     {
         // Changed meanwhile to what was entered: nothing more to do.
         Merge m;
         m.live.audioConfiguration.soundCard1Out.deviceName = "Speaker";
         m.edited.audioConfiguration.soundCard1Out.deviceName = "Speaker";
-        result &= check("already changed meanwhile", m.merge(), (unsigned)ConfigChange::NONE);
+        result &= check("already changed meanwhile", m.merge(), (uint32_t)ConfigChange::NONE);
     }
     return result;
 }

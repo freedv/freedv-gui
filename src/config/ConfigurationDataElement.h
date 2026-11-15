@@ -23,6 +23,7 @@
 #define CONFIGURATION_DATA_ELEMENT_H
 
 #include <cassert>
+#include <cstdint>
 #include <functional>
 #include <mutex>
 
@@ -33,20 +34,20 @@
 // says which are needed, through FreeDVConfiguration::onChanged.
 namespace ConfigChange
 {
-    enum Effect : unsigned
+    enum Effect : uint32_t
     {
         NONE = 0,
-        RESTARTS_AUDIO = 1u << 0,
-        RECONNECTS_RADIO = 1u << 1,
-        REOPENS_PTT_INPUT = 1u << 2,
-        RESTARTS_REPORTING = 1u << 3,
+        RESTARTS_AUDIO = UINT32_C(1) << 0,
+        RECONNECTS_RADIO = UINT32_C(1) << 1,
+        REOPENS_PTT_INPUT = UINT32_C(1) << 2,
+        RESTARTS_REPORTING = UINT32_C(1) << 3,
         // FreeDV Reporter is told who and where this station is when it
         // connects, so changing that means connecting again (and briefly
         // leaving its list). Reporting restarts too.
-        RECONNECTS_FREEDV_REPORTER = 1u << 4,
+        RECONNECTS_FREEDV_REPORTER = UINT32_C(1) << 4,
         // The running audio keeps a copy of it, which is updated as soon as
         // nothing's starting, stopping or restarting it (no restart needed).
-        UPDATES_RUNNING_AUDIO = 1u << 5,
+        UPDATES_RUNNING_AUDIO = UINT32_C(1) << 5,
     };
 }
 
@@ -61,7 +62,7 @@ public:
     virtual const char* getElementName() const = 0;
 
     // ConfigChange::Effect flags.
-    virtual unsigned getChangeEffects() const = 0;
+    virtual uint32_t getChangeEffects() const = 0;
 
     // other is the same setting in another copy of the configuration.
     virtual bool hasSameValueAs(IConfigurationDataElement& other) = 0;
@@ -72,7 +73,7 @@ template<typename UnderlyingDataType>
 class ConfigurationDataElement : public IConfigurationDataElement
 {
 public:
-    ConfigurationDataElement(const char* elementName, UnderlyingDataType const& defaultVal, unsigned changeEffects = ConfigChange::NONE);
+    ConfigurationDataElement(const char* elementName, UnderlyingDataType const& defaultVal, uint32_t changeEffects = ConfigChange::NONE);
     virtual ~ConfigurationDataElement() = default;
 
     // Elements are read and written from several threads (the UI thread,
@@ -83,7 +84,7 @@ public:
     ConfigurationDataElement& operator=(const ConfigurationDataElement&) = delete;
 
     const char* getElementName() const override;
-    unsigned getChangeEffects() const override;
+    uint32_t getChangeEffects() const override;
 
     // The value as stored (as saved), and the default with it, which some
     // settings work out when the configuration's loaded.
@@ -112,7 +113,7 @@ public:
     void setLoadProcessor(std::function<UnderlyingDataType(UnderlyingDataType)> fn);
 private:
     const char* elementName_;
-    unsigned changeEffects_;
+    uint32_t changeEffects_;
     UnderlyingDataType data_;
     UnderlyingDataType default_;
     
@@ -124,7 +125,7 @@ private:
 };
 
 template<typename UnderlyingDataType>
-ConfigurationDataElement<UnderlyingDataType>::ConfigurationDataElement(const char* elementName, UnderlyingDataType const& defaultVal, unsigned changeEffects)
+ConfigurationDataElement<UnderlyingDataType>::ConfigurationDataElement(const char* elementName, UnderlyingDataType const& defaultVal, uint32_t changeEffects)
     : elementName_(elementName)
     , changeEffects_(changeEffects)
     , data_(defaultVal)
@@ -142,7 +143,7 @@ const char* ConfigurationDataElement<UnderlyingDataType>::getElementName() const
 }
 
 template<typename UnderlyingDataType>
-unsigned ConfigurationDataElement<UnderlyingDataType>::getChangeEffects() const
+uint32_t ConfigurationDataElement<UnderlyingDataType>::getChangeEffects() const
 {
     return changeEffects_;
 }
