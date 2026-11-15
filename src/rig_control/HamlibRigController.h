@@ -116,6 +116,10 @@ private:
 
     // 2 or more errors while retrieving freq/mode should cause the popup to appear
     const int MAX_GET_FREQUENCY_ERR_COUNT = 1;
+
+    // How long to wait before connecting to rigctld again when it drops the
+    // connection straight away (see connectImpl_()).
+    static constexpr int RIGCTLD_RETRY_DELAY_MS = 500;
     
     vfo_t getCurrentVfo_();
     vfo_t getWritableVfo_();

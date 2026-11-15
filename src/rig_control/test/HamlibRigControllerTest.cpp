@@ -9,7 +9,14 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <thread>
 #include <unistd.h>
+#if !defined(_WIN32)
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <poll.h>
+#include <sys/socket.h>
+#endif // !defined(_WIN32)
 
 #include "../HamlibRigController.h"
 #include "util/logging/ulog_async.h"
@@ -899,6 +906,110 @@ bool restoresOriginalSettingsEachTimeItConnects()
         return false;
     }
     return f.frequencies.back() == origFreq && f.modes.back() == origMode;
+}
+
+#if !defined(_WIN32)
+// Stands in for a rigctld that drops each connection as soon as it's
+// accepted, as older ones can when another client goes at the same moment.
+struct DroppingServer
+{
+    int listenSocket = -1;
+    int port = 0;
+    std::atomic<int> numAccepted { 0 };
+    std::atomic<bool> stopping { false };
+    std::thread thread;
+
+    DroppingServer()
+    {
+        listenSocket = socket(AF_INET, SOCK_STREAM, 0);
+        sockaddr_in addr {};
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        addr.sin_port = 0;
+        socklen_t len = sizeof(addr);
+        if (listenSocket < 0 ||
+            bind(listenSocket, (sockaddr*)&addr, sizeof(addr)) != 0 ||
+            listen(listenSocket, 8) != 0 ||
+            getsockname(listenSocket, (sockaddr*)&addr, &len) != 0)
+        {
+            return;
+        }
+        port = ntohs(addr.sin_port);
+
+        thread = std::thread([this]() {
+            while (!stopping)
+            {
+                pollfd pfd { listenSocket, POLLIN, 0 };
+                if (poll(&pfd, 1, 50) > 0)
+                {
+                    int client = accept(listenSocket, nullptr, nullptr);
+                    if (client >= 0)
+                    {
+                        numAccepted++;
+                        close(client);
+                    }
+                }
+            }
+        });
+    }
+
+    ~DroppingServer()
+    {
+        stopping = true;
+        if (thread.joinable()) thread.join();
+        if (listenSocket >= 0) close(listenSocket);
+    }
+};
+#endif // !defined(_WIN32)
+
+// Connects to a server that drops every connection straight away, using the
+// given Hamlib model, and says how many times the controller connected to it
+// before giving up (or -1 if something else went wrong).
+static int connectionsMadeToDroppingServer(std::string const& rigName)
+{
+#if defined(_WIN32)
+    (void)rigName;
+    return -1;
+#else
+    DroppingServer server;
+    if (server.port == 0)
+    {
+        std::cout << "[could not start a server to connect to] ";
+        return -1;
+    }
+
+    Fixture f(rigName, HamlibRigController::PTT_VIA_CAT, false, false,
+              "127.0.0.1:" + std::to_string(server.port));
+    f.controller.connect();
+    if (!f.waitFor([&]() { return !f.errors.empty(); }))
+    {
+        std::cout << "[" << rigName << ": no error reported] ";
+        return -1;
+    }
+    f.waitUntilIdle();
+    if (f.controller.isConnected() || f.numConnects != 0 || f.errors.size() != 1)
+    {
+        std::cout << "[" << rigName << ": connected, or " << f.errors.size() << " errors] ";
+        return -1;
+    }
+    return server.numAccepted;
+#endif // defined(_WIN32)
+}
+
+// Older rigctlds can drop a connection as soon as they've accepted it (see
+// connectImpl_()), so the controller connects once more before reporting
+// the error. Only to rigctld: nothing else is known to do that.
+bool triesRigctldAgainWhenItDropsTheConnection()
+{
+#if defined(_WIN32)
+    std::cout << "[skipped on Windows] ";
+    return true;
+#else
+    int rigctld = connectionsMadeToDroppingServer("Hamlib NET rigctl");
+    int flrig = connectionsMadeToDroppingServer("FLRig FLRig");
+    std::cout << "[rigctld: " << rigctld << " connections, flrig: " << flrig << "] ";
+    return rigctld == 2 && flrig == 1;
+#endif // defined(_WIN32)
 }
 
 bool reportsErrorWhenRadioCannotBeOpened()
@@ -1922,6 +2033,7 @@ int main()
     executeTestCase("restoresOnlyFrequencyOnDisconnect", []() { return restoreOnDisconnect(true, true); });
     executeTestCase("restoresOriginalSettingsEachTimeItConnects", restoresOriginalSettingsEachTimeItConnects);
     executeTestCase("reportsErrorWhenRadioCannotBeOpened", reportsErrorWhenRadioCannotBeOpened);
+    executeTestCase("triesRigctldAgainWhenItDropsTheConnection", triesRigctldAgainWhenItDropsTheConnection);
     executeTestCase("reportsUnknownForOtherModes", reportsUnknownForOtherModes);
     executeTestCase("ignoresRequestForCurrentFrequency", ignoresRequestForCurrentFrequency);
     executeTestCase("followsFrequencyChangedOnRadio", followsFrequencyChangedOnRadio);

@@ -2774,11 +2774,19 @@ void OptionsDlg::OnTestPTT(wxCommandEvent&)
                 else        { finish(); }
             };
 
-            std::thread([=, this]() {
+            std::thread([=, this]() mutable {
                 hamlib->connect();
-                std::unique_lock<std::mutex> lk(*mtx);
-                cv->wait(lk, [finished]() { return *finished; });
+                {
+                    std::unique_lock<std::mutex> lk(*mtx);
+                    cv->wait(lk, [finished]() { return *finished; });
+                }
+                // Let go of the radio before Test PTT can be clicked again:
+                // disconnect() only asks for it, and it's the controller's
+                // destructor that waits until it's done. (A new connection
+                // made while rigctld is closing the old one can be dropped
+                // by it.)
                 hamlib->disconnect();
+                hamlib.reset();
                 CallAfter([this]() { isTesting_ = false; updateRadioControlState(); });
             }).detach();
         } else {
