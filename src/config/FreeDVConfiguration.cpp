@@ -57,7 +57,7 @@ FreeDVConfiguration::FreeDVConfiguration()
     , currentNotebookTab("/MainFrame/rxNbookCtrl", 0)
         
     /* Misc. audio settings */
-    , fifoSizeMs("/Audio/fifoSize_ms", (int)FIFO_SIZE)
+    , fifoSizeMs("/Audio/fifoSize_ms", (int)FIFO_SIZE, ConfigChange::RESTARTS_AUDIO)
     , transmitLevel("/Audio/transmitLevel", 0)
     , tuneLevel("/Audio/tuneLevel", 0)
     , txAttenByBand("/Audio/transmitLevelByBand", {})
@@ -319,4 +319,28 @@ void FreeDVConfiguration::save(wxConfigBase* config)
     save_(config, tuneAttenByBand);
 
     config->Flush();
+}
+
+unsigned FreeDVConfiguration::mergeChangesFrom(FreeDVConfiguration& original, FreeDVConfiguration& edited)
+{
+    auto mine = elements();
+    auto originals = original.elements();
+    auto edits = edited.elements();
+    assert(mine.size() == originals.size() && mine.size() == edits.size());
+
+    unsigned effects = ConfigChange::NONE;
+    for (size_t index = 0; index < mine.size() && index < originals.size() && index < edits.size(); index++)
+    {
+        if (!edits[index]->hasSameValueAs(*originals[index]) && !mine[index]->hasSameValueAs(*edits[index]))
+        {
+            mine[index]->copyValueFrom(*edits[index]);
+            effects |= mine[index]->getChangeEffects();
+        }
+    }
+
+    if (effects != ConfigChange::NONE)
+    {
+        onChanged(effects);
+    }
+    return effects;
 }

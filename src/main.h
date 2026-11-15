@@ -410,9 +410,6 @@ class MainFrame : public TopFrame
         
         bool isReceiveOnly();
 
-        // Called once Settings has saved what's in it (OK or Apply).
-        void onSettingsSaved();
-
     protected:
 
         void setsnrBeta(bool snrSlow);
@@ -688,68 +685,13 @@ class MainFrame : public TopFrame
         void startSessionTimers_();
         void stopSessionTimers_();
 
-        // The settings that need some part of a running session restarted to
-        // take effect, by what has to be restarted.
-        struct AudioSettings_
-        {
-            wxString soundCard1In, soundCard1Out, soundCard2In, soundCard2Out;
-            int fifoSizeMs = 0;
-            // RADE only has a text channel if reporting was on when it started.
-            bool reportingEnabled = false;
-            bool operator==(AudioSettings_ const&) const = default;
-        };
-        struct RigSettings_
-        {
-            bool hamlibUseForPTT = false;
-            int hamlibRig = -1;
-            wxString hamlibSerialPort, hamlibPttSerialPort;
-            int hamlibSerialRate = 0, hamlibIcomCIVAddress = 0, hamlibPTTType = 0;
-            bool hamlibForceRTSOn = false, hamlibForceDTROn = false;
-            bool hamlibEnableFreqModeChanges = false, hamlibEnableFreqChangesOnly = false, hamlibSaveRestoreFrequency = false;
-            bool useSerialPTT = false;
-            wxString serialPTTPort;
-            bool serialPTTUseRTS = false, serialPTTPolarityRTS = false, serialPTTUseDTR = false, serialPTTPolarityDTR = false;
-            bool useOmniRig = false; // Windows only
-            int omniRigRigId = 0;
-            bool operator==(RigSettings_ const&) const = default;
-        };
-        struct PttInputSettings_
-        {
-            bool useSerialPTTInput = false;
-            wxString serialPTTInputPort;
-            bool serialPTTInputPolarityCTS = false;
-            bool operator==(PttInputSettings_ const&) const = default;
-        };
-        struct ReportingSettings_
-        {
-            bool reportingEnabled = false;
-            wxString callsign, gridSquare;
-            bool pskReporterEnabled = false, freedvReporterEnabled = false;
-            wxString freedvReporterHostname;
-            bool freedvReporterUseTls = false, freedvReporterForceReceiveOnly = false;
-            bool udpReportingEnabled = false;
-            wxString udpReportingHostname;
-            int udpReportingPort = 0;
-            bool udpBroadcastEnabled = false;
-            wxString udpBroadcastAddress;
-            int udpBroadcastPort = 0;
-            wxString csvLogFilePath;
-            bool operator==(ReportingSettings_ const&) const = default;
-        };
-        struct SessionSettings_
-        {
-            AudioSettings_ audio;
-            RigSettings_ rig;
-            PttInputSettings_ pttInput;
-            ReportingSettings_ reporting;
-        };
-        SessionSettings_ captureSessionSettings_();
-
-        // What the running session was started, or last re-applied, with.
-        // UI thread only, like the three below.
-        SessionSettings_ appliedSettings_;
-        bool settingsApplyPending_ = false;
+        // What the settings changed while running still need to take effect
+        // (ConfigChange::Effect flags), from FreeDVConfiguration::onChanged.
+        // UI thread only, like applyingSettings_.
+        unsigned pendingChangeEffects_ = 0;
         bool applyingSettings_ = false;
+
+        void onSettingsChanged_(unsigned effects);
 
         // True while transmitting, or while something is under way that a
         // restart would cut off (the voice keyer, Tune, a recording for the
@@ -760,7 +702,7 @@ class MainFrame : public TopFrame
         // and nothing else is being started, stopped or applied, and
         // otherwise as soon as it is.
         void tryApplyPendingSettings_();
-        void applySettingsWhileRunning_(SessionSettings_ const& from, SessionSettings_ const& to);
+        void applySettingsWhileRunning_(unsigned effects);
         void updateTransmitControls_();
 
         void executeOnUiThreadAndWait_(std::function<void()> fn);

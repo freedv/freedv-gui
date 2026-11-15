@@ -197,7 +197,6 @@ void MainFrame::OnToolsOptions(wxCommandEvent& event)
     if (optionsDlg == nullptr)
     {
         optionsDlg = new OptionsDlg(NULL);
-        optionsDlg->setOnSettingsSaved([this]() { onSettingsSaved(); });
         // Initialize the session-active state so controls are displayed
         // correctly in case a session is already running.
         optionsDlg->setSessionActive(m_RxRunning.load(std::memory_order_acquire));
@@ -319,7 +318,7 @@ void MainFrame::OnToolsOptions(wxCommandEvent& event)
         }
 
         // Initialize FreeDV Reporter if required. While running, it's done
-        // if need be as the new settings are applied (see onSettingsSaved()).
+        // if need be as the new settings are applied (see onSettingsChanged_()).
         if (!m_RxRunning.load(std::memory_order_acquire) && !applyingSettings_)
         {
             initializeFreeDVReporter_();

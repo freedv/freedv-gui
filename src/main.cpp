@@ -1540,10 +1540,18 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, wxT("FreeDV 
     m_plotTimer.SetOwner(this, ID_TIMER_UPDATE_OTHER);
     m_pskReporterTimer.SetOwner(this, ID_TIMER_PSKREPORTER);
     m_updFreqStatusTimer.SetOwner(this,ID_TIMER_UPD_FREQ);
+
     m_totTimer.SetOwner(this, ID_TIMER_TOT);
     Bind(wxEVT_TIMER, &MainFrame::OnTOTTimer, this, ID_TIMER_TOT);
     m_totWarningTimer.SetOwner(this, ID_TIMER_TOT_WARNING);
     Bind(wxEVT_TIMER, &MainFrame::OnTOTWarningTimer, this, ID_TIMER_TOT_WARNING);
+
+    // Settings changed while running (by Settings, merging what was edited
+    // in it into the configuration) are applied to the running session.
+    wxGetApp().appConfiguration.onChanged += [this](unsigned effects) {
+        onSettingsChanged_(effects);
+    };
+
     m_pttKeyPollTimer.SetOwner(this, ID_TIMER_PTT_KEY_POLL);
     Bind(wxEVT_TIMER, &MainFrame::OnPttKeyPollTimer, this, ID_TIMER_PTT_KEY_POLL);
 #endif
@@ -1845,6 +1853,9 @@ void MainFrame::exportConfiguration_(wxConfigBase* config)
 //-------------------------------------------------------------------------
 MainFrame::~MainFrame()
 {
+    // The configuration outlives this window.
+    wxGetApp().appConfiguration.onChanged.clear();
+
     // Close the frequency list now if it's open. Otherwise ~wxComboCtrlBase()
     // closes it once this window is partly destroyed, and on macOS working out
     // where the mouse is then asserts ("TopLevel Window missing").
@@ -2786,10 +2797,9 @@ void MainFrame::performFreeDVOn_()
             g_error_histn[i] = 0;
         }
 
-        // What this session starts with, to tell what's changed when
-        // Settings saves while it runs.
-        appliedSettings_ = captureSessionSettings_();
-        settingsApplyPending_ = false;
+        // This session starts with the settings as they are now: only
+        // changes from here on need applying to it.
+        pendingChangeEffects_ = 0;
     });
 
     g_State.store(0, std::memory_order_release);
@@ -2904,9 +2914,9 @@ void MainFrame::performFreeDVOff_()
 
         stopSessionTimers_();
 
-        // Whatever Settings saved for this session goes with it: the next
+        // Whatever Settings changed for this session goes with it: the next
         // Start reads it all afresh.
-        settingsApplyPending_ = false;
+        pendingChangeEffects_ = 0;
     });
 #endif // _USE_TIMER
     
@@ -3204,68 +3214,6 @@ void MainFrame::stopSessionTimers_()
 #endif // _USE_TIMER
 }
 
-MainFrame::SessionSettings_ MainFrame::captureSessionSettings_()
-{
-    auto& config = wxGetApp().appConfiguration;
-    auto& audio = config.audioConfiguration;
-    auto& rig = config.rigControlConfiguration;
-    auto& reporting = config.reportingConfiguration;
-
-    SessionSettings_ settings;
-
-    settings.audio.soundCard1In = audio.soundCard1In.deviceName.get();
-    settings.audio.soundCard1Out = audio.soundCard1Out.deviceName.get();
-    settings.audio.soundCard2In = audio.soundCard2In.deviceName.get();
-    settings.audio.soundCard2Out = audio.soundCard2Out.deviceName.get();
-    settings.audio.fifoSizeMs = config.fifoSizeMs.get();
-    settings.audio.reportingEnabled = reporting.reportingEnabled.get();
-
-    settings.rig.hamlibUseForPTT = rig.hamlibUseForPTT.get();
-    settings.rig.hamlibRig = wxGetApp().m_intHamlibRig;
-    settings.rig.hamlibSerialPort = rig.hamlibSerialPort.get();
-    settings.rig.hamlibPttSerialPort = rig.hamlibPttSerialPort.get();
-    settings.rig.hamlibSerialRate = rig.hamlibSerialRate.get();
-    settings.rig.hamlibIcomCIVAddress = rig.hamlibIcomCIVAddress.get();
-    settings.rig.hamlibPTTType = rig.hamlibPTTType.get();
-    settings.rig.hamlibForceRTSOn = rig.hamlibForceRTSOn.get();
-    settings.rig.hamlibForceDTROn = rig.hamlibForceDTROn.get();
-    settings.rig.hamlibEnableFreqModeChanges = rig.hamlibEnableFreqModeChanges.get();
-    settings.rig.hamlibEnableFreqChangesOnly = rig.hamlibEnableFreqChangesOnly.get();
-    settings.rig.hamlibSaveRestoreFrequency = rig.hamlibSaveRestoreFrequency.get();
-    settings.rig.useSerialPTT = rig.useSerialPTT.get();
-    settings.rig.serialPTTPort = rig.serialPTTPort.get();
-    settings.rig.serialPTTUseRTS = rig.serialPTTUseRTS.get();
-    settings.rig.serialPTTPolarityRTS = rig.serialPTTPolarityRTS.get();
-    settings.rig.serialPTTUseDTR = rig.serialPTTUseDTR.get();
-    settings.rig.serialPTTPolarityDTR = rig.serialPTTPolarityDTR.get();
-#if defined(WIN32)
-    settings.rig.useOmniRig = rig.useOmniRig.get();
-    settings.rig.omniRigRigId = rig.omniRigRigId.get();
-#endif // defined(WIN32)
-
-    settings.pttInput.useSerialPTTInput = rig.useSerialPTTInput.get();
-    settings.pttInput.serialPTTInputPort = rig.serialPTTInputPort.get();
-    settings.pttInput.serialPTTInputPolarityCTS = rig.serialPTTInputPolarityCTS.get();
-
-    settings.reporting.reportingEnabled = reporting.reportingEnabled.get();
-    settings.reporting.callsign = reporting.reportingCallsign.get();
-    settings.reporting.gridSquare = reporting.reportingGridSquare.get();
-    settings.reporting.pskReporterEnabled = reporting.pskReporterEnabled.get();
-    settings.reporting.freedvReporterEnabled = reporting.freedvReporterEnabled.get();
-    settings.reporting.freedvReporterHostname = reporting.freedvReporterHostname.get();
-    settings.reporting.freedvReporterUseTls = reporting.freedvReporterUseTls.get();
-    settings.reporting.freedvReporterForceReceiveOnly = reporting.freedvReporterForceReceiveOnly.get();
-    settings.reporting.udpReportingEnabled = reporting.udpReportingEnabled.get();
-    settings.reporting.udpReportingHostname = reporting.udpReportingHostname.get();
-    settings.reporting.udpReportingPort = reporting.udpReportingPort.get();
-    settings.reporting.udpBroadcastEnabled = reporting.udpBroadcastEnabled.get();
-    settings.reporting.udpBroadcastAddress = reporting.udpBroadcastAddress.get();
-    settings.reporting.udpBroadcastPort = reporting.udpBroadcastPort.get();
-    settings.reporting.csvLogFilePath = reporting.csvLogFilePath.get();
-
-    return settings;
-}
-
 bool MainFrame::isTransmitBusy_()
 {
     return 
@@ -3279,7 +3227,7 @@ bool MainFrame::isTransmitBusy_()
         g_recFileFromMic.load(std::memory_order_acquire);
 }
 
-void MainFrame::onSettingsSaved()
+void MainFrame::onSettingsChanged_(unsigned effects)
 {
     if (!m_RxRunning.load(std::memory_order_acquire) && !onOffInProgress_)
     {
@@ -3288,16 +3236,15 @@ void MainFrame::onSettingsSaved()
     }
 
     // Applied now, or once a Start that's under way (and took its settings
-    // before they were saved) is done, or once off the air. A Stop that's
+    // before they changed) is done, or once off the air. A Stop that's
     // under way makes this moot (see performFreeDVOff_()).
-
-    settingsApplyPending_ = true;
+    pendingChangeEffects_ |= effects;
     tryApplyPendingSettings_();
 }
 
 void MainFrame::tryApplyPendingSettings_()
 {
-    if (!settingsApplyPending_ || applyingSettings_ || onOffInProgress_ || terminating_ ||
+    if (pendingChangeEffects_ == 0 || applyingSettings_ || onOffInProgress_ || terminating_ ||
         !m_RxRunning.load(std::memory_order_acquire))
     {
         return;
@@ -3310,15 +3257,8 @@ void MainFrame::tryApplyPendingSettings_()
         return;
     }
 
-    settingsApplyPending_ = false;
-
-    auto from = appliedSettings_;
-    auto to = captureSessionSettings_();
-    if (from.audio == to.audio && from.rig == to.rig && from.pttInput == to.pttInput && from.reporting == to.reporting)
-    {
-        // Only settings that take effect by themselves.
-        return;
-    }
+    unsigned effects = pendingChangeEffects_;
+    pendingChangeEffects_ = 0;
 
     // Carried out the way a Start or Stop is, and with the same protection:
     // the On/Off, PTT, voice keyer and Tune buttons wait for it, and closing
@@ -3340,13 +3280,13 @@ void MainFrame::tryApplyPendingSettings_()
     m_btnTogPTT->Enable(false);
     m_btnTogTune->Enable(false);
 
-    std::thread applyExec([this, from, to, frequencyBoxHadFocus, isInFrequencyBox]()
+    std::thread applyExec([this, effects, frequencyBoxHadFocus, isInFrequencyBox]()
     {
         SetThreadName("ApplySettings");
 
         try
         {
-            applySettingsWhileRunning_(from, to);
+            applySettingsWhileRunning_(effects);
         }
         catch (const std::exception& ex)
         {
@@ -3401,23 +3341,17 @@ void MainFrame::updateTransmitControls_()
     m_btnTogTune->Enable(running && g_nSoundCards.load(std::memory_order_acquire) > 1);
 }
 
-void MainFrame::applySettingsWhileRunning_(SessionSettings_ const& from, SessionSettings_ const& to)
+void MainFrame::applySettingsWhileRunning_(unsigned effects)
 {
-    bool restartAudio = !(from.audio == to.audio);
-    bool reopenRig = !(from.rig == to.rig);
-    bool reopenPttInput = !(from.pttInput == to.pttInput);
-    bool restartReporting = !(from.reporting == to.reporting);
+    bool restartAudio = (effects & ConfigChange::RESTARTS_AUDIO) != 0;
+    bool reopenRig = (effects & ConfigChange::RECONNECTS_RADIO) != 0;
+    bool reopenPttInput = (effects & ConfigChange::REOPENS_PTT_INPUT) != 0;
 
     // FreeDV Reporter is reconnected only if something it's told about this
     // station changed, so it isn't dropped from the list over, say, a new
     // UDP port.
-    bool reconnectFreeDVReporter =
-        from.reporting.reportingEnabled != to.reporting.reportingEnabled ||
-        from.reporting.callsign != to.reporting.callsign ||
-        from.reporting.gridSquare != to.reporting.gridSquare ||
-        from.reporting.freedvReporterHostname != to.reporting.freedvReporterHostname ||
-        from.reporting.freedvReporterUseTls != to.reporting.freedvReporterUseTls ||
-        from.reporting.freedvReporterForceReceiveOnly != to.reporting.freedvReporterForceReceiveOnly;
+    bool reconnectFreeDVReporter = (effects & ConfigChange::RECONNECTS_FREEDV_REPORTER) != 0;
+    bool restartReporting = reconnectFreeDVReporter || (effects & ConfigChange::RESTARTS_REPORTING) != 0;
 
     log_info(
         "Applying settings changed while running: audio %d, rig %d, PTT input %d, reporting %d",
@@ -3532,10 +3466,6 @@ void MainFrame::applySettingsWhileRunning_(SessionSettings_ const& from, Session
 
         startReporting_();
     }
-
-    executeOnUiThreadAndWait_([&]() {
-        appliedSettings_ = to;
-    });
 }
 
 //-------------------------------------------------------------------------

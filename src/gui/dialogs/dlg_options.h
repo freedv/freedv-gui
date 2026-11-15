@@ -52,9 +52,6 @@ class OptionsDlg : public wxDialog
         void DisplayFifoPACounters();
         
         void setSessionActive(bool active);
-
-        // Called once OK or Apply has saved the settings.
-        void setOnSettingsSaved(std::function<void()> fn) { onSettingsSaved_ = std::move(fn); }
         
     protected:
 
@@ -319,10 +316,16 @@ class OptionsDlg : public wxDialog
          void testAudioInput(const wxString& inDevName, const wxString& outDevName, wxButton* btn);
 
          bool sessionActive_;
-         std::function<void()> onSettingsSaved_;
+
+         // What's shown and edited: a copy of the configuration as it was
+         // when it was shown (or last applied), and that copy as edited.
+         // Their differences are merged into wxGetApp().appConfiguration
+         // (see ExchangeData()).
+         FreeDVConfiguration originalConfig_;
+         FreeDVConfiguration editedConfig_;
 
          // Notes shown while FreeDV is running, on the pages whose settings
-         // only take effect when it's next started.
+         // restart or reconnect something when they're applied.
          std::vector<std::pair<wxStaticText*, wxString>> runningNotes_;
          wxStaticText* addRunningNote_(wxWindow* page, wxString const& text, const char* name);
          bool isTesting_;

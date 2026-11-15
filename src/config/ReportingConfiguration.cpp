@@ -32,24 +32,24 @@
 #include "ReportingConfiguration.h"
 
 ReportingConfiguration::ReportingConfiguration()
-    : reportingEnabled("/Reporting/Enable", false)
-    , reportingCallsign("/Reporting/Callsign", wxT(""))
-    , reportingGridSquare("/Reporting/GridSquare", wxT(""))
+    : reportingEnabled("/Reporting/Enable", false, ConfigChange::RESTARTS_AUDIO | ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER)
+    , reportingCallsign("/Reporting/Callsign", wxT(""), ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER)
+    , reportingGridSquare("/Reporting/GridSquare", wxT(""), ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER)
         
     , reportingFrequency("/Reporting/Frequency", 0)
         
     , manualFrequencyReporting("/Reporting/ManualFrequencyReporting", false)
         
-    , pskReporterEnabled("/Reporting/PSKReporter/Enable", true)
+    , pskReporterEnabled("/Reporting/PSKReporter/Enable", true, ConfigChange::RESTARTS_REPORTING)
         
-    , freedvReporterEnabled("/Reporting/FreeDV/Enable", true)
+    , freedvReporterEnabled("/Reporting/FreeDV/Enable", true, ConfigChange::RESTARTS_REPORTING)
     , freedvReporterForcedOff("/Reporting/FreeDV/ForcedOff", false)
-    , freedvReporterHostname("/Reporting/FreeDV/Hostname", wxT(FREEDV_REPORTER_DEFAULT_HOSTNAME))
-    , freedvReporterUseTls("/Reporting/FreeDV/UseTls", true)
+    , freedvReporterHostname("/Reporting/FreeDV/Hostname", wxT(FREEDV_REPORTER_DEFAULT_HOSTNAME), ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER)
+    , freedvReporterUseTls("/Reporting/FreeDV/UseTls", true, ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER)
     , freedvReporterBandFilter("/Reporting/FreeDV/CurrentBandFilter", 0)
     , useMetricDistances("/Reporting/FreeDV/UseMetricDistances", true)
     , freedvReporterBandFilterTracksFrequency("/Reporting/FreeDV/BandFilterTracksFrequency", false)
-    , freedvReporterForceReceiveOnly("/Reporting/FreeDV/ForceReceiveOnly", false)
+    , freedvReporterForceReceiveOnly("/Reporting/FreeDV/ForceReceiveOnly", false, ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER)
     , freedvReporterBandFilterTracksFreqBand("/Reporting/FreeDV/BandFilterTracking/TracksFreqBand", true)
     , freedvReporterBandFilterTracksExactFreq("/Reporting/FreeDV/BandFilterTracking/TracksExactFreq", false)
     , freedvReporterStatusText("/Reporting/FreeDV/StatusText", wxT(""))
@@ -63,13 +63,13 @@ ReportingConfiguration::ReportingConfiguration()
     , freedvReporterColumnFilterOperators("/Reporting/FreeDV/ColumnFilterOperators", {})
     , freedvReporterColumnFilterValues("/Reporting/FreeDV/ColumnFilterValues", {})
 
-    , udpReportingEnabled("/Reporting/UDP/Enable", false)
-    , udpReportingHostname("/Reporting/UDP/Hostname", wxT("127.0.0.1"))
-    , udpReportingPort("/Reporting/UDP/Port", 2237)
+    , udpReportingEnabled("/Reporting/UDP/Enable", false, ConfigChange::RESTARTS_REPORTING)
+    , udpReportingHostname("/Reporting/UDP/Hostname", wxT("127.0.0.1"), ConfigChange::RESTARTS_REPORTING)
+    , udpReportingPort("/Reporting/UDP/Port", 2237, ConfigChange::RESTARTS_REPORTING)
 
-    , udpBroadcastEnabled("/Reporting/UDPBroadcast/Enable", false)
-    , udpBroadcastAddress("/Reporting/UDPBroadcast/Address", wxT("224.0.0.1"))
-    , udpBroadcastPort("/Reporting/UDPBroadcast/Port", 7177)
+    , udpBroadcastEnabled("/Reporting/UDPBroadcast/Enable", false, ConfigChange::RESTARTS_REPORTING)
+    , udpBroadcastAddress("/Reporting/UDPBroadcast/Address", wxT("224.0.0.1"), ConfigChange::RESTARTS_REPORTING)
+    , udpBroadcastPort("/Reporting/UDPBroadcast/Port", 7177, ConfigChange::RESTARTS_REPORTING)
 
     , useUTCForReporting("/CallsignList/UseUTCTime", false)
 
@@ -102,7 +102,7 @@ ReportingConfiguration::ReportingConfiguration()
         
     , reportingFrequencyAsKhz("/Reporting/FrequencyAsKHz", false)
     , reportingDirectionAsCardinal("/Reporting/DirectionAsCardinal", false)
-    , csvLogFilePath("/Reporting/CSV/LogFilePath", wxT(""))
+    , csvLogFilePath("/Reporting/CSV/LogFilePath", wxT(""), ConfigChange::RESTARTS_REPORTING)
 {
     // Special handling for the frequency list to properly handle locales
     reportingFrequencyList.setLoadProcessor([this](std::vector<wxString> const& list) {

@@ -21,7 +21,46 @@
 
 #include <wx/tokenzr.h>
 #include <wx/numformatter.h>
+#include <wx/memconf.h>
 #include "WxWidgetsConfigStore.h"
+
+namespace
+{
+    // Where elements() is collecting elements, if it is (on this thread).
+    thread_local std::vector<IConfigurationDataElement*>* elementsBeingListed = nullptr;
+}
+
+void WxWidgetsConfigStore::noteSaved_(IConfigurationDataElement& configElement)
+{
+    if (elementsBeingListed != nullptr)
+    {
+        elementsBeingListed->push_back(&configElement);
+    }
+}
+
+std::vector<IConfigurationDataElement*> WxWidgetsConfigStore::elements()
+{
+    // save() names each of them, and its list is the one that's kept up to
+    // date. Into a configuration that's thrown away afterwards.
+    std::vector<IConfigurationDataElement*> result;
+    wxMemoryConfig scratch;
+    auto* outer = elementsBeingListed;
+    elementsBeingListed = &result;
+    save(&scratch);
+    elementsBeingListed = outer;
+    return result;
+}
+
+void WxWidgetsConfigStore::copyFrom(WxWidgetsConfigStore& other)
+{
+    auto mine = elements();
+    auto theirs = other.elements();
+    assert(mine.size() == theirs.size());
+    for (size_t index = 0; index < mine.size() && index < theirs.size(); index++)
+    {
+        mine[index]->copyValueFrom(*theirs[index]);
+    }
+}
 
 // wxWidgets by default expands anything that looks like an environment variable
 // (e.g. $HOME) when reading strings. Settings should instead come back exactly as 
@@ -77,6 +116,7 @@ void WxWidgetsConfigStore::load_<std::vector<int> >(wxConfigBase* config, Config
 template<>
 void WxWidgetsConfigStore::save_<std::vector<int> >(wxConfigBase* config, ConfigurationDataElement<std::vector<int> >& configElement)
 {
+    noteSaved_(configElement);
     wxString val = generateStringFromArray_(configElement.getWithoutProcessing());
     config->Write(configElement.getElementName(), val);
 }
@@ -94,6 +134,7 @@ void WxWidgetsConfigStore::load_<std::vector<bool> >(wxConfigBase* config, Confi
 template<>
 void WxWidgetsConfigStore::save_<std::vector<bool> >(wxConfigBase* config, ConfigurationDataElement<std::vector<bool> >& configElement)
 {
+    noteSaved_(configElement);
     wxString val = generateStringFromArray_(configElement.getWithoutProcessing());
     config->Write(configElement.getElementName(), val);
 }
@@ -115,6 +156,7 @@ void WxWidgetsConfigStore::load_<std::vector<wxString> >(wxConfigBase* config, C
 template<>
 void WxWidgetsConfigStore::save_<std::vector<wxString> >(wxConfigBase* config, ConfigurationDataElement<std::vector<wxString> >& configElement)
 {
+    noteSaved_(configElement);
     wxString val = generateStringFromArray_(configElement.getWithoutProcessing());
     config->Write(configElement.getElementName(), val);
 }
@@ -141,6 +183,7 @@ void WxWidgetsConfigStore::load_<std::map<wxString, int> >(wxConfigBase* config,
 template<>
 void WxWidgetsConfigStore::save_<std::map<wxString, int> >(wxConfigBase* config, ConfigurationDataElement<std::map<wxString, int> >& configElement)
 {
+    noteSaved_(configElement);
     wxString path = configElement.getElementName();
     wxString groupName = path.AfterLast('/');
     wxString parentPath = path.BeforeLast('/');

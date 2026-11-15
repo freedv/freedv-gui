@@ -35,6 +35,14 @@ public:
     
     virtual void load(wxConfigBase* config) = 0;
     virtual void save(wxConfigBase* config) = 0;
+
+    // Every setting that save() saves, in the order it saves them, which is
+    // the same for every instance of a class: so the settings of two copies
+    // can be gone through together.
+    std::vector<IConfigurationDataElement*> elements();
+
+    // Makes this a copy of other, an instance of the same class.
+    void copyFrom(WxWidgetsConfigStore& other);
     
 protected:
     template<typename UnderlyingDataType>
@@ -43,6 +51,9 @@ protected:
     template<typename UnderlyingDataType>
     void save_(wxConfigBase* config, ConfigurationDataElement<UnderlyingDataType>& configElement);
     
+    // Notes down an element being saved, while elements() is listing them.
+    static void noteSaved_(IConfigurationDataElement& configElement);
+
     wxString generateStringFromArray_(std::vector<wxString> const& vec);
     std::vector<wxString> generateStrArrayFromString_(wxString const& str);
 
@@ -64,6 +75,7 @@ void WxWidgetsConfigStore::load_(wxConfigBase* config, ConfigurationDataElement<
 template<typename UnderlyingDataType>
 void WxWidgetsConfigStore::save_(wxConfigBase* config, ConfigurationDataElement<UnderlyingDataType>& configElement)
 {
+    noteSaved_(configElement);
     config->Write(configElement.getElementName(), configElement.getWithoutProcessing());
 }
 
