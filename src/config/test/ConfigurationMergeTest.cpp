@@ -165,6 +165,12 @@ bool saysWhatChangesNeed()
         result &= check("callsign", m.merge(), (uint32_t)(ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER));
     }
     {
+        // Given to RADE when the modem is opened.
+        Merge m;
+        m.edited.debugVerbose = !m.live.debugVerbose.get();
+        result &= check("verbose debugging", m.merge(), (uint32_t)ConfigChange::RESTARTS_AUDIO);
+    }
+    {
         // Kept by the running audio, which is told without restarting.
         Merge m;
         m.edited.rigControlConfiguration.leftChannelVoxTone = true;

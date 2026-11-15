@@ -85,7 +85,8 @@ FreeDVConfiguration::FreeDVConfiguration()
         
     , snrSlow("/Audio/snrSlow", false)
         
-    , debugVerbose("/Debug/verbose", false)
+    // Also RADE's own verbosity, which it only takes when the modem is opened.
+    , debugVerbose("/Debug/verbose", false, ConfigChange::RESTARTS_AUDIO)
         
     , waterfallColor("/Waterfall/Color", 0)
     , statsResetTimeSecs("/Stats/ResetTime", 10)

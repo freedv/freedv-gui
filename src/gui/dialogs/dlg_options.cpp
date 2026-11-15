@@ -1041,7 +1041,7 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     sbSizer_fifo2->Add(sbDebugOptionsSizer2, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND) | 0);
 
     sizerDebug->Add(
-        addRunningNote_(m_debugTab, _("FreeDV is running: FIFO size changes briefly restart the audio when applied."), "runningNoteDebug"),
+        addRunningNote_(m_debugTab, _("FreeDV is running: FIFO size and Verbose changes briefly restart the audio when applied."), "runningNoteDebug"),
         0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), RUNNING_NOTE_BORDER);
     sizerDebug->Add(sbSizer_fifo,0, static_cast<int>(wxALL)|static_cast<int>(wxEXPAND), 3);
     sizerDebug->Add(sbSizer_fifo2,0, static_cast<int>(wxALL)|static_cast<int>(wxEXPAND), 3);
