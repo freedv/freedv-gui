@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cstring>
 #include <chrono>
+#include <thread>
 #include <strings.h>
 
 #include "HamlibRigController.h"
@@ -463,7 +464,25 @@ void HamlibRigController::connectImpl_()
     rig_set_conf(tmpRig, rig_token_lookup(tmpRig, "timeout_retry"), "2");
             
     auto result = rig_open(tmpRig);
-    if (result == RIG_OK) 
+    if ((result == -RIG_EIO || result == RIG_EIO) && RigList_[rigIndex]->rig_model == RIG_MODEL_NETRIGCTL)
+    {
+        // rigctld before Hamlib commit a31705698e (after 4.7.2) closes each
+        // client's socket more than once when it goes, and if another client
+        // connects meanwhile, can close that one's instead: it's dropped as
+        // soon as it's accepted. Any other program sharing the rigctld can
+        // disconnect at just that moment, so give it one more go.
+        log_warn("Couldn't connect to rigctld (%s); trying once more", HAMLIB_FRIENDLY_ERROR_FN(result));
+
+        // Some versions of Hamlib (4.3 and 4.4, at least) leave the radio
+        // marked open, with its port open, when the open fails in the
+        // radio's own code (as it does here), and then refuse to open it
+        // again. Closing it first sorts that out; versions that have tidied
+        // up already just say there's nothing to close.
+        rig_close(tmpRig);
+        std::this_thread::sleep_for(std::chrono::milliseconds(RIGCTLD_RETRY_DELAY_MS));
+        result = rig_open(tmpRig);
+    }
+    if (result == RIG_OK)
     {
         log_debug("hamlib: rig_open() OK");
 
