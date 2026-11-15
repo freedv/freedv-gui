@@ -334,7 +334,9 @@ void ReportingConfiguration::save(wxConfigBase* config)
 
     save_(config, csvLogFilePath);
 
-    // Special save handling for reporting below.
+    // Special save handling for reporting below. (Not through save_(), so
+    // it isn't one of elements(): it's the frequency the radio's on, kept up
+    // to date by the main window rather than edited in Settings.)
     wxString tempFreqStr = wxString::Format(wxT("%" PRIu64), reportingFrequency.getWithoutProcessing());
     config->Write(reportingFrequency.getElementName(), tempFreqStr);
 }

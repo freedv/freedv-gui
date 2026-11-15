@@ -3214,6 +3214,20 @@ void MainFrame::stopSessionTimers_()
 #endif // _USE_TIMER
 }
 
+void MainFrame::updateRunningAudio_()
+{
+    // g_rxUserdata is only made and deleted by a Start, Stop or apply, all of
+    // which run with onOffInProgress_ set: otherwise it stays as it is.
+    if (onOffInProgress_ || g_rxUserdata == nullptr)
+    {
+        return;
+    }
+
+    // The radio's audio callback reads this as it goes.
+    g_rxUserdata->leftChannelVoxTone.store(
+        wxGetApp().appConfiguration.rigControlConfiguration.leftChannelVoxTone, std::memory_order_release);
+}
+
 bool MainFrame::isTransmitBusy_()
 {
     return 
@@ -3229,7 +3243,14 @@ bool MainFrame::isTransmitBusy_()
 
 void MainFrame::onSettingsChanged_(unsigned effects)
 {
-    if (!m_RxRunning.load(std::memory_order_acquire) && !onOffInProgress_)
+    if (effects & ConfigChange::UPDATES_RUNNING_AUDIO)
+    {
+        updateRunningAudio_();
+        effects &= ~ConfigChange::UPDATES_RUNNING_AUDIO;
+    }
+
+    if (effects == ConfigChange::NONE ||
+        (!m_RxRunning.load(std::memory_order_acquire) && !onOffInProgress_))
     {
         // Nothing running to apply them to: Start reads them for itself.
         return;
@@ -3314,6 +3335,7 @@ void MainFrame::tryApplyPendingSettings_()
             m_togBtnOnOff->Enable(true);
             onOffInProgress_ = false;
             applyingSettings_ = false;
+            updateRunningAudio_();
 
             if (!frequencyBoxHadFocus && isInFrequencyBox(wxWindow::FindFocus()))
             {
@@ -3539,14 +3561,7 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
 
             // On/Off actions complete, re-enable button.
             executeOnUiThreadAndWait_([&]() {
-                bool txEnabled = 
-                    m_RxRunning.load(std::memory_order_acquire) && 
-                    !wxGetApp().appConfiguration.reportingConfiguration.freedvReporterForceReceiveOnly &&
-                    (g_nSoundCards.load(std::memory_order_acquire) == 2);
-                
-                m_togBtnAnalog->Enable(m_RxRunning.load(std::memory_order_acquire));
-                m_togBtnVoiceKeyer->Enable(txEnabled);
-                m_btnTogPTT->Enable(txEnabled);
+                updateTransmitControls_();
                 if (optionsDlg != nullptr)
                 {
                     optionsDlg->setSessionActive(m_RxRunning.load(std::memory_order_acquire));
@@ -3561,6 +3576,7 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
                 onOffInProgress_ = false;
 
                 // Settings saved while this was starting, after it read them.
+                updateRunningAudio_();
                 tryApplyPendingSettings_();
 
                 // On some systems the Report Frequency box ends up getting

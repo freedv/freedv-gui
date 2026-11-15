@@ -2,6 +2,7 @@
 // it, as Settings does (see FreeDVConfiguration::mergeChangesFrom()).
 
 #include <set>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -91,6 +92,30 @@ bool elementsAreEachSettingOnce()
     return result;
 }
 
+bool noticesSettingsThatDontPairUp()
+{
+    FreeDVConfiguration first;
+    FreeDVConfiguration second;
+    auto firstList = first.elements();
+    auto secondList = second.elements();
+
+    bool result = true;
+    result &= checkTrue("two copies pair up", WxWidgetsConfigStore::elementsPairUp(firstList, secondList));
+
+    auto reordered = secondList;
+    std::swap(reordered[3], reordered[4]);
+    result &= checkTrue("two settings swapped", !WxWidgetsConfigStore::elementsPairUp(firstList, reordered));
+
+    auto shorter = secondList;
+    shorter.pop_back();
+    result &= checkTrue("one missing", !WxWidgetsConfigStore::elementsPairUp(firstList, shorter));
+
+    result &= checkTrue("other kinds of configuration",
+        !WxWidgetsConfigStore::elementsPairUp(
+            first.rigControlConfiguration.elements(), first.reportingConfiguration.elements()));
+    return result;
+}
+
 bool mergesOnlyWhatWasEdited()
 {
     Merge m;
@@ -138,6 +163,12 @@ bool saysWhatChangesNeed()
         Merge m;
         m.edited.reportingConfiguration.reportingCallsign = "AA1ZZZ";
         result &= check("callsign", m.merge(), (unsigned)(ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER));
+    }
+    {
+        // Kept by the running audio, which is told without restarting.
+        Merge m;
+        m.edited.rigControlConfiguration.leftChannelVoxTone = true;
+        result &= check("VOX tone", m.merge(), (unsigned)ConfigChange::UPDATES_RUNNING_AUDIO);
     }
     {
         // Taken up as they're used: nothing to do, and no event.
@@ -191,6 +222,7 @@ int main()
 {
     executeTestCase("copyIsIdentical", copyIsIdentical);
     executeTestCase("elementsAreEachSettingOnce", elementsAreEachSettingOnce);
+    executeTestCase("noticesSettingsThatDontPairUp", noticesSettingsThatDontPairUp);
     executeTestCase("mergesOnlyWhatWasEdited", mergesOnlyWhatWasEdited);
     executeTestCase("editWinsOverChangeMadeMeanwhile", editWinsOverChangeMadeMeanwhile);
     executeTestCase("saysWhatChangesNeed", saysWhatChangesNeed);

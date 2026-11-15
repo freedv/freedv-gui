@@ -52,7 +52,7 @@ RigControlConfiguration::RigControlConfiguration()
     , serialPTTInputPort("/Rig/PttInPort", "", ConfigChange::REOPENS_PTT_INPUT)
     , serialPTTInputPolarityCTS("/Rig/CTSPolarity", false, ConfigChange::REOPENS_PTT_INPUT)
         
-    , leftChannelVoxTone("/Rig/leftChannelVoxTone",  false)
+    , leftChannelVoxTone("/Rig/leftChannelVoxTone",  false, ConfigChange::UPDATES_RUNNING_AUDIO)
     , totTimerEnabled("/Rig/TotTimerEnabled", true)
     , totTimerSecs("/Rig/TotTimerSecs", 180)
 {

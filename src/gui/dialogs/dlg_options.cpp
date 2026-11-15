@@ -119,7 +119,6 @@ extern std::atomic<int>    g_AEstatus1[4];
 extern std::atomic<int>    g_AEstatus2[4];
 extern wxDatagramSocket    *g_sock;
 extern std::atomic<bool>   g_half_duplex;
-extern paCallBackData*     g_rxUserdata;
 extern std::atomic<int>    g_dump_fifo_state;
 extern wxConfigBase *pConfig;
 
@@ -1944,13 +1943,6 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         else
         {
             ulog_set_level(LOG_INFO);
-        }
-
-        if (g_rxUserdata != nullptr)
-        {
-            // FreeDV is running: the radio's audio callback reads this as it goes.
-            g_rxUserdata->leftChannelVoxTone.store(
-                config.rigControlConfiguration.leftChannelVoxTone, std::memory_order_release);
         }
 
         if (storePersistent) {

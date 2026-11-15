@@ -44,6 +44,9 @@ namespace ConfigChange
         // connects, so changing that means connecting again (and briefly
         // leaving its list). Reporting restarts too.
         RECONNECTS_FREEDV_REPORTER = 1u << 4,
+        // The running audio keeps a copy of it, which is updated as soon as
+        // nothing's starting, stopping or restarting it (no restart needed).
+        UPDATES_RUNNING_AUDIO = 1u << 5,
     };
 }
 

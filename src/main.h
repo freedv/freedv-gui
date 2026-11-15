@@ -693,6 +693,12 @@ class MainFrame : public TopFrame
 
         void onSettingsChanged_(unsigned effects);
 
+        // Updates the running audio's copies of settings it keeps (see
+        // ConfigChange::UPDATES_RUNNING_AUDIO), unless it's being started,
+        // stopped or restarted: those copy them themselves, and this is done
+        // again once they're done.
+        void updateRunningAudio_();
+
         // True while transmitting, or while something is under way that a
         // restart would cut off (the voice keyer, Tune, a recording for the
         // voice keyer).

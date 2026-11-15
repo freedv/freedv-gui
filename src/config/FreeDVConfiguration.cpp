@@ -323,13 +323,18 @@ void FreeDVConfiguration::save(wxConfigBase* config)
 
 unsigned FreeDVConfiguration::mergeChangesFrom(FreeDVConfiguration& original, FreeDVConfiguration& edited)
 {
+    // Not at all if they don't pair up: that would copy settings into others.
     auto mine = elements();
     auto originals = original.elements();
     auto edits = edited.elements();
-    assert(mine.size() == originals.size() && mine.size() == edits.size());
+    if (!elementsPairUp(mine, originals) || !elementsPairUp(mine, edits))
+    {
+        assert(false);
+        return ConfigChange::NONE;
+    }
 
     unsigned effects = ConfigChange::NONE;
-    for (size_t index = 0; index < mine.size() && index < originals.size() && index < edits.size(); index++)
+    for (size_t index = 0; index < mine.size(); index++)
     {
         if (!edits[index]->hasSameValueAs(*originals[index]) && !mine[index]->hasSameValueAs(*edits[index]))
         {

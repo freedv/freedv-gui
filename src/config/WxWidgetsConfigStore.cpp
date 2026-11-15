@@ -21,7 +21,10 @@
 
 #include <wx/tokenzr.h>
 #include <wx/numformatter.h>
+#include <cassert>
+#include <cstring>
 #include <wx/memconf.h>
+#include "util/logging/ulog.h"
 #include "WxWidgetsConfigStore.h"
 
 namespace
@@ -51,12 +54,40 @@ std::vector<IConfigurationDataElement*> WxWidgetsConfigStore::elements()
     return result;
 }
 
+bool WxWidgetsConfigStore::elementsPairUp(
+    std::vector<IConfigurationDataElement*> const& first,
+    std::vector<IConfigurationDataElement*> const& second)
+{
+    bool pairUp = first.size() == second.size();
+    if (!pairUp)
+    {
+        log_error("Configurations to copy between have %zu and %zu settings", first.size(), second.size());
+    }
+    for (size_t index = 0; index < first.size() && index < second.size(); index++)
+    {
+        if (strcmp(first[index]->getElementName(), second[index]->getElementName()) != 0)
+        {
+            // (Those after it most likely don't either.)
+            log_error("Setting %zu of configurations to copy between is %s in one and %s in the other",
+                index, first[index]->getElementName(), second[index]->getElementName());
+            return false;
+        }
+    }
+    return pairUp;
+}
+
 void WxWidgetsConfigStore::copyFrom(WxWidgetsConfigStore& other)
 {
+    // Not at all if they don't pair up: that would copy settings into others.
     auto mine = elements();
     auto theirs = other.elements();
-    assert(mine.size() == theirs.size());
-    for (size_t index = 0; index < mine.size() && index < theirs.size(); index++)
+    if (!elementsPairUp(mine, theirs))
+    {
+        assert(false);
+        return;
+    }
+
+    for (size_t index = 0; index < mine.size(); index++)
     {
         mine[index]->copyValueFrom(*theirs[index]);
     }
