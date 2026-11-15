@@ -718,11 +718,13 @@ void ComPortsDlg::OnTest(wxCommandEvent&) {
                 finish();
             };
 
-            std::thread serialPortThread([=, this]() {
+            std::thread serialPortThread([=, this]() mutable {
                 serialPort->connect();
             
-                std::unique_lock<std::mutex> lk(*mtx);
-                cv->wait(lk, [finished]() { return *finished; });
+                {
+                    std::unique_lock<std::mutex> lk(*mtx);
+                    cv->wait(lk, [finished]() { return *finished; });
+                }
 
                 if (serialPort->isConnected())
                 {
@@ -735,6 +737,11 @@ void ComPortsDlg::OnTest(wxCommandEvent&) {
                     serialPort->disconnect();
                     log_debug("serial port closed");
                 }
+
+                // ptt() and disconnect() only queue the work: it's the
+                // destructor that waits for it, so the port's lines are back
+                // to normal and it's closed before Test PTT can be used again.
+                serialPort.reset();
                 
                 CallAfter([this]() {
                     isTesting_ = false;
@@ -785,13 +792,17 @@ void ComPortsDlg::OnTest(wxCommandEvent&) {
             }
         };
 
-        std::thread omniRigThread([=, this]() {
+        std::thread omniRigThread([=, this]() mutable {
             rig->connect();
 
-            std::unique_lock<std::mutex> lk(*mtx);
-            cv->wait(lk, [finished]() { return *finished; });
+            {
+                std::unique_lock<std::mutex> lk(*mtx);
+                cv->wait(lk, [finished]() { return *finished; });
+            }
         
+            // (As above: let go of the radio before Test PTT can be used again.)
             rig->disconnect();
+            rig.reset();
             
             CallAfter([this]() {
                 isTesting_ = false;
