@@ -962,15 +962,12 @@ struct DroppingServer
 };
 #endif // !defined(_WIN32)
 
+#if !defined(_WIN32)
 // Connects to a server that drops every connection straight away, using the
 // given Hamlib model, and says how many times the controller connected to it
 // before giving up (or -1 if something else went wrong).
 static int connectionsMadeToDroppingServer(std::string const& rigName)
 {
-#if defined(_WIN32)
-    (void)rigName;
-    return -1;
-#else
     DroppingServer server;
     if (server.port == 0)
     {
@@ -993,12 +990,13 @@ static int connectionsMadeToDroppingServer(std::string const& rigName)
         return -1;
     }
     return server.numAccepted;
-#endif // defined(_WIN32)
 }
+#endif // !defined(_WIN32)
 
 // Older rigctlds can drop a connection as soon as they've accepted it (see
 // connectImpl_()), so the controller connects once more before reporting
-// the error. Only to rigctld: nothing else is known to do that.
+// the error. Only to rigctld: nothing else is known to do that. (Some
+// versions of Hamlib give up on flrig before connecting at all.)
 bool triesRigctldAgainWhenItDropsTheConnection()
 {
 #if defined(_WIN32)
@@ -1008,7 +1006,7 @@ bool triesRigctldAgainWhenItDropsTheConnection()
     int rigctld = connectionsMadeToDroppingServer("Hamlib NET rigctl");
     int flrig = connectionsMadeToDroppingServer("FLRig FLRig");
     std::cout << "[rigctld: " << rigctld << " connections, flrig: " << flrig << "] ";
-    return rigctld == 2 && flrig == 1;
+    return rigctld == 2 && (flrig == 0 || flrig == 1);
 #endif // defined(_WIN32)
 }
 
