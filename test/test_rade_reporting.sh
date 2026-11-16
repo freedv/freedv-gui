@@ -55,6 +55,26 @@ if [ "$OPERATING_SYSTEM" == "Linux" ]; then
     DRIVER_INDEX_LOOPBACK=`pactl load-module module-loopback source="FreeDV_Computer_To_Radio.monitor" sink="FreeDV_Radio_To_Computer"`
 fi
 
+# Stopping the test part way through (e.g. ctest's timeout) would otherwise
+# leave these devices loaded in PulseAudio/PipeWire, and the FreeDV, recorder
+# and rig simulator still using them, for the rest of the session.
+cleanup_virtual_audio_cables () {
+    [ -n "$FDV_PID" ] && kill $FDV_PID 2>/dev/null
+    [ -n "$RECORD_PID" ] && kill $RECORD_PID 2>/dev/null
+    # hamlibserver.py holds a fixed UDP port, so a copy left behind by a
+    # stopped test would break the next one that runs.
+    [ -n "$RADIO_PID" ] && kill $RADIO_PID 2>/dev/null
+    if [ "$OPERATING_SYSTEM" == "Linux" ]; then
+        for index in $DRIVER_INDEX_LOOPBACK $DRIVER_INDEX_FREEDV_RADIO_TO_COMPUTER \
+                     $DRIVER_INDEX_FREEDV_COMPUTER_TO_SPEAKER $DRIVER_INDEX_FREEDV_MICROPHONE_TO_COMPUTER \
+                     $DRIVER_INDEX_FREEDV_COMPUTER_TO_RADIO; do
+            [ -n "$index" ] && pactl unload-module $index 2>/dev/null
+        done
+    fi
+}
+trap cleanup_virtual_audio_cables EXIT
+trap 'exit 143' INT TERM
+
 # Determine correct record device to retrieve TX data
 if [ "$1" == "mpp" ]; then
     FREEDV_CONF_FILE=freedv-ctest-reporting-mpp.conf 
@@ -199,15 +219,6 @@ if [ $FREEDV_EXIT_CODE -eq 0 ]; then
     wait $FDV_PID
     FREEDV_EXIT_CODE=$?
     #cat tmp.log
-fi
-
-# Clean up PulseAudio virtual devices
-if [ "$OPERATING_SYSTEM" == "Linux" ]; then
-    pactl unload-module $DRIVER_INDEX_LOOPBACK
-    pactl unload-module $DRIVER_INDEX_FREEDV_RADIO_TO_COMPUTER
-    pactl unload-module $DRIVER_INDEX_FREEDV_COMPUTER_TO_SPEAKER
-    pactl unload-module $DRIVER_INDEX_FREEDV_COMPUTER_TO_RADIO
-    pactl unload-module $DRIVER_INDEX_FREEDV_MICROPHONE_TO_COMPUTER
 fi
 
 # End radio process as it's no longer needed

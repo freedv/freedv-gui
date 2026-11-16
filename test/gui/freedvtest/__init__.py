@@ -29,6 +29,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -41,6 +42,11 @@ import time
 _SANITIZER_REPORT = re.compile(
     r"WARNING: ThreadSanitizer|ERROR: ThreadSanitizer|FATAL: ThreadSanitizer|ERROR: AddressSanitizer|"
     r"ERROR: LeakSanitizer|ERROR: RealtimeSanitizer|UndefinedBehaviorSanitizer|runtime error:")
+
+# CTest's timeout kills a test script outright, which would leave FreeDV and
+# any pactl/sox/rigctl helpers running on into the next test. Exiting on
+# SIGTERM instead unwinds the "with" blocks, which stop them.
+signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
 
 
 class FreeDVError(Exception):

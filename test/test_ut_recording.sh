@@ -51,6 +51,22 @@ if [ "$OPERATING_SYSTEM" == "Linux" ]; then
     DRIVER_INDEX_LOOPBACK=`pactl load-module module-loopback source="FreeDV_Computer_To_Radio.monitor" sink="FreeDV_Radio_To_Computer"`
 fi
 
+# Stopping the test part way through (e.g. ctest's timeout) would otherwise
+# leave these devices loaded in PulseAudio/PipeWire, and the FreeDV under test
+# still holding them, for the rest of the session.
+cleanup_virtual_audio_cables () {
+    [ -n "$FDV_PID" ] && kill $FDV_PID 2>/dev/null
+    if [ "$OPERATING_SYSTEM" == "Linux" ]; then
+        for index in $DRIVER_INDEX_LOOPBACK $DRIVER_INDEX_FREEDV_RADIO_TO_COMPUTER \
+                     $DRIVER_INDEX_FREEDV_COMPUTER_TO_SPEAKER $DRIVER_INDEX_FREEDV_MICROPHONE_TO_COMPUTER \
+                     $DRIVER_INDEX_FREEDV_COMPUTER_TO_RADIO; do
+            [ -n "$index" ] && pactl unload-module $index 2>/dev/null
+        done
+    fi
+}
+trap cleanup_virtual_audio_cables EXIT
+trap 'exit 143' INT TERM
+
 # Generate config file
 SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 1>&2 ; pwd -P )"
 if [ "$FREEDV_RADIO_TO_COMPUTER_DEVICE" == "FreeDV_Radio_To_Computer" ] && [ "$OPERATING_SYSTEM" == "Linux" ]; then
@@ -139,15 +155,6 @@ check_log "Capturing RADE RX features into file rxfeat.raw" || RESULT=1
 if ! grep -q "Sync changed" tmp-rx.log; then
     echo "FAIL: the recording piped through the receive pipeline never synced"
     RESULT=1
-fi
-
-# Clean up PulseAudio virtual devices
-if [ "$OPERATING_SYSTEM" == "Linux" ]; then
-    pactl unload-module $DRIVER_INDEX_LOOPBACK
-    pactl unload-module $DRIVER_INDEX_FREEDV_RADIO_TO_COMPUTER
-    pactl unload-module $DRIVER_INDEX_FREEDV_COMPUTER_TO_SPEAKER
-    pactl unload-module $DRIVER_INDEX_FREEDV_COMPUTER_TO_RADIO
-    pactl unload-module $DRIVER_INDEX_FREEDV_MICROPHONE_TO_COMPUTER
 fi
 
 if [ $RESULT == 0 ]; then

@@ -1096,7 +1096,14 @@ bool deviceEnumerationIsSerializedAgainstEngineStartAndStop()
     int numListed = 0;
 
     std::thread startAndStop([&]() {
-        while (!finished.load())
+        // Every start() makes libpulse re-read its client configuration, which
+        // includes asking the X display where the sound server is
+        // (pa_client_conf_from_x11). That's microseconds on a desktop but
+        // seconds under the loaded Xvfb a full CTest run leaves behind, and an
+        // open-ended loop then turns this case into ten minutes. Hold the
+        // pressure on for a span of time instead.
+        const auto stopPressuring = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (!finished.load() && std::chrono::steady_clock::now() < stopPressuring)
         {
             engine.start();
             engine.stop();
