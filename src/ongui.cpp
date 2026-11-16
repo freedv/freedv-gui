@@ -2056,14 +2056,18 @@ void MainFrame::OnChangeReportFrequency( wxCommandEvent& )
     {
         double tmp = 0;
         wxNumberFormatter::FromString(freqStr, &tmp);
-        
-        if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
+        double hertz = tmp * (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz ? 1e3 : 1e6);
+
+        // What's stored is a uint64_t: a negative entry, or one too big to
+        // be a frequency, written as it stands comes out as nonsense that
+        // then goes to the reporters and, with rig control on, to the rig.
+        if (hertz > 0 && hertz <= 1e12)
         {
-            wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = round(tmp * 1000);
+            wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = (uint64_t) round(hertz);
         }
         else
         {
-            wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = round(tmp * 1000 * 1000);
+            wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = 0;
         }
 
         if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency > 0)

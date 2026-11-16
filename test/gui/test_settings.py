@@ -1351,6 +1351,80 @@ def test_modem_and_debugging():
         quit_and_check_log(app)
 
 
+def test_invalid_numbers():
+    """The text fields that hold numbers, filled with what a user can put in
+    them: nothing, and in the ones with no filter, words. FreeDV keeps the
+    value it had instead of storing something made up, and still starts."""
+    settings = audio_settings()
+    # The UDP port fields are only reachable with reporting on, so it's on
+    # from the start, pointed at addresses nothing answers on.
+    settings.update({"/Reporting/Enable": True, "/Reporting/Callsign": "AA1ZZZ", "/Reporting/GridSquare": "DM12",
+                     "/Reporting/UDP/Enable": True, "/Reporting/UDP/Hostname": "192.0.2.1",
+                     "/Reporting/UDPBroadcast/Enable": True, "/Reporting/FreeDV/Hostname": NOWHERE,
+                     "/Reporting/FreeDV/UseTls": False})
+    with audio_devices():
+        with freedvtest.start(settings=settings) as app:
+            open_settings(app, "Debugging")
+            check_values(app, {"txtCtrlFifoSize": "640"})
+
+            # The FIFO size has no filter, so anything can be typed into it.
+            set_value(app, "txtCtrlFifoSize", "lots")
+            press_ok(app)
+            check_saved(app, {"/Audio/fifoSize_ms": 640})
+
+            # Empty is something a user gets to in every one of these fields.
+            open_settings(app, "Debugging")
+            check_values(app, {"txtCtrlFifoSize": "640"})
+            set_value(app, "txtCtrlFifoSize", "")
+            set_value(app, "ckboxTone", True)
+            set_value(app, "txtToneFreqHz", "")
+            set_value(app, "txtToneAmplitude", "")
+            press_ok(app)
+            check_saved(app, {"/Audio/fifoSize_ms": 640})
+
+            open_settings(app, "Voice Keyer")
+            set_value(app, "txtCtrlVoiceKeyerRxPause", "wait")
+            set_value(app, "txtCtrlVoiceKeyerRepeats", "")
+            press_ok(app)
+            check_saved(app, {"/VoiceKeyer/RxPause": 10, "/VoiceKeyer/Repeats": 5})
+
+            open_settings(app, "Reporting")
+            set_value(app, "udpPort", "port")
+            set_value(app, "udpBroadcastPort", "")
+            press_ok(app)
+            check_saved(app, {"/Reporting/UDP/Port": 2237, "/Reporting/UDPBroadcast/Port": 7177})
+
+            open_settings(app, "Modem")
+            set_value(app, "statsResetTime", "")
+            press_ok(app)
+            check_saved(app, {"/Stats/ResetTime": 10})
+
+            open_settings(app, "Rig Control")
+            set_value(app, "txtTxRxDelayMilliseconds", "250")
+            set_value(app, "txtTOTTimerSecs", "90")
+            press_ok(app)
+            check_saved(app, {"/Audio/TxRxDelayMilliseconds": 250, "/Rig/TotTimerSecs": 90})
+
+            open_settings(app, "Rig Control")
+            set_value(app, "txtTxRxDelayMilliseconds", "")
+            set_value(app, "txtTOTTimerSecs", "")
+            press_ok(app)
+            check_saved(app, {"/Audio/TxRxDelayMilliseconds": 250, "/Rig/TotTimerSecs": 90})
+
+            # A number that is a number, but far too big for the thing it
+            # sizes: the FIFO is allocated from it.
+            open_settings(app, "Debugging")
+            set_value(app, "txtCtrlFifoSize", "999999999")
+            press_ok(app)
+            check_saved(app, {"/Audio/fifoSize_ms": 10000})
+
+            # The tone's frequency and amplitude are used as they stand, so
+            # start FreeDV with the junk still in the fields.
+            start_modem(app)
+            stop_modem(app)
+            quit_and_check_log(app)
+
+
 def test_ptt_key_names():
     """Choosing the key used for PTT: what each kind of key is called, and
     the keys that can't be chosen."""
@@ -1535,6 +1609,7 @@ SCENARIOS = {
     "voice_keyer": test_voice_keyer,
     "display": test_display,
     "modem_and_debugging": test_modem_and_debugging,
+    "invalid_numbers": test_invalid_numbers,
     "ptt_key_names": test_ptt_key_names,
     "auto_start": test_auto_start,
     "while_running": test_while_running,

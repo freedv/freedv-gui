@@ -1725,14 +1725,17 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         wxGetApp().appConfiguration.pttKeyCode = m_selectedPTTKeyCode;
         wxGetApp().appConfiguration.pttMomentaryMode = m_ckboxPTTMomentaryMode->GetValue();
 
-        wxGetApp().appConfiguration.txRxDelayMilliseconds = wxAtoi(m_txtTxRxDelayMilliseconds->GetValue());
+        long txRxDelay;
+        if (m_txtTxRxDelayMilliseconds->GetValue().ToLong(&txRxDelay)) wxGetApp().appConfiguration.txRxDelayMilliseconds = (int)txRxDelay;
 
         wxGetApp().appConfiguration.rigControlConfiguration.totTimerEnabled = m_ckboxTOTTimerEnabled->GetValue();
         {
             long totSecs;
-            m_txtTOTTimerSecs->GetValue().ToLong(&totSecs);
-            if (totSecs < 1) totSecs = 1;
-            wxGetApp().appConfiguration.rigControlConfiguration.totTimerSecs = (int)totSecs;
+            if (m_txtTOTTimerSecs->GetValue().ToLong(&totSecs))
+            {
+                if (totSecs < 1) totSecs = 1;
+                wxGetApp().appConfiguration.rigControlConfiguration.totTimerSecs = (int)totSecs;
+            }
         }
 
         wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes = m_ckboxUseAnalogModes->GetValue();
@@ -1753,10 +1756,16 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         wxGetApp().appConfiguration.voiceKeyerWaveFilePath = m_txtCtrlVoiceKeyerWaveFilePath->GetValue();
         
         long tmp;
-        m_txtCtrlVoiceKeyerRxPause->GetValue().ToLong(&tmp); if (tmp < 0) tmp = 0; wxGetApp().appConfiguration.voiceKeyerRxPause = (int)tmp;
-        m_txtCtrlVoiceKeyerRepeats->GetValue().ToLong(&tmp);
-        if (tmp < 0) {tmp = 0;} if (tmp > 100) {tmp = 100;}
-        wxGetApp().appConfiguration.voiceKeyerRepeats = (int)tmp;
+        if (m_txtCtrlVoiceKeyerRxPause->GetValue().ToLong(&tmp))
+        {
+            if (tmp < 0) tmp = 0;
+            wxGetApp().appConfiguration.voiceKeyerRxPause = (int)tmp;
+        }
+        if (m_txtCtrlVoiceKeyerRepeats->GetValue().ToLong(&tmp))
+        {
+            if (tmp < 0) {tmp = 0;} if (tmp > 100) {tmp = 100;}
+            wxGetApp().appConfiguration.voiceKeyerRepeats = (int)tmp;
+        }
         
         wxGetApp().appConfiguration.quickRecordRawPath = m_txtCtrlQuickRecordRawPath->GetValue();
         wxGetApp().appConfiguration.quickRecordDecodedPath = m_txtCtrlQuickRecordDecodedPath->GetValue();
@@ -1808,14 +1817,18 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
 
         wxGetApp().m_tone    = m_ckboxTone->GetValue();
         long tone_freq_hz, tone_amplitude;
-        m_txtToneFreqHz->GetValue().ToLong(&tone_freq_hz);
-        wxGetApp().m_tone_freq_hz = (int)tone_freq_hz;
-        m_txtToneAmplitude->GetValue().ToLong(&tone_amplitude);
-        wxGetApp().m_tone_amplitude = (int)tone_amplitude;
+        if (m_txtToneFreqHz->GetValue().ToLong(&tone_freq_hz)) wxGetApp().m_tone_freq_hz = (int)tone_freq_hz;
+        if (m_txtToneAmplitude->GetValue().ToLong(&tone_amplitude)) wxGetApp().m_tone_amplitude = (int)tone_amplitude;
 
         long FifoSize_ms;
-        m_txtCtrlFifoSize->GetValue().ToLong(&FifoSize_ms);
-        wxGetApp().appConfiguration.fifoSizeMs = (int)FifoSize_ms;
+        if (m_txtCtrlFifoSize->GetValue().ToLong(&FifoSize_ms))
+        {
+            // The FIFOs are allocated from this when FreeDV starts, so it
+            // can't be left at whatever a user typed.
+            if (FifoSize_ms < 10) FifoSize_ms = 10;
+            if (FifoSize_ms > 10000) FifoSize_ms = 10000;
+            wxGetApp().appConfiguration.fifoSizeMs = (int)FifoSize_ms;
+        }
 
         wxGetApp().m_txRxThreadHighPriority = m_ckboxTxRxThreadPriority->GetValue();
         g_dump_timing.store(m_ckboxTxRxDumpTiming->GetValue(), std::memory_order_relaxed);
@@ -1863,16 +1876,14 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         wxGetApp().appConfiguration.reportingConfiguration.udpReportingHostname = m_udpHostname->GetValue();
 
         long udpPort;
-        m_udpPort->GetValue().ToLong(&udpPort);
-        wxGetApp().appConfiguration.reportingConfiguration.udpReportingPort = (int)udpPort;
+        if (m_udpPort->GetValue().ToLong(&udpPort)) wxGetApp().appConfiguration.reportingConfiguration.udpReportingPort = (int)udpPort;
 
         // UDP broadcast options (UdpReporter)
         wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastEnabled = m_ckboxUDPBroadcastEnable->GetValue();
         wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastAddress = m_udpBroadcastAddress->GetValue();
 
         long udpBroadcastPort;
-        m_udpBroadcastPort->GetValue().ToLong(&udpBroadcastPort);
-        wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastPort = (int)udpBroadcastPort;
+        if (m_udpBroadcastPort->GetValue().ToLong(&udpBroadcastPort)) wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastPort = (int)udpBroadcastPort;
 
         // CSV log file path
         wxGetApp().appConfiguration.reportingConfiguration.csvLogFilePath = m_txtCtrlCsvLogFilePath->GetValue();
@@ -1896,8 +1907,7 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         
         // Stats reset time
         long resetTime;
-        m_statsResetTime->GetValue().ToLong(&resetTime);
-        wxGetApp().appConfiguration.statsResetTimeSecs = resetTime;
+        if (m_statsResetTime->GetValue().ToLong(&resetTime)) wxGetApp().appConfiguration.statsResetTimeSecs = resetTime;
         
         // Radio tab settings
         wxGetApp().appConfiguration.rigControlConfiguration.leftChannelVoxTone = m_ckLeftChannelVoxTone->GetValue();
@@ -1926,8 +1936,7 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
                 wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialRate = 0;
             } else {
                 long rateTmp;
-                rateStr.ToLong(&rateTmp);
-                wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialRate = rateTmp;
+                if (rateStr.ToLong(&rateTmp)) wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialRate = rateTmp;
             }
         }
 
@@ -2736,8 +2745,7 @@ void OptionsDlg::OnTestPTT(wxCommandEvent&)
             wxString s = m_cbSerialRate->GetValue();
             if (s != "default") {
                 long tmp;
-                s.ToLong(&tmp);
-                serial_rate = tmp;
+                if (s.ToLong(&tmp)) serial_rate = tmp;
             }
         }
         long hexAddress = 0;
