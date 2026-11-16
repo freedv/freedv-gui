@@ -940,6 +940,8 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Fix Test PTT becoming usable again before the radio was unkeyed and the serial port closed, when using serial port or OmniRig PTT. (PR #1636)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
+3. Build system:
+    * Build the macOS DMG as ULFO. (PR #1639)
 
 ## V2.4.1 October 2026
 
