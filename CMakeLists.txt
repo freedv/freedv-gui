@@ -915,7 +915,7 @@ endforeach(scenario)
 
 # These measure what FreeDV plays and records, so they're kept from running
 # alongside anything else.
-foreach(scenario transmit ptt_key ptt_key_elsewhere tx_level receive analog play_file play_file_loop voice_keyer voice_keyer_reply voice_keyer_files voice_keyer_re_record voice_keyer_re_record_same_file recording recording_options unwritable_files monitor_volume mouse_controls tune_level_per_band frequency_units time_out_timer voice_keyer_time_out ptt_key_time_out menus help_and_restore default_config config_migration_failure exit_menu reporting_without_callsign band_names appearance_change tab_layout heard_list window_geometry receive_reports test_tone duplex_while_running exit_while_tuning old_settings bad_command_line window_icon)
+foreach(scenario transmit ptt_key ptt_key_elsewhere tx_level receive analog play_file play_file_loop voice_keyer voice_keyer_reply voice_keyer_files voice_keyer_re_record voice_keyer_re_record_same_file recording recording_options unwritable_files monitor_volume mouse_controls tune_level_per_band frequency_units time_out_timer voice_keyer_time_out ptt_key_time_out menus help_and_restore default_config config_migration_failure exit_menu reporting_without_callsign band_names appearance_change tab_layout heard_list window_geometry receive_reports test_tone duplex_while_running restart_cycles stop_while_playing_file flapping_transmit stop_while_recording voice_keyer_recording_stop exit_while_tuning old_settings bad_command_line window_icon)
     add_test(NAME gui_main_window_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_main_window.py ${scenario})
     set_tests_properties(gui_main_window_${scenario} PROPERTIES LABELS gui RUN_SERIAL TRUE SKIP_RETURN_CODE 77)
@@ -1000,5 +1000,21 @@ endif(LINUX OR APPLE)
 if(LINUX)
     freedv_add_test_shim(pulse_shim)
 endif(LINUX)
+
+# By default, CTest kills a test that runs past its timeout with SIGKILL, which
+# nothing can clean up after: FreeDV, its helpers (sox, parecord,
+# hamlibserver.py on its fixed UDP port...) and the virtual audio cables would
+# be left for the next test. The test scripts clean up on SIGTERM instead
+# (test/virtual_audio_common.sh, test/gui/freedvtest), so send that, and allow
+# them time to do it before SIGKILL. (CMake 3.27 and later; earlier versions
+# ignore these properties. Windows has no such signals.)
+if(NOT WIN32)
+    get_property(FREEDV_TESTS DIRECTORY PROPERTY TESTS)
+    if(FREEDV_TESTS)
+        set_tests_properties(${FREEDV_TESTS} PROPERTIES
+            TIMEOUT_SIGNAL_NAME SIGTERM
+            TIMEOUT_SIGNAL_GRACE_PERIOD 15)
+    endif(FREEDV_TESTS)
+endif(NOT WIN32)
 
 endif(UNITTEST)
