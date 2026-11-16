@@ -1756,7 +1756,8 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         wxGetApp().appConfiguration.rigControlConfiguration.totTimerEnabled = m_ckboxTOTTimerEnabled->GetValue();
         if (ReadWholeNumber(m_txtTOTTimerSecs->GetValue(), number))
         {
-            wxGetApp().appConfiguration.rigControlConfiguration.totTimerSecs = Clamped<int>(number, INT_MIN, INT_MAX);
+            // (At least a second when it's typed in, as before.)
+            wxGetApp().appConfiguration.rigControlConfiguration.totTimerSecs = Clamped<int>(number, 1, INT_MAX);
         }
 
         wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes = m_ckboxUseAnalogModes->GetValue();

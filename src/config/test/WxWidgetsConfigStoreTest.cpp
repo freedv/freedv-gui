@@ -385,8 +385,10 @@ bool outOfRangeNumbersLoadAsDefault()
     result &= check("int too big", loadFrom<int>("99999999999", 640), 640);
     result &= check("int too small", loadFrom<int>("-99999999999", 640), 640);
     result &= check("int in range", loadFrom<int>("-5", 640), -5);
-    result &= check("unsigned negative", loadFrom<unsigned int>("-1", 10u), 10u);
     result &= check("unsigned too big", loadFrom<unsigned int>("99999999999", 10u), 10u);
+    result &= check("unsigned too small", loadFrom<unsigned int>("-99999999999", 10u), 10u);
+    // As a 32 bit long writes one above INT_MAX.
+    result &= check("unsigned written as negative", loadFrom<unsigned int>("-294967296", 10u), 4000000000u);
     result &= check("int list", loadFrom<IntList>("1,99999999999,-99999999999"), IntList { 1, INT_MAX, INT_MIN });
     return result;
 }

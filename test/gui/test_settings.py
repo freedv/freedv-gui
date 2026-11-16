@@ -1475,13 +1475,13 @@ def test_out_of_range_config():
                      "/Audio/TxRxDelayMilliseconds": 99999,
                      "/Rig/TotTimerSecs": -5,
                      "/VoiceKeyer/Repeats": 99999999999,
-                     "/Stats/ResetTime": -1})
+                     "/Stats/ResetTime": 99999999999})
     with audio_devices():
         with freedvtest.start(settings=settings) as app:
             open_settings(app, "Debugging")
             check_values(app, {"txtCtrlFifoSize": "10000"})
             go_to_tab(app, "Rig Control")
-            check_values(app, {"txtTxRxDelayMilliseconds": "10000", "txtTOTTimerSecs": "1"})
+            check_values(app, {"txtTxRxDelayMilliseconds": "10000", "txtTOTTimerSecs": "0"})
             go_to_tab(app, "Voice Keyer")
             check_values(app, {"txtCtrlVoiceKeyerRepeats": "5"})
             go_to_tab(app, "Modem")
