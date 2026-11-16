@@ -3049,6 +3049,16 @@ void MainFrame::performFreeDVOff_()
         m_sliderMicSpkrLevel->Enable(false);
         m_btnTogTune->Enable(false);
 
+        // A file standing in for the radio, and any recording, stop with the
+        // radio: otherwise the status bar and the Tools menu go on saying
+        // they're running, and the files stay open, which leaves a recording
+        // without the lengths its header still owes (so unreadable) until
+        // FreeDV exits.
+        StopPlaybackFileFromRadio();
+        StopRecFileFromRadio();
+        StopRecFileFromDecoder();
+        StopRecFileFromMic();
+
         m_plotTimer.Stop();
         m_plotWaterfallTimer.Stop();
         m_plotSpectrumTimer.Stop();

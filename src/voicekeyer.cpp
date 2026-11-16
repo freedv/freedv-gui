@@ -16,42 +16,52 @@ extern std::atomic<bool> endingTx;
 extern std::atomic<bool> g_monitorVoiceKeyerAudio;
 extern std::atomic<float> g_monitorVoiceKeyerAudioVol;
 
+void MainFrame::StopRecFileFromMic()
+{
+    if (!g_recVoiceKeyerFile.load(std::memory_order_relaxed))
+    {
+        return;
+    }
+
+    // The handle goes null under the mutex RecordStep's file thread
+    // takes around its write; the file is closed once that's dropped,
+    // so a write already under way can't land in a closed SNDFILE.
+    SNDFILE* micRecordFile = nullptr;
+    {
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+        micRecordFile = g_sfRecMicFile.exchange(nullptr, std::memory_order_acq_rel);
+    }
+
+    g_mutexProtectingCallbackData.Lock();
+    g_recVoiceKeyerFile.store(false, std::memory_order_relaxed);
+    SetStatusText(wxT(""));
+    g_mutexProtectingCallbackData.Unlock();
+
+    if (micRecordFile != nullptr)
+    {
+        sf_close(micRecordFile);
+    }
+    
+    // Cache the newly recorded file for playback.
+    vkFileCache_.preload(vkFileName_);
+    
+    m_togBtnAnalog->Enable(true);
+    m_togBtnVoiceKeyer->SetValue(false);
+    m_togBtnVoiceKeyer->SetBackgroundColour(wxNullColour);
+    
+    // Switch back to previous tab once done with recording
+    if (wxGetApp().appConfiguration.currentNotebookTab >= 0)
+    {
+        m_auiNbookCtrl->ChangeSelection(wxGetApp().appConfiguration.currentNotebookTab);
+    }
+}
+
 void MainFrame::OnTogBtnVoiceKeyerClick (wxCommandEvent& event)
 {
     // If recording a new VK file, stop doing that now.
     if (g_recVoiceKeyerFile.load(std::memory_order_relaxed))
-    {       
-        // The handle goes null under the mutex RecordStep's file thread
-        // takes around its write; the file is closed once that's dropped,
-        // so a write already under way can't land in a closed SNDFILE.
-        SNDFILE* micRecordFile = nullptr;
-        {
-            std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
-            micRecordFile = g_sfRecMicFile.exchange(nullptr, std::memory_order_acq_rel);
-        }
-
-        g_mutexProtectingCallbackData.Lock();
-        g_recVoiceKeyerFile.store(false, std::memory_order_relaxed);
-        SetStatusText(wxT(""));
-        g_mutexProtectingCallbackData.Unlock();
-
-        if (micRecordFile != nullptr)
-        {
-            sf_close(micRecordFile);
-        }
-        
-        // Cache the newly recorded file for playback.
-        vkFileCache_.preload(vkFileName_);
-        
-        m_togBtnAnalog->Enable(true);
-        m_togBtnVoiceKeyer->SetValue(false);
-        m_togBtnVoiceKeyer->SetBackgroundColour(wxNullColour);
-        
-        // Switch back to previous tab once done with recording
-        if (wxGetApp().appConfiguration.currentNotebookTab >= 0)
-        {
-            m_auiNbookCtrl->ChangeSelection(wxGetApp().appConfiguration.currentNotebookTab);
-        }
+    {
+        StopRecFileFromMic();
     }
     else
     {
