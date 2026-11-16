@@ -22,6 +22,7 @@
 #ifndef CONFIGURATION_DATA_ELEMENT_H
 #define CONFIGURATION_DATA_ELEMENT_H
 
+#include <algorithm>
 #include <functional>
 
 template<typename UnderlyingDataType>
@@ -48,6 +49,11 @@ public:
     
     void setSaveProcessor(std::function<UnderlyingDataType(UnderlyingDataType)> fn);
     void setLoadProcessor(std::function<UnderlyingDataType(UnderlyingDataType)> fn);
+
+    // Keeps the value within [minVal, maxVal] however it's set, including
+    // from the config file, where anything can have been written: one
+    // outside the range is brought to the nearer end of it.
+    void setLimits(UnderlyingDataType minVal, UnderlyingDataType maxVal);
 private:
     const char* elementName_;
     UnderlyingDataType data_;
@@ -55,6 +61,7 @@ private:
     
     std::function<UnderlyingDataType(UnderlyingDataType)> saveProcessor_;
     std::function<UnderlyingDataType(UnderlyingDataType)> loadProcessor_;
+    std::function<UnderlyingDataType(UnderlyingDataType)> limit_;
 };
 
 template<typename UnderlyingDataType>
@@ -64,6 +71,7 @@ ConfigurationDataElement<UnderlyingDataType>::ConfigurationDataElement(const cha
     , default_(defaultVal)
     , saveProcessor_(nullptr)
     , loadProcessor_(nullptr)
+    , limit_(nullptr)
 {
     // empty
 }
@@ -93,6 +101,10 @@ ConfigurationDataElement<UnderlyingDataType>& ConfigurationDataElement<Underlyin
     {
         val = saveProcessor_(val);
     }
+    if (limit_)
+    {
+        val = limit_(val);
+    }
     
     setWithoutProcessing(val);
     return *this;
@@ -107,7 +119,7 @@ UnderlyingDataType* ConfigurationDataElement<UnderlyingDataType>::operator->()
 template<typename UnderlyingDataType>
 void ConfigurationDataElement<UnderlyingDataType>::setWithoutProcessing(UnderlyingDataType const& val)
 {
-    data_ = val;
+    data_ = limit_ ? limit_(val) : val;
 }
 
 template<typename UnderlyingDataType>
@@ -148,6 +160,13 @@ template<typename UnderlyingDataType>
 void ConfigurationDataElement<UnderlyingDataType>::setLoadProcessor(std::function<UnderlyingDataType(UnderlyingDataType)> fn)
 {
     loadProcessor_ = std::move(fn);
+}
+
+template<typename UnderlyingDataType>
+void ConfigurationDataElement<UnderlyingDataType>::setLimits(UnderlyingDataType minVal, UnderlyingDataType maxVal)
+{
+    limit_ = [minVal, maxVal](UnderlyingDataType val) { return std::clamp(val, minVal, maxVal); };
+    data_ = limit_(data_);
 }
 
 #endif // CONFIGURATION_DATA_ELEMENT_H

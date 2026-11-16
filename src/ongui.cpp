@@ -372,7 +372,11 @@ void MainFrame::OnToolsOptions(wxCommandEvent& event)
                 wxString newFreq = "";
                 wxString freq = m_lastReportedCallsignListView->GetItemText(index, 1);
                 double freqDouble = 0;
-                wxNumberFormatter::FromString(freq, &freqDouble);
+                if (!wxNumberFormatter::FromString(freq, &freqDouble) || !std::isfinite(freqDouble))
+                {
+                    // A row with no frequency stays that way.
+                    continue;
+                }
 
                 if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
                 {
@@ -1993,7 +1997,6 @@ void MainFrame::OnLogQSO(wxCommandEvent&)
     wxString logTime;
     wxString snrString;
     wxDateTime logTimeObj = wxDateTime::Now();
-    double dxFreqDouble = 0;
     uint64_t dxFreqHz = 0;
     double snr = ILogger::UNKNOWN_SNR;
     
@@ -2006,8 +2009,14 @@ void MainFrame::OnLogQSO(wxCommandEvent&)
         logTime = m_lastReportedCallsignListView->GetItemText(selected, 2);
         snrString = m_lastReportedCallsignListView->GetItemText(selected, 3);
         
-        wxNumberFormatter::FromString(dxFreq, &dxFreqDouble);
-        wxNumberFormatter::FromString(snrString, &snr);
+        // (Shown by FreeDV itself, but checked all the same: a row with no
+        // frequency, or one that isn't, is logged without one.)
+        dxFreqHz = ReportingConfiguration::DisplayedFrequencyToHz(
+            dxFreq, wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz);
+        if (!wxNumberFormatter::FromString(snrString, &snr) || !std::isfinite(snr) || std::fabs(snr) > 1000)
+        {
+            snr = ILogger::UNKNOWN_SNR;
+        }
         
         wxString::const_iterator end;
         logTimeObj.ParseDateTime(logTime, &end);
@@ -2018,22 +2027,11 @@ void MainFrame::OnLogQSO(wxCommandEvent&)
             logTimeObj.MakeFromTimezone(wxDateTime::UTC);
         }
         
-        if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
-        {
-            dxFreqDouble *= 1000;
-        }
-        else
-        {
-            dxFreqDouble *= 1000000;
-        }
-        
         // If connected to FreeDV Reporter, get DX grid
         if (m_reporterDialog != nullptr && dxFreq != "")
         {
             dxGrid = m_reporterDialog->getGridSquareForCallsign(dxCall);
         }
-        
-        dxFreqHz = (uint64_t)dxFreqDouble;
         
         log_info("Logging %s/%s at %" PRIu64 " Hz from main window drop-down list", (const char*)dxCall.ToUTF8(), (const char*)dxGrid.ToUTF8(), dxFreqHz);
     }
@@ -2046,19 +2044,12 @@ void MainFrame::OnLogQSO(wxCommandEvent&)
     }
     else
     {
+        // What's in the frequency box, if it's a frequency: one that isn't
+        // (words, a negative, one too big) is logged as no frequency, rather
+        // than one cast out of it.
         dxFreq = m_cboReportFrequency->GetValue();
-        wxNumberFormatter::FromString(dxFreq, &dxFreqDouble);
-        
-        if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
-        {
-            dxFreqDouble *= 1000;
-        }
-        else
-        {
-            dxFreqDouble *= 1000000;
-        }
-        
-        dxFreqHz = (uint64_t)dxFreqDouble;
+        dxFreqHz = ReportingConfiguration::DisplayedFrequencyToHz(
+            dxFreq, wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz);
         
         log_info("No rows selected, defaulting logging to %" PRIu64 " Hz", dxFreqHz);
     }
@@ -2179,37 +2170,30 @@ void MainFrame::OnChangeReportFrequency( wxCommandEvent& )
         oldFreqString = wxNumberFormatter::ToString(oldFreq / 1000.0 / 1000.0, 4);
     }
 
+    // Whether what's in the box can be used: empty (no frequency) or a
+    // frequency.
+    bool entryUsable = true;
     if (freqStr.Length() > 0)
     {
-        double tmp = 0;
-        wxNumberFormatter::FromString(freqStr, &tmp);
-        
-        if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
-        {
-            wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = round(tmp * 1000);
-        }
-        else
-        {
-            wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = round(tmp * 1000 * 1000);
-        }
+        // Rounded to the nearest 100 Hz, as it's used.
+        uint64_t hz = ReportingConfiguration::DisplayedFrequencyToHz(
+            freqStr, wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz);
+        hz = (hz + 50) / 100 * 100;
 
-        if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency > 0)
+        if (hz > 0)
         {
+            wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = hz;
             m_cboReportFrequency->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
-
-            // Round to the nearest 100 Hz.
-            uint64_t wholeFreq = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency / 100;
-            uint64_t remainder = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency % 100;
-
-            if (remainder >= 50)
-            {
-                wholeFreq++;
-            }
-
-            wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = wholeFreq * 100;
         }
         else
         {
+            // Not a frequency (words, a negative, one too big, or one that
+            // rounds to nothing), so it's shown as such. The radio's still
+            // on the frequency it had, so that's kept, and nothing is sent
+            // to the reporters or the rig, rather than a frequency being
+            // made up from what's typed (or what's half typed: this runs on
+            // each keystroke).
+            entryUsable = false;
             m_cboReportFrequency->SetForegroundColour(wxColor(*wxRED));
         }
     }
@@ -2219,7 +2203,7 @@ void MainFrame::OnChangeReportFrequency( wxCommandEvent& )
         m_cboReportFrequency->SetForegroundColour(wxColor(*wxRED));
     }
 
-    if (freqStr != oldFreqString)
+    if (entryUsable && freqStr != oldFreqString)
     {
         log_info("Request frequency change to %" PRIu64 " Hz", wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency.get());
 
@@ -2283,8 +2267,12 @@ void MainFrame::OnReportFrequencyKillFocus(wxFocusEvent& event)
 void MainFrame::OnSystemColorChanged(wxSysColourChangedEvent& event)
 {
     // Works around issues on wxWidgets with certain controls not changing colors
-    // when the user switches between light and dark mode.
-    if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency > 0)
+    // when the user switches between light and dark mode. (Red for what's in
+    // the box, as when it was typed: a frequency kept from before something
+    // that isn't one was typed over it doesn't make that right.)
+    uint64_t hz = ReportingConfiguration::DisplayedFrequencyToHz(
+        m_cboReportFrequency->GetValue(), wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz);
+    if ((hz + 50) / 100 * 100 > 0)
     {
         m_cboReportFrequency->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
     }
