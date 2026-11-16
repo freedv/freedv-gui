@@ -86,6 +86,35 @@ static bool isSortingColumn_(const wxDataViewColumn* sortingColumn, unsigned int
     return sortingColumn != nullptr && sortingColumn->GetModelColumn() == modelCol;
 }
 
+// A station's frequency as the Frequency column shows it, in the units chosen
+// in Settings, followed by the sideband it's on if it's said ("14.2360 USB").
+// (The column's sorted and filtered by the frequency itself, not this.)
+static wxString frequencyDisplayString_(uint64_t frequencyHz, IReporter::Sideband sideband)
+{
+    wxString frequencyString;
+    if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
+    {
+        frequencyString = wxNumberFormatter::ToString(frequencyHz / 1000.0, 1);
+    }
+    else
+    {
+        frequencyString = wxNumberFormatter::ToString(frequencyHz / 1000.0 / 1000.0, 4);
+    }
+
+    switch (sideband)
+    {
+        case IReporter::Sideband::USB:
+            frequencyString += wxT(" USB");
+            break;
+        case IReporter::Sideband::LSB:
+            frequencyString += wxT(" LSB");
+            break;
+        default:
+            break;
+    }
+    return frequencyString;
+}
+
 void FreeDVReporterDialog::createColumn_(int col, bool visible)
 {
     wxDataViewColumn* colObj = nullptr;
@@ -2890,6 +2919,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::setReporter(std::shared_ptr<
         reporter_->setOnUserConnectFn(FreeDVReporter::ConnectionDataFn());
         reporter_->setOnUserDisconnectFn(FreeDVReporter::ConnectionDataFn());
         reporter_->setOnFrequencyChangeFn(FreeDVReporter::FrequencyChangeFn());
+        reporter_->setOnSidebandChangeFn(FreeDVReporter::SidebandChangeFn());
         reporter_->setOnTransmitUpdateFn(FreeDVReporter::TxUpdateFn());
         reporter_->setOnReceiveUpdateFn(FreeDVReporter::RxUpdateFn());
 
@@ -2913,6 +2943,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::setReporter(std::shared_ptr<
             reporter_->setOnUserConnectFn(std::bind(&FreeDVReporterDialog::FreeDVReporterDataModel::onUserConnectFn_, this, _1, _2, _3, _4, _5, _6, _7));
             reporter_->setOnUserDisconnectFn(std::bind(&FreeDVReporterDialog::FreeDVReporterDataModel::onUserDisconnectFn_, this, _1, _2, _3, _4, _5, _6, _7));
             reporter_->setOnFrequencyChangeFn(std::bind(&FreeDVReporterDialog::FreeDVReporterDataModel::onFrequencyChangeFn_, this, _1, _2, _3, _4, _5));
+            reporter_->setOnSidebandChangeFn(std::bind(&FreeDVReporterDialog::FreeDVReporterDataModel::onSidebandChangeFn_, this, _1, _2));
             reporter_->setOnTransmitUpdateFn(std::bind(&FreeDVReporterDialog::FreeDVReporterDataModel::onTransmitUpdateFn_, this, _1, _2, _3, _4, _5, _6, _7));
             reporter_->setOnReceiveUpdateFn(std::bind(&FreeDVReporterDialog::FreeDVReporterDataModel::onReceiveUpdateFn_, this, _1, _2, _3, _4, _5, _6, _7));
 
@@ -3344,18 +3375,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::refreshAllRows()
     	}
 
         bool updated = false;
-        double frequencyUserReadable = kvp.second->frequency / 1000.0;
-        wxString frequencyString;
-        
-        if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
-        {
-            frequencyString = wxNumberFormatter::ToString(frequencyUserReadable, 1);
-        }
-        else
-        {
-            frequencyUserReadable /= 1000.0;
-            frequencyString = wxNumberFormatter::ToString(frequencyUserReadable, 4);
-        }
+        wxString frequencyString = frequencyDisplayString_(kvp.second->frequency, kvp.second->sideband);
         
         updated |= kvp.second->freqString != frequencyString;
         kvp.second->freqString = frequencyString;
@@ -3570,6 +3590,8 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onUserConnectFn_(std::string
         }
 
         temp->version = version;
+        temp->frequency = 0;
+        temp->sideband = IReporter::Sideband::UNKNOWN;
         temp->freqString = parent_->UNKNOWN_STR;
         temp->userMessage = parent_->UNKNOWN_STR;
         temp->transmitting = false;
@@ -3717,18 +3739,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onFrequencyChangeFn_(std::st
                 return;
             }
 
-            double frequencyUserReadable = frequencyHz / 1000.0;
-            wxString frequencyString;
-            
-            if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
-            {
-                frequencyString = wxNumberFormatter::ToString(frequencyUserReadable, 1);
-            }
-            else
-            {
-                frequencyUserReadable /= 1000.0;
-                frequencyString = wxNumberFormatter::ToString(frequencyUserReadable, 4);
-            }
+            wxString frequencyString = frequencyDisplayString_(frequencyHz, iter->second->sideband);
             auto lastUpdateTime = makeValidTime_(lastUpdate, iter->second->lastUpdateDate);
 
             auto sortingColumn = parent_->m_listSpots->GetSortingColumn();
@@ -3748,6 +3759,39 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onFrequencyChangeFn_(std::st
                 iter->second->isPendingUpdate = isDataChanged;
                 sortOnNextTimerInterval |= isChanged;
             }
+        }
+    };
+
+    fnQueue_.push_back(std::move(handler));
+}
+
+void FreeDVReporterDialog::FreeDVReporterDataModel::onSidebandChangeFn_(std::string sid, IReporter::Sideband sideband)
+{
+    std::unique_lock<std::mutex> lk(fnQueueMtx_);
+    CallbackHandler handler;
+    handler.sid = std::move(sid);
+    handler.sideband = sideband;
+    handler.fn = [this](CallbackHandler& handler) {
+        std::unique_lock<std::recursive_mutex> lk(const_cast<std::recursive_mutex&>(dataMtx_));
+
+        auto iter = allReporterData_.find(handler.sid);
+        if (iter == allReporterData_.end() || iter->second->isPendingDelete ||
+            iter->second->sideband == handler.sideband)
+        {
+            return;
+        }
+
+        // (Always comes after the frequency it's on; the server sends the
+        // two together.)
+        iter->second->sideband = handler.sideband;
+        if (iter->second->frequency > 0)
+        {
+            iter->second->freqString = frequencyDisplayString_(iter->second->frequency, handler.sideband);
+        }
+
+        if (iter->second->isVisible)
+        {
+            iter->second->isPendingUpdate = true;
         }
     };
 

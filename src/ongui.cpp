@@ -403,6 +403,24 @@ void MainFrame::onFrequencyModeChange_(IRigFrequencyController*, uint64_t freq, 
             return;
         }
 
+        // The sideband goes to the reporters along with the frequency, so
+        // only when that's the radio's: one typed in (manual frequency
+        // reporting) may well not be what the radio is on.
+        IReporter::Sideband sideband = IReporter::Sideband::UNKNOWN;
+        if (!wxGetApp().appConfiguration.reportingConfiguration.reportingEnabled ||
+            !wxGetApp().appConfiguration.reportingConfiguration.manualFrequencyReporting)
+        {
+            if (mode == IRigFrequencyController::USB || mode == IRigFrequencyController::DIGU)
+            {
+                sideband = IReporter::Sideband::USB;
+            }
+            else if (mode == IRigFrequencyController::LSB || mode == IRigFrequencyController::DIGL)
+            {
+                sideband = IReporter::Sideband::LSB;
+            }
+        }
+        reportSideband_(sideband);
+
         // Update string value.
         switch(mode)
         {
@@ -558,7 +576,29 @@ void MainFrame::onRadioDisconnected_(IRigController*)
     CallAfter([&]() {
         m_txtModeStatus->SetLabel(_("unk"));
         m_txtModeStatus->Enable(false);
+
+        // Nothing's known about the sideband without the radio.
+        reportSideband_(IReporter::Sideband::UNKNOWN);
     });
+}
+
+//-------------------------------------------------------------------------
+// reportSideband_(): tells the reporters which sideband the radio is on
+// (UNKNOWN if not known), if that's changed. On the UI thread, as
+// m_reporters is changed there.
+//-------------------------------------------------------------------------
+void MainFrame::reportSideband_(IReporter::Sideband sideband)
+{
+    if (sideband == reportedSideband_)
+    {
+        return;
+    }
+
+    reportedSideband_ = sideband;
+    for (auto& ptr : wxGetApp().m_reporters)
+    {
+        ptr->sidebandChange(sideband);
+    }
 }
 
 //-------------------------------------------------------------------------

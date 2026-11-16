@@ -3,7 +3,8 @@ include(FetchContent)
 FetchContent_Declare(
     freedv_backend
     GIT_REPOSITORY https://github.com/freedv/freedv-backend
-    GIT_TAG v2.0-dev
+    # TODO: back to v2.0-dev once freedv-backend PR #84 (ms-reporter-sideband) is merged.
+    GIT_TAG ms-reporter-sideband
 )
 
 FetchContent_MakeAvailable(freedv_backend)

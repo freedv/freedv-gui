@@ -1471,6 +1471,7 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, wxT("FreeDV 
     m_panelSNR = nullptr;
 
     suppressFreqModeUpdates_ = false;
+    reportedSideband_ = IReporter::Sideband::UNKNOWN;
     lastBand_ = BAND_OTHER;
     
     tools->AppendSeparator();
@@ -2979,6 +2980,7 @@ void MainFrame::performFreeDVOn_()
                             {
                                 obj->transmit(freedvInterface.getCurrentTxModeStr(), g_tx.load(std::memory_order_acquire));
                                 obj->freqChange(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+                                obj->sidebandChange(reportedSideband_);
                             }
                         });
                     }
@@ -4298,6 +4300,7 @@ void MainFrame::initializeFreeDVReporter_()
     {
         wxGetApp().m_sharedReporterObject->transmit(freedvInterface.getCurrentTxModeStr(), txStatus);
         wxGetApp().m_sharedReporterObject->freqChange(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+        wxGetApp().m_sharedReporterObject->sidebandChange(reportedSideband_);
     }
     wxGetApp().m_sharedReporterObject->connect();
 }

@@ -30,7 +30,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import freedvtest
 import freedvtest.audio
 from freedvtest.audio import VirtualAudioDevices, device
-from freedvtest.reporter import ReporterServer
+from freedvtest.reporter import ReporterError, ReporterServer
+from freedvtest.rigctld import Rigctld, RigctldError
 
 LIST = "reporter.listSpots"
 
@@ -1134,7 +1135,9 @@ def test_row_actions():
             app.activate_row(LIST, (CALLSIGN, "K1ABC"))
             app.wait_until(lambda: app.get("main.cboReportFrequency")["value"] == "7.1770", timeout=15,
                            description="FreeDV's radio to be tuned to K1ABC's frequency")
-            wait_for_cell(app, CALLSIGN_OF_FREEDV, FREQUENCY, "7.1770", timeout=45)
+            # (Followed by the radio's sideband, with a server that passes
+            # that on.)
+            wait_for_cell(app, CALLSIGN_OF_FREEDV, FREQUENCY, lambda text: text.split(" ")[0] == "7.1770", timeout=45)
             check_equal([row[CALLSIGN] for row in app.rows(LIST) if row["selected"]], [],
                         "Selected station after double-clicking")
             app.activate_row(LIST, (CALLSIGN, "VK5DGR"))
@@ -1303,7 +1306,8 @@ def test_qsy_with_radio():
                             "Messages displayed")
                 app.wait_until(lambda: frequency() == accepted, timeout=15,
                                description="FreeDV to change frequency (it's on %s)" % frequency())
-                wait_for_cell(app, CALLSIGN_OF_FREEDV, FREQUENCY, lambda text: text.replace(",", "") == accepted,
+                wait_for_cell(app, CALLSIGN_OF_FREEDV, FREQUENCY,
+                              lambda text: text.replace(",", "").split(" ")[0] == accepted,
                               timeout=45)
 
                 stop_modem(app)
@@ -2529,6 +2533,92 @@ def test_frequency_in_khz():
 
             quit_and_check_log(app)
 
+def test_sideband():
+    """The sideband each station's radio is on (USB or LSB), where it says:
+    shown after its frequency, and FreeDV's own reported from its radio's
+    mode, following the radio."""
+    with ReporterServer() as server:
+        # Servers from before the sideband was reported don't pass it on.
+        probe = server.station("K1ABC", "FN42")
+        probe.set_frequency(14236000, "USB")
+        viewer = server.viewer()
+        try:
+            viewer.wait_for_event("freq_change", "K1ABC", where=lambda data: "sideband" in data, timeout=5)
+        except ReporterError:
+            raise freedvtest.audio.Unavailable("this FreeDV Reporter server doesn't pass on sidebands")
+
+        server.station("VK5DGR", "QF02").set_frequency(7177000, "LSB")
+        server.station("W6XYZ", "CM87").set_frequency(28330000)
+
+        try:
+            radio = Rigctld()
+            radio.__enter__()
+        except RigctldError as e:
+            raise freedvtest.audio.Unavailable(str(e))
+        try:
+            radio.set_frequency(14236000)
+            settings = reporter_settings(server.hostname)
+            settings.update(audio_settings())
+            settings.update({"/Reporting/ManualFrequencyReporting": False, "/Hamlib/UseForPTT": True,
+                             "/Hamlib/RigNameStr": Rigctld.RIG_NAME, "/Hamlib/SerialPort": radio.address})
+            with audio_devices(), freedvtest.start(settings=settings) as app:
+                open_reporter(app)
+
+                # Shown after the frequency, where the station says.
+                wait_for_cell(app, "K1ABC", FREQUENCY, "14.2360 USB")
+                wait_for_cell(app, "VK5DGR", FREQUENCY, "7.1770 LSB")
+                wait_for_cell(app, "W6XYZ", FREQUENCY, "28.3300")
+
+                # A new sideband on the same frequency, then not saying.
+                probe.set_frequency(14236000, "LSB")
+                wait_for_cell(app, "K1ABC", FREQUENCY, "14.2360 LSB")
+                probe.set_frequency(14236000, "")
+                wait_for_cell(app, "K1ABC", FREQUENCY, "14.2360")
+                probe.set_frequency(14236000, "USB")
+                wait_for_cell(app, "K1ABC", FREQUENCY, "14.2360 USB")
+
+                # Still sorted by the frequency itself.
+                app.click_column(LIST, FREQUENCY)
+                order = [row[CALLSIGN] for row in app.rows(LIST)]
+                check_equal([c for c in order if c in ("VK5DGR", "K1ABC", "W6XYZ")] in
+                            (["VK5DGR", "K1ABC", "W6XYZ"], ["W6XYZ", "K1ABC", "VK5DGR"]), True,
+                            "Sorted by frequency (%s)" % ", ".join(order))
+
+                # FreeDV's own: digital modes put the radio on USB.
+                start_modem(app)
+                app.wait_until(lambda: app.get("main.textModeStatus")["label"] != "unk",
+                               description="FreeDV to connect to the radio")
+                viewer.wait_for_event("freq_change", CALLSIGN_OF_FREEDV,
+                                      where=lambda data: data.get("sideband") == "USB", timeout=20)
+                wait_for_cell(app, CALLSIGN_OF_FREEDV, FREQUENCY, "14.2360 USB", timeout=30)
+
+                # Following the radio: on LSB, then a mode that has neither.
+                radio.command("M LSB 2400")
+                viewer.wait_for_event("freq_change", CALLSIGN_OF_FREEDV,
+                                      where=lambda data: data.get("sideband") == "LSB", timeout=20)
+                wait_for_cell(app, CALLSIGN_OF_FREEDV, FREQUENCY, "14.2360 LSB", timeout=30)
+                # (Each sent with the frequency it's on.)
+                frequencies = [data["freq"] for data in viewer.events("freq_change", CALLSIGN_OF_FREEDV)
+                               if data.get("sideband") in ("USB", "LSB")]
+                check_equal(set(frequencies), {14236000}, "Frequencies FreeDV reported with a sideband")
+
+                radio.command("M AM 6000")
+                viewer.wait_for_event("freq_change", CALLSIGN_OF_FREEDV,
+                                      where=lambda data: data.get("sideband") == "", timeout=20)
+                wait_for_cell(app, CALLSIGN_OF_FREEDV, FREQUENCY, "14.2360", timeout=30)
+
+                stop_modem(app)
+                check_equal(app.message_boxes(), [], "Errors displayed")
+                check_equal(app.quit(), 0, "FreeDV's exit code")
+                # (Hamlib has its own idea of what's worth calling an error, as
+                # in test_rig_control.py.)
+                errors = [line for line in app.log().splitlines()
+                          if (" ERROR " in line or " FATAL " in line) and "HamlibRigController.cpp" not in line]
+                check_equal(errors, [], "Errors logged by FreeDV")
+        finally:
+            radio.__exit__(None, None, None)
+
+
 SCENARIOS = {
     "live_view": test_live_view,
     "stations": test_stations,
@@ -2557,6 +2647,7 @@ SCENARIOS = {
     "window": test_window,
     "connection_burst": test_connection_burst,
     "frequency_in_khz": test_frequency_in_khz,
+    "sideband": test_sideband,
 }
 
 

@@ -617,6 +617,10 @@ class MainFrame : public TopFrame
         float      vk_rx_sync_time;
         bool suppressFreqModeUpdates_;
         bool firstFreqUpdateOnConnect_;
+
+        // The sideband last told to the reporters (see reportSideband_()).
+        IReporter::Sideband reportedSideband_;
+        void reportSideband_(IReporter::Sideband sideband);
         FilterFrequency lastBand_;
         // Restore-point: the TX/tune level that was active when we entered the
         // current band (or when Enable was first clicked for that band). Restore

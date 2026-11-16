@@ -333,8 +333,13 @@ class Station:
 
     # -- What this station reports ----------------------------------------
 
-    def set_frequency(self, frequency_hz):
-        self._run(self._client.emit("freq_change", {"freq": frequency_hz}))
+    def set_frequency(self, frequency_hz, sideband=None):
+        """Reports a frequency and, if given, the sideband ("USB", "LSB",
+        or "" for not known) the station's radio is on."""
+        data = {"freq": frequency_hz}
+        if sideband is not None:
+            data["sideband"] = sideband
+        self._run(self._client.emit("freq_change", data))
 
     def transmit(self, mode, transmitting):
         self._run(self._client.emit("tx_report", {"mode": mode, "transmitting": transmitting}))

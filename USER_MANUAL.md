@@ -418,6 +418,10 @@ also enabled, this frequency will automatically remain in sync with the current 
 frequency is changed in the application, the radio will also change its frequency). Double-clicking on users in 
 the Tools->FreeDV Reporter window will also cause this frequency to change to match the other user.
 
+With Hamlib or OmniRig enabled (and "Manual Frequency Reporting" turned off), FreeDV also reports which sideband 
+(USB or LSB) the radio is on. Other stations' sidebands, where their versions of FreeDV report them, are shown after
+their frequencies in the Tools->FreeDV Reporter window (e.g. "14.2360 USB") and on the FreeDV Reporter website.
+
 By default, pushing Start sets the radio to the frequency FreeDV last used, and pushing Stop returns the radio to the
 frequency and mode it had before Start. To leave the radio's frequency alone instead (FreeDV shows the radio's current
 frequency on Start, and the radio stays where it is on Stop), uncheck "Save and restore the frequency on start and stop"
