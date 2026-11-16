@@ -2,18 +2,18 @@
 if(UNIX AND NOT APPLE)
     set(ICON_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX}/share/icons/hicolor
         CACHE PATH "Prefix to use for installing icons.")
-    install(FILES freedv48x48.png
-        DESTINATION ${ICON_INSTALL_PREFIX}/48x48/apps
-        RENAME freedv.png)
-    install(FILES freedv64x64.png
-        DESTINATION ${ICON_INSTALL_PREFIX}/64x64/apps
-        RENAME freedv.png)
-    install(FILES freedv128x128.png
-        DESTINATION ${ICON_INSTALL_PREFIX}/128x128/apps
-        RENAME freedv.png)
-    install(FILES freedv256x256.png
-        DESTINATION ${ICON_INSTALL_PREFIX}/256x256/apps
-        RENAME freedv.png)
+    # From contrib/icon: the smaller sizes are drawn for Windows, the
+    # larger ones for Linux.
+    foreach(size 16 24 32 48)
+        install(FILES icon/Windows/${size}.png
+            DESTINATION ${ICON_INSTALL_PREFIX}/${size}x${size}/apps
+            RENAME freedv.png)
+    endforeach(size)
+    foreach(size 64 96 128 256 512)
+        install(FILES icon/Linux/${size}.png
+            DESTINATION ${ICON_INSTALL_PREFIX}/${size}x${size}/apps
+            RENAME freedv.png)
+    endforeach(size)
 
     set(DESKTOP_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/share/applications
         CACHE PATH "Location to install desktop files.")

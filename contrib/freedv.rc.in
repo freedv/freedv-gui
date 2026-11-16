@@ -29,4 +29,6 @@ BEGIN
     END
 END
 
-id ICON "@CMAKE_SOURCE_DIR@/contrib/freedv.ico"
+// The program's icon (Explorer shows the first one, by name: this comes before
+// wx.rc's), and its windows' (see src/gui/util/AppIcon.cpp).
+freedv ICON "@CMAKE_SOURCE_DIR@/contrib/freedv.ico"

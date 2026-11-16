@@ -2757,6 +2757,73 @@ def test_exit_while_tuning():
         check_silent(RADIO_TX_MONITOR, "Something is still being sent to the radio")
 
 
+def first_icon_resource(binary):
+    """The name of the first icon in a Windows program's resources: the one
+    Explorer and the taskbar show for the program itself."""
+    import ctypes
+    from ctypes import wintypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.LoadLibraryExW.restype = wintypes.HMODULE
+    kernel32.LoadLibraryExW.argtypes = [wintypes.LPCWSTR, wintypes.HANDLE, wintypes.DWORD]
+    kernel32.FreeLibrary.argtypes = [wintypes.HMODULE]
+    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HMODULE, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+    kernel32.EnumResourceNamesW.argtypes = [wintypes.HMODULE, ctypes.c_void_p, callback_type, ctypes.c_void_p]
+    LOAD_LIBRARY_AS_DATAFILE, RT_GROUP_ICON = 0x2, 14
+    module = kernel32.LoadLibraryExW(os.path.abspath(binary), None, LOAD_LIBRARY_AS_DATAFILE)
+    check(module, "Couldn't open %s for its resources (%d)" % (binary, ctypes.get_last_error()))
+    names = []
+
+    def found(_module, _kind, name, _param):
+        # A number (MAKEINTRESOURCE) is below 0x10000; anything else is a name.
+        names.append("#%d" % name if name < 0x10000 else ctypes.wstring_at(name))
+        return False  # The first is all that's wanted.
+
+    try:
+        kernel32.EnumResourceNamesW(module, RT_GROUP_ICON, callback_type(found), None)
+    finally:
+        kernel32.FreeLibrary(module)
+    return names[0] if names else None
+
+
+def test_window_icon():
+    """FreeDV's icon on its windows, for their title bars and the taskbar or
+    window switcher, in each size that's drawn for them (see contrib/icon).
+    macOS shows the app bundle's icon instead, which test_macos_app_icon.sh
+    checks."""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    from icon_images import looks_like_freedv_icon
+    if sys.platform == "darwin":
+        raise freedvtest.audio.Unavailable("macOS shows the app bundle's icon (see test/test_macos_app_icon.sh)")
+
+    if sys.platform == "win32":
+        # What Explorer and the taskbar show for freedv.exe: the first icon
+        # in it, by name, which has to be FreeDV's and not one of wx.rc's.
+        check_equal(first_icon_resource(freedvtest.default_binary()), "FREEDV", "freedv.exe's first icon")
+
+    def check_icons(window):
+        icons = app.get(window)["icons"]
+        sizes = sorted(icon["size"][0] for icon in icons)
+        check_equal(sizes, [16, 24, 32, 48, 64, 96, 128, 256] if sys.platform != "win32" else [16, 24, 32, 48, 64, 96, 256],
+                    "Sizes of the icon on the %s window" % window)
+        for icon in icons:
+            width, height = icon["size"]
+            check_equal(width, height, "The %s window's %dx%d icon is square" % (window, width, height))
+            points = {(width // 2, height // 2): icon["center"], (0, 0): icon["corner"],
+                      (width // 4, height // 2): icon["left"], (width // 2, height // 4): icon["above"]}
+            problem = looks_like_freedv_icon(lambda x, y: tuple(points[(x, y)]), width, height)
+            check(problem is None, "The %s window's %dx%d icon isn't FreeDV's: %s" % (window, width, height, problem))
+
+    with audio_devices():
+        with freedvtest.start(settings=settings()) as app:
+            app.wait_for_window("main")
+            check_icons("main")
+            app.menu("Tools/FreeDV Reporter")
+            app.wait_for_window("reporter")
+            check_icons("reporter")
+            check_equal(app.message_boxes(), [], "Messages displayed")
+            quit_and_check_log(app)
+
+
 def test_old_settings():
     """Settings from before they were kept the way they are now."""
     # The radio used to be kept as its place in Hamlib's list.
@@ -2855,6 +2922,7 @@ SCENARIOS = {
     "exit_while_tuning": test_exit_while_tuning,
     "old_settings": test_old_settings,
     "bad_command_line": test_bad_command_line,
+    "window_icon": test_window_icon,
 }
 
 
