@@ -10,19 +10,8 @@ else
     FREEDV_BINARY=src/freedv
 fi
 
-createVirtualAudioCable () {
-    CABLE_NAME=$1
-    pactl load-module module-null-sink sink_name=$CABLE_NAME sink_properties=device.description=$CABLE_NAME 
-}
-
-waitForCableUp () {
-    CABLE_NAME=$1
-    until (pactl list short sinks | grep -E "^[0-9]+\\s+${CABLE_NAME}\\s+")
-    do
-        echo "Waiting for $CABLE_NAME to come up..."
-        sleep 1;
-    done
-}
+SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+source "$SCRIPTPATH/virtual_audio_common.sh"
 
 FREEDV_RADIO_TO_COMPUTER_DEVICE="${FREEDV_RADIO_TO_COMPUTER_DEVICE:-FreeDV_Radio_To_Computer}"
 FREEDV_COMPUTER_TO_SPEAKER_DEVICE="${FREEDV_COMPUTER_TO_SPEAKER_DEVICE:-FreeDV_Computer_To_Speaker}"
@@ -43,17 +32,7 @@ fi
 # Automated script to help find audio dropouts.
 # NOTE: this must be run from "build_*". Also assumes PulseAudio/pipewire or macOS Core Audio,
 # does not work in Windows.
-if [ "$OPERATING_SYSTEM" == "Linux" ]; then
-    DRIVER_INDEX_FREEDV_RADIO_TO_COMPUTER=$(createVirtualAudioCable FreeDV_Radio_To_Computer)
-    waitForCableUp FreeDV_Radio_To_Computer
-    DRIVER_INDEX_FREEDV_COMPUTER_TO_SPEAKER=$(createVirtualAudioCable FreeDV_Computer_To_Speaker)
-    waitForCableUp FreeDV_Computer_To_Speaker
-    DRIVER_INDEX_FREEDV_MICROPHONE_TO_COMPUTER=$(createVirtualAudioCable FreeDV_Microphone_To_Computer)
-    waitForCableUp FreeDV_Microphone_To_Computer
-    DRIVER_INDEX_FREEDV_COMPUTER_TO_RADIO=$(createVirtualAudioCable FreeDV_Computer_To_Radio)
-    waitForCableUp FreeDV_Computer_To_Radio
-    DRIVER_INDEX_LOOPBACK=`pactl load-module module-loopback source="FreeDV_Computer_To_Radio.monitor" sink="FreeDV_Radio_To_Computer"`
-fi
+create_virtual_audio_cables
 
 # Determine correct record device to retrieve TX data
 if [ "$1" == "mpp" ]; then
@@ -69,7 +48,6 @@ else
 fi
 
 # Generate config file
-SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 if [ "$FREEDV_RADIO_TO_COMPUTER_DEVICE" == "FreeDV_Radio_To_Computer" ] && [ "$OPERATING_SYSTEM" == "Linux" ]; then
     sed "s/@FREEDV_RADIO_TO_COMPUTER_DEVICE@/$FREEDV_RADIO_TO_COMPUTER_DEVICE.monitor/g" $SCRIPTPATH/$FREEDV_CONF_FILE.tmpl > $(pwd)/$FREEDV_CONF_FILE
 else
@@ -199,15 +177,6 @@ if [ $FREEDV_EXIT_CODE -eq 0 ]; then
     wait $FDV_PID
     FREEDV_EXIT_CODE=$?
     #cat tmp.log
-fi
-
-# Clean up PulseAudio virtual devices
-if [ "$OPERATING_SYSTEM" == "Linux" ]; then
-    pactl unload-module $DRIVER_INDEX_LOOPBACK
-    pactl unload-module $DRIVER_INDEX_FREEDV_RADIO_TO_COMPUTER
-    pactl unload-module $DRIVER_INDEX_FREEDV_COMPUTER_TO_SPEAKER
-    pactl unload-module $DRIVER_INDEX_FREEDV_COMPUTER_TO_RADIO
-    pactl unload-module $DRIVER_INDEX_FREEDV_MICROPHONE_TO_COMPUTER
 fi
 
 # End radio process as it's no longer needed

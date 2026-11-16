@@ -28,6 +28,8 @@
 #include <wx/dataview.h>
 #include <wx/clipbrd.h>
 #include <wx/evtloop.h>
+#include <wx/iconbndl.h>
+#include <wx/image.h>
 #include <wx/listctrl.h>
 #include <wx/popupwin.h>
 #include <wx/spinctrl.h>
@@ -673,6 +675,52 @@ static void DescribeDataView_(yyjson_mut_doc* doc, yyjson_mut_val* obj, wxDataVi
     yyjson_mut_obj_add_val(doc, obj, "rows", rowsArr);
 }
 
+// The icons a window has been given: each one's size, and its pixels (red,
+// green, blue and alpha) in the middle, at the top left corner, and halfway
+// from the middle to the left and to the top edges -- enough to tell FreeDV's icon from
+// none, another, or one that's lost its transparency.
+static yyjson_mut_val* DescribeIcons_(yyjson_mut_doc* doc, wxTopLevelWindow* window)
+{
+    yyjson_mut_val* icons = yyjson_mut_arr(doc);
+    const wxIconBundle& bundle = window->GetIcons();
+    for (size_t index = 0; index < bundle.GetIconCount(); index++)
+    {
+        wxIcon icon = bundle.GetIconByIndex(index);
+        if (!icon.IsOk())
+        {
+            continue;
+        }
+        wxBitmap bitmap;
+        bitmap.CopyFromIcon(icon);
+        wxImage image = bitmap.ConvertToImage();
+        if (!image.IsOk())
+        {
+            continue;
+        }
+
+        yyjson_mut_val* obj = yyjson_mut_obj(doc);
+        yyjson_mut_val* size = yyjson_mut_arr(doc);
+        yyjson_mut_arr_add_int(doc, size, image.GetWidth());
+        yyjson_mut_arr_add_int(doc, size, image.GetHeight());
+        yyjson_mut_obj_add_val(doc, obj, "size", size);
+
+        auto pixel = [&](const char* name, int x, int y) {
+            yyjson_mut_val* rgba = yyjson_mut_arr(doc);
+            yyjson_mut_arr_add_int(doc, rgba, image.GetRed(x, y));
+            yyjson_mut_arr_add_int(doc, rgba, image.GetGreen(x, y));
+            yyjson_mut_arr_add_int(doc, rgba, image.GetBlue(x, y));
+            yyjson_mut_arr_add_int(doc, rgba, image.HasAlpha() ? image.GetAlpha(x, y) : (image.HasMask() && image.IsTransparent(x, y) ? 0 : 255));
+            yyjson_mut_obj_add_val(doc, obj, name, rgba);
+        };
+        pixel("center", image.GetWidth() / 2, image.GetHeight() / 2);
+        pixel("corner", 0, 0);
+        pixel("left", image.GetWidth() / 4, image.GetHeight() / 2);
+        pixel("above", image.GetWidth() / 2, image.GetHeight() / 4);
+        yyjson_mut_arr_append(icons, obj);
+    }
+    return icons;
+}
+
 yyjson_mut_val* TestAgent::describeWindow_(yyjson_mut_doc* doc, wxWindow* window, bool includeItems)
 {
     yyjson_mut_val* obj = yyjson_mut_obj(doc);
@@ -698,6 +746,10 @@ yyjson_mut_val* TestAgent::describeWindow_(yyjson_mut_doc* doc, wxWindow* window
         if (frame != nullptr && frame->GetStatusBar() != nullptr)
         {
             AddString_(doc, obj, "status", frame->GetStatusBar()->GetStatusText());
+        }
+        if (includeItems)
+        {
+            yyjson_mut_obj_add_val(doc, obj, "icons", DescribeIcons_(doc, topLevel));
         }
         return obj;
     }

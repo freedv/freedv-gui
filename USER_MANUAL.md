@@ -907,6 +907,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Add translations for Swedish, Brazilian Portuguese and Latvian. (PR #1615)
     * Additional data race cleanup. (PR #1616)
     * Add tests of audio device and engine thread safety, re-recording a voice keyer message, and Settings' Test PTT. (PR #1625)
+    * Add new FreeDV application icon. (PR #1641)
 
 *Note: Legacy FreeDV modes (700D/700E/1600) have been removed due to low use. FreeDV 2.4.x is still available if one wishes to operate these modes.*
 

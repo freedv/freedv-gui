@@ -1,4 +1,5 @@
 add_library(fdv_gui_util STATIC
+    AppIcon.cpp
     GridSquare.cpp
     LabelOverrideAccessible.cpp
     NameOverrideAccessible.cpp
@@ -9,6 +10,21 @@ add_library(fdv_gui_util STATIC
 
 target_compile_options(fdv_gui_util PRIVATE ${WARNINGS_AS_ERRORS_FLAGS})
 target_link_libraries(fdv_gui_util PUBLIC fdv_util)
+
+# The icon's images, for the windows (see AppIcon.cpp). Windows has them in
+# its resources, and macOS in the app bundle.
+if(UNIX AND NOT APPLE)
+    include(${CMAKE_SOURCE_DIR}/cmake/EmbedFiles.cmake)
+    set(FREEDV_ICON_IMAGES)
+    foreach(size 16 24 32 48)
+        list(APPEND FREEDV_ICON_IMAGES ${CMAKE_SOURCE_DIR}/contrib/icon/Windows/${size}.png)
+    endforeach(size)
+    foreach(size 64 96 128 256)
+        list(APPEND FREEDV_ICON_IMAGES ${CMAKE_SOURCE_DIR}/contrib/icon/Linux/${size}.png)
+    endforeach(size)
+    freedv_embed_files(${CMAKE_CURRENT_BINARY_DIR}/freedv_icon_images.h FREEDV_ICON_IMAGES ${FREEDV_ICON_IMAGES})
+    target_include_directories(fdv_gui_util PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+endif(UNIX AND NOT APPLE)
 
 if(BOOTSTRAP_WXWIDGETS)
     add_dependencies(fdv_gui_util wx::core wx::base wx::aui wx::html wx::net wx::adv wx::propgrid)

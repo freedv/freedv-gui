@@ -86,25 +86,41 @@ const char* const NO_SOUND_SERVER = "unix:/nonexistent/freedv-test-pulse-socket"
 
 const char* const MISSING_DEVICE = "FreeDVTestMissingDevice";
 
-// Where this was told to find the sound server when it was run, if anywhere.
+// Where this was told to find the sound server when it was run, if anywhere,
+// and the X display, which libpulse also asks.
 const char* const originalSoundServer = getenv("PULSE_SERVER") != nullptr ? strdup(getenv("PULSE_SERVER")) : nullptr;
+const char* const originalDisplay = getenv("DISPLAY") != nullptr ? strdup(getenv("DISPLAY")) : nullptr;
+
+void restoreVariable(const char* name, const char* value)
+{
+    if (value != nullptr)
+    {
+        setenv(name, value, 1);
+    }
+    else
+    {
+        unsetenv(name);
+    }
+}
 
 void useNoSoundServer()
 {
     setenv("PULSE_SERVER", NO_SOUND_SERVER, 1);
+
+    // Every connection makes libpulse read its client configuration again,
+    // which includes asking the X display where the sound server is
+    // (pa_client_conf_from_x11). That's microseconds on a desktop, but can be
+    // seconds under the loaded Xvfb a full CTest run leaves behind, enough to
+    // turn a case that connects in a loop into minutes. With no sound server
+    // there's nothing for it to find, so don't ask.
+    unsetenv("DISPLAY");
 }
 
 // The one that FreeDV itself would use, if there is one.
 void useUsualSoundServer()
 {
-    if (originalSoundServer != nullptr)
-    {
-        setenv("PULSE_SERVER", originalSoundServer, 1);
-    }
-    else
-    {
-        unsetenv("PULSE_SERVER");
-    }
+    restoreVariable("PULSE_SERVER", originalSoundServer);
+    restoreVariable("DISPLAY", originalDisplay);
 }
 
 // What PulseAudioEngine::start() and PulseAudioDevice::start() report when
@@ -1096,6 +1112,8 @@ bool deviceEnumerationIsSerializedAgainstEngineStartAndStop()
     int numListed = 0;
 
     std::thread startAndStop([&]() {
+        // (Quick to go round, as useNoSoundServer() keeps libpulse from
+        // asking the X display on every start().)
         while (!finished.load())
         {
             engine.start();
