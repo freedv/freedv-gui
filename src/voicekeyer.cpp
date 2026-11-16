@@ -44,8 +44,9 @@ void MainFrame::StopRecFileFromMic()
     
     // Cache the newly recorded file for playback.
     vkFileCache_.preload(vkFileName_);
-    
-    m_togBtnAnalog->Enable(true);
+
+    // (Analog, disabled while recording, is left to the caller: when the
+    // modem is stopping, it stays disabled.)
     m_togBtnVoiceKeyer->SetValue(false);
     m_togBtnVoiceKeyer->SetBackgroundColour(wxNullColour);
     
@@ -62,6 +63,7 @@ void MainFrame::OnTogBtnVoiceKeyerClick (wxCommandEvent& event)
     if (g_recVoiceKeyerFile.load(std::memory_order_relaxed))
     {
         StopRecFileFromMic();
+        m_togBtnAnalog->Enable(true);
     }
     else
     {

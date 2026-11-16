@@ -43,9 +43,10 @@ _SANITIZER_REPORT = re.compile(
     r"WARNING: ThreadSanitizer|ERROR: ThreadSanitizer|FATAL: ThreadSanitizer|ERROR: AddressSanitizer|"
     r"ERROR: LeakSanitizer|ERROR: RealtimeSanitizer|UndefinedBehaviorSanitizer|runtime error:")
 
-# CTest's timeout kills a test script outright, which would leave FreeDV and
-# any pactl/sox/rigctl helpers running on into the next test. Exiting on
-# SIGTERM instead unwinds the "with" blocks, which stop them.
+# CTest's timeout sends SIGTERM (TIMEOUT_SIGNAL_NAME in CMakeLists.txt), whose
+# default action would end the script without stopping FreeDV or any
+# pactl/sox/rigctl helpers, leaving them running on into the next test.
+# Exiting on it instead unwinds the "with" blocks, which stop them.
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
 
 

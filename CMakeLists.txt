@@ -983,4 +983,20 @@ if(LINUX)
     freedv_add_test_shim(pulse_shim)
 endif(LINUX)
 
+# By default, CTest kills a test that runs past its timeout with SIGKILL, which
+# nothing can clean up after: FreeDV, its helpers (sox, parecord,
+# hamlibserver.py on its fixed UDP port...) and the virtual audio cables would
+# be left for the next test. The test scripts clean up on SIGTERM instead
+# (test/virtual_audio_common.sh, test/gui/freedvtest), so send that, and allow
+# them time to do it before SIGKILL. (CMake 3.27 and later; earlier versions
+# ignore these properties. Windows has no such signals.)
+if(NOT WIN32)
+    get_property(FREEDV_TESTS DIRECTORY PROPERTY TESTS)
+    if(FREEDV_TESTS)
+        set_tests_properties(${FREEDV_TESTS} PROPERTIES
+            TIMEOUT_SIGNAL_NAME SIGTERM
+            TIMEOUT_SIGNAL_GRACE_PERIOD 15)
+    endif(FREEDV_TESTS)
+endif(NOT WIN32)
+
 endif(UNITTEST)

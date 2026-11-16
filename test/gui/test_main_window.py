@@ -70,6 +70,16 @@ def check_equal(actual, expected, what):
     check(actual == expected, "%s is %r, expected %r" % (what, actual, expected))
 
 
+def readable_file_level(path, what):
+    """file_level(), failing the test if the file can't be read as a WAV
+    file at all (as when it was never closed, which is where its header gets
+    its lengths)."""
+    try:
+        return file_level(path)
+    except Exception as error:
+        raise AssertionError("%s isn't a readable WAV file (%s)" % (what, error))
+
+
 def label(app, name):
     return app.get(name)["label"].replace("&", "")
 
@@ -2923,8 +2933,9 @@ def test_stop_while_recording():
             recorded = sorted(f for f in os.listdir(raw_folder) if f.endswith(".wav"))
             check(len(recorded) == 1, "Recordings in %s are %r" % (raw_folder, recorded))
             for path in recorded:
-                _, seconds = file_level(os.path.join(raw_folder, path))
-                check(seconds >= 2, "%s is only %.1f s long" % (os.path.basename(path), seconds))
+                level, seconds = readable_file_level(os.path.join(raw_folder, path), path)
+                check(level > AUDIBLE and seconds >= 2,
+                      "%s is %.1f s at level %d" % (path, seconds, level))
 
         with audio_devices():
             with freedvtest.start(settings=settings(QuickRecord__SavePath=folders[0])) as app:
@@ -2977,10 +2988,7 @@ def test_voice_keyer_recording_stop():
                     time.sleep(2)
                     stop_modem(app)
                     check_equal(app.get("main")["status"], "", "Status after stopping")
-                try:
-                    measured, seconds = file_level(take)
-                except Exception as error:
-                    check(False, "The take isn't a readable WAV file (%s)" % error)
+                measured, seconds = readable_file_level(take, "The take")
                 check(measured > AUDIBLE and seconds >= 1,
                       "The take is %.1f s at level %d" % (seconds, measured))
                 quit_and_check_log(app)
