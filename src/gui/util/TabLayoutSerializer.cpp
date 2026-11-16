@@ -24,14 +24,21 @@ namespace
         return result;
     }
 
-    std::vector<int> SplitInts(const wxString& str)
+    // Page indices. wxAuiNotebook::LoadLayout() skips one past its last
+    // page (and a repeated one), but indexes its pages with a negative one,
+    // reading outside them: a negative index in the config file is dropped.
+    std::vector<int> SplitPageIndices(const wxString& str)
     {
         std::vector<int> result;
 
         wxStringTokenizer tok(str, LIST_SEP);
         while (tok.HasMoreTokens())
         {
-            result.push_back(wxAtoi(tok.GetNextToken()));
+            int index = wxAtoi(tok.GetNextToken());
+            if (index >= 0)
+            {
+                result.push_back(index);
+            }
         }
         return result;
     }
@@ -89,8 +96,8 @@ std::vector<wxAuiTabLayoutInfo> TabLayoutDeserializer::LoadNotebookTabs(const wx
         tab.dock_proportion = wxAtoi(fields[4]);
         tab.dock_size = wxAtoi(fields[5]);
         tab.active = wxAtoi(fields[6]);
-        tab.pages = SplitInts(fields[7]);
-        tab.pinned = SplitInts(fields[8]);
+        tab.pages = SplitPageIndices(fields[7]);
+        tab.pinned = SplitPageIndices(fields[8]);
 
         result.push_back(tab);
     }

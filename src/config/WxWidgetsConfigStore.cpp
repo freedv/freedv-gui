@@ -19,6 +19,8 @@
 //
 //==========================================================================
 
+#include <algorithm>
+#include <climits>
 #include <wx/tokenzr.h>
 #include <wx/numformatter.h>
 #include "WxWidgetsConfigStore.h"
@@ -56,11 +58,30 @@ void WxWidgetsConfigStore::load_<wxString>(wxConfigBase* config, ConfigurationDa
     configElement.setWithoutProcessing(val);
 }
 
+// A number in the config file too big or small for the setting's type
+// (anything can have been written there) would otherwise wrap around into
+// some other value on the way in: the default is used instead.
+template<>
+void WxWidgetsConfigStore::load_<int>(wxConfigBase* config, ConfigurationDataElement<int>& configElement)
+{
+    long val;
+    config->Read(configElement.getElementName(), &val, (long)configElement.getDefaultVal());
+    if ((long long)val < INT_MIN || (long long)val > INT_MAX)
+    {
+        val = configElement.getDefaultVal();
+    }
+    configElement.setWithoutProcessing((int)val);
+}
+
 template<>
 void WxWidgetsConfigStore::load_<unsigned int>(wxConfigBase* config, ConfigurationDataElement<unsigned int>& configElement)
 {
     long val;
     config->Read(configElement.getElementName(), &val, (long)configElement.getDefaultVal());
+    if (val < 0 || (unsigned long long)val > UINT_MAX)
+    {
+        val = (long)configElement.getDefaultVal();
+    }
     configElement.setWithoutProcessing((unsigned int)val);
 }
 
@@ -207,9 +228,13 @@ std::vector<int> WxWidgetsConfigStore::generateNumArrayFromString_(wxString cons
     while ( tokenizer.HasMoreTokens() )
     {
         wxString token = tokenizer.GetNextToken();
-        long tmp = 0;
-        wxNumberFormatter::FromString(token, &tmp);
-        rv.push_back((int)tmp);
+        wxLongLong_t tmp = 0;
+        if (!wxNumberFormatter::FromString(token, &tmp))
+        {
+            tmp = 0;
+        }
+        // (Within an int, rather than wrapping around into some other value.)
+        rv.push_back((int)std::clamp<long long>(tmp, INT_MIN, INT_MAX));
     }
     
     return rv;

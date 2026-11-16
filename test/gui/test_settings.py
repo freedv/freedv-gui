@@ -1381,6 +1381,10 @@ def test_invalid_numbers():
             set_value(app, "txtToneAmplitude", "")
             press_ok(app)
             check_saved(app, {"/Audio/fifoSize_ms": 640})
+            # The tone's aren't saved, so they're checked where they're shown.
+            open_settings(app, "Debugging")
+            check_values(app, {"txtToneFreqHz": "1000", "txtToneAmplitude": "500"})
+            press_cancel(app)
 
             open_settings(app, "Voice Keyer")
             set_value(app, "txtCtrlVoiceKeyerRxPause", "wait")
@@ -1391,6 +1395,13 @@ def test_invalid_numbers():
             open_settings(app, "Reporting")
             set_value(app, "udpPort", "port")
             set_value(app, "udpBroadcastPort", "")
+            press_ok(app)
+            check_saved(app, {"/Reporting/UDP/Port": 2237, "/Reporting/UDPBroadcast/Port": 7177})
+
+            # Numbers that aren't ports: not the nearest port either.
+            open_settings(app, "Reporting")
+            set_value(app, "udpPort", "70000")
+            set_value(app, "udpBroadcastPort", "-1")
             press_ok(app)
             check_saved(app, {"/Reporting/UDP/Port": 2237, "/Reporting/UDPBroadcast/Port": 7177})
 
@@ -1411,15 +1422,74 @@ def test_invalid_numbers():
             press_ok(app)
             check_saved(app, {"/Audio/TxRxDelayMilliseconds": 250, "/Rig/TotTimerSecs": 90})
 
-            # A number that is a number, but far too big for the thing it
-            # sizes: the FIFO is allocated from it.
+            # Numbers that are numbers, but far too big (or small) for what
+            # they're used for: brought within it rather than wrapped around
+            # into some other number, as the digits-only fields' longest
+            # runs of digits would be.
             open_settings(app, "Debugging")
             set_value(app, "txtCtrlFifoSize", "999999999")
+            set_value(app, "txtToneFreqHz", "99999999999")
+            set_value(app, "txtToneAmplitude", "99999999999")
             press_ok(app)
             check_saved(app, {"/Audio/fifoSize_ms": 10000})
+            open_settings(app, "Debugging")
+            check_values(app, {"txtToneFreqHz": "20000", "txtToneAmplitude": "32767"})
+            press_cancel(app)
+
+            open_settings(app, "Rig Control")
+            set_value(app, "txtTxRxDelayMilliseconds", "99999999999")
+            set_value(app, "txtTOTTimerSecs", "99999999999")
+            press_ok(app)
+            check_saved(app, {"/Audio/TxRxDelayMilliseconds": 10000, "/Rig/TotTimerSecs": 86400})
+
+            open_settings(app, "Voice Keyer")
+            set_value(app, "txtCtrlVoiceKeyerRxPause", "3000000000")
+            set_value(app, "txtCtrlVoiceKeyerRepeats", "-5")
+            press_ok(app)
+            check_saved(app, {"/VoiceKeyer/RxPause": 3600, "/VoiceKeyer/Repeats": 0})
+
+            open_settings(app, "Modem")
+            set_value(app, "statsResetTime", "99999999999")
+            press_ok(app)
+            check_saved(app, {"/Stats/ResetTime": 86400})
 
             # The tone's frequency and amplitude are used as they stand, so
             # start FreeDV with the junk still in the fields.
+            start_modem(app)
+            stop_modem(app)
+            quit_and_check_log(app)
+
+
+def test_out_of_range_config():
+    """Numbers in the configuration file that can't be used as they stand,
+    as anything can be written there: too big or small for what they're
+    used for, or for the type they're read into. Each is brought within its
+    range (or, where it doesn't fit its type at all, back to its default),
+    shown that way in Settings, and FreeDV still starts."""
+    settings = audio_settings()
+    settings.update({"/Reporting/Enable": True, "/Reporting/Callsign": "AA1ZZZ", "/Reporting/GridSquare": "DM12",
+                     "/Reporting/UDP/Enable": True, "/Reporting/UDP/Hostname": "192.0.2.1",
+                     "/Reporting/FreeDV/Hostname": NOWHERE, "/Reporting/FreeDV/UseTls": False,
+                     "/Reporting/UDP/Port": 70000,
+                     "/Audio/fifoSize_ms": 40000000,
+                     "/Audio/TxRxDelayMilliseconds": 99999,
+                     "/Rig/TotTimerSecs": -5,
+                     "/VoiceKeyer/Repeats": 99999999999,
+                     "/Stats/ResetTime": -1})
+    with audio_devices():
+        with freedvtest.start(settings=settings) as app:
+            open_settings(app, "Debugging")
+            check_values(app, {"txtCtrlFifoSize": "10000"})
+            go_to_tab(app, "Rig Control")
+            check_values(app, {"txtTxRxDelayMilliseconds": "10000", "txtTOTTimerSecs": "1"})
+            go_to_tab(app, "Voice Keyer")
+            check_values(app, {"txtCtrlVoiceKeyerRepeats": "5"})
+            go_to_tab(app, "Modem")
+            check_values(app, {"statsResetTime": "10"})
+            go_to_tab(app, "Reporting")
+            check_values(app, {"udpPort": "65535"})
+            press_cancel(app)
+
             start_modem(app)
             stop_modem(app)
             quit_and_check_log(app)
@@ -1610,6 +1680,7 @@ SCENARIOS = {
     "display": test_display,
     "modem_and_debugging": test_modem_and_debugging,
     "invalid_numbers": test_invalid_numbers,
+    "out_of_range_config": test_out_of_range_config,
     "ptt_key_names": test_ptt_key_names,
     "auto_start": test_auto_start,
     "while_running": test_while_running,

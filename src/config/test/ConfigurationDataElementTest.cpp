@@ -123,6 +123,35 @@ bool saveProcessorAppliesOnAssignment()
     return element.getWithoutProcessing() == 500;
 }
 
+// Limits hold however the value is set: assigned (from Settings), set
+// without processing (from the config file) or updated in place.
+bool limitsApplyHoweverValueIsSet()
+{
+    ConfigurationDataElement<int> element("/Test/Value", 50);
+    element.setLimits(10, 100);
+
+    bool result = element.get() == 50;
+    element = 5;
+    result &= element.get() == 10;
+    element = 1000;
+    result &= element.get() == 100;
+    element.setWithoutProcessing(-7);
+    result &= element.get() == 10;
+    element.update([](int& value) { value = 500; });
+    result &= element.get() == 100;
+    element = 42;
+    result &= element.get() == 42;
+    return result;
+}
+
+// One set before the limits come in is brought within them.
+bool limitsApplyToExistingValue()
+{
+    ConfigurationDataElement<unsigned int> element("/Test/Value", 0x1FF);
+    element.setLimits(0, 0xFF);
+    return element.get() == 0xFF;
+}
+
 bool loadProcessorAppliesOnRead()
 {
     ConfigurationDataElement<int> element("/Test/Value", 300);
@@ -395,6 +424,8 @@ int main()
     executeTestCase("concurrentUpdatesAreNotLost", concurrentUpdatesAreNotLost);
     executeTestCase("saveProcessorAppliesOnAssignment", saveProcessorAppliesOnAssignment);
     executeTestCase("loadProcessorAppliesOnRead", loadProcessorAppliesOnRead);
+    executeTestCase("limitsApplyHoweverValueIsSet", limitsApplyHoweverValueIsSet);
+    executeTestCase("limitsApplyToExistingValue", limitsApplyToExistingValue);
     executeTestCase("processorsRoundTrip", processorsRoundTrip);
     executeTestCase("withoutProcessingBypassesProcessors", withoutProcessingBypassesProcessors);
     executeTestCase("worksWithContainers", worksWithContainers);

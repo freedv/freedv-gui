@@ -1927,19 +1927,29 @@ def test_frequency_units():
 
 def test_invalid_frequency():
     """The frequency box in the main window, filled with what a user can
-    type: nothing, words, a negative, something far too big. What's typed
-    goes to the reporters and, with rig control on, to the rig, so an entry
-    that isn't a frequency has to leave FreeDV without one rather than
-    invent one."""
+    type: words, a negative, something far too big or too small to round to
+    a frequency, and nothing. What's typed goes to the reporters and, with
+    rig control on, to the rig, so an entry that isn't a frequency mustn't
+    have one invented from it: the radio's still on the one it had, so
+    that's kept. Emptying the box is how there comes to be no frequency."""
     extra = dict(Reporting__Enable=True, Reporting__Callsign=CALLSIGN, Reporting__GridSquare="DM12",
                  Reporting__Frequency=14236000)
+
+    def frequency(app):
+        return app.state()["config"]["reporting"]["reportingFrequency"]
+
     with audio_devices():
         with freedvtest.start(settings=settings(**extra)) as app:
             app.wait_for_window("main")
-            for entered in ["", "abc", "-14.2", "1e400", "999999999999999999999999"]:
+            for entered in ["abc", "-14.2", "1e400", "999999999999999999999999", "0.00001", "14.2abc"]:
                 app.set_value("main.cboReportFrequency", entered)
                 app.key("main.cboReportFrequency", "Enter")
                 check_equal(app.message_boxes(), [], "Errors displayed after entering %r" % entered)
+                check_equal(frequency(app), 14236000, "Frequency after entering %r" % entered)
+
+            app.set_value("main.cboReportFrequency", "")
+            app.key("main.cboReportFrequency", "Enter")
+            check_equal(frequency(app), 0, "Frequency after emptying the box")
 
             # A real frequency is still taken after all that.
             app.set_value("main.cboReportFrequency", "7.0700")
