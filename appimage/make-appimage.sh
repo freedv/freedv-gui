@@ -54,13 +54,11 @@ done
   --custom-apprun "AppRun.sh" \
   --desktop-file $DESKTOP_FILE
 
-# Fail rather than ship an AppImage without its icon in every size, or with
-# another one shown for the AppImage itself.
+# Fail rather than ship an AppImage without its icon in every size.
 for size in 16 24 32 48 64 96 128 256 512; do
     cmp icons/$size/freedv.png "$APPDIR/usr/share/icons/hicolor/${size}x${size}/apps/freedv.png" || \
         { echo "The ${size}x${size} icon isn't in the AppImage"; exit 1; }
 done
-[ -e "$APPDIR/.DirIcon" ] || { echo "The AppImage has no .DirIcon"; exit 1; }
 
 # Copy over translations, if any were built.
 if [ -d "$BUILDDIR/build_linux/share/locale" ]; then
@@ -78,6 +76,10 @@ cp -aL /etc/ssl/certs/* "$APPDIR/etc/ssl/certs"
   --appdir "$APPDIR" \
   --plugin gtk \
   --output appimage
+
+# Likewise without the icon shown for the AppImage itself (appimagetool makes
+# .DirIcon, so this can only be checked now).
+[ -e "$APPDIR/.DirIcon" ] || { echo "The AppImage has no .DirIcon"; exit 1; }
 
 # Fail rather than ship an AppImage that still forces X11 (e.g. if the plugin changes).
 if grep -q "GDK_BACKEND" "$APPDIR"/apprun-hooks/*.sh; then

@@ -20,7 +20,7 @@
 #include <wx/toplevel.h>
 
 #if defined(__WXMSW__)
-#include <wx/app.h>
+#include <wx/msw/wrapwin.h>
 #elif !defined(__WXOSX__)
 #include <wx/image.h>
 #include <wx/mstream.h>
@@ -31,8 +31,9 @@ wxIconBundle GetFreeDVIcons()
 {
     wxIconBundle icons;
 #if defined(__WXMSW__)
-    // All of the sizes in the icon resource "freedv".
-    icons = wxIconBundle(wxT("freedv"), wxGetInstance());
+    // All of the sizes in the icon resource "freedv" (contrib/freedv.rc.in),
+    // which is in freedv.exe itself.
+    icons = wxIconBundle(wxT("freedv"), ::GetModuleHandle(nullptr));
 #elif !defined(__WXOSX__)
     if (wxImage::FindHandler(wxBITMAP_TYPE_PNG) == nullptr)
     {
@@ -41,8 +42,8 @@ wxIconBundle GetFreeDVIcons()
     for (const auto& image : FREEDV_ICON_IMAGES)
     {
         wxMemoryInputStream stream(image.data, image.size);
-        wxImage decoded(stream, wxBITMAP_TYPE_PNG);
-        if (decoded.IsOk())
+        wxImage decoded;
+        if (decoded.LoadFile(stream, wxBITMAP_TYPE_PNG) && decoded.IsOk())
         {
             wxIcon icon;
             icon.CopyFromBitmap(wxBitmap(decoded));
