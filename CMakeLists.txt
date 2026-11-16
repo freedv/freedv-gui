@@ -862,6 +862,24 @@ freedv_set_test_pass_criteria(rade_reporting_awgn "Reporting callsign ZZ0ZZZ @ S
 add_test(NAME rade_reporting_mpp COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test/test_rade_reporting.sh mpp)
 freedv_set_test_pass_criteria(rade_reporting_mpp "Reporting callsign ZZ0ZZZ @ SNR")
 
+# The icon files for each platform: that they hold FreeDV's icon, in the sizes
+# each looks for, and have been remade since contrib/icon last changed (see
+# contrib/icon/update-icons.sh). The same everywhere, so not run on Windows.
+if(NOT WIN32)
+add_test(NAME icon_files
+         COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/test_icon_files.py ${CMAKE_CURRENT_SOURCE_DIR})
+set_tests_properties(icon_files PROPERTIES PASS_REGULAR_EXPRESSION "Icon files OK")
+endif(NOT WIN32)
+
+# The icon that macOS shows for FreeDV.app (in the Finder, the Dock and so on)
+# on the version of macOS it's run on. CI also runs this on older versions of
+# macOS than it builds on (see .github/workflows/cmake-macos.yml).
+if(APPLE)
+add_test(NAME macos_app_icon
+         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test/test_macos_app_icon.sh ${CMAKE_BINARY_DIR}/src/FreeDV.app)
+set_tests_properties(macos_app_icon PROPERTIES PASS_REGULAR_EXPRESSION "PASS")
+endif(APPLE)
+
 # GUI tests: Python scripts that drive FreeDV's user interface (see test/gui).
 # These are labeled so that they can be run (ctest -L gui) or skipped
 # (ctest -LE gui) as a group. On macOS, they need four loopback audio devices
@@ -897,7 +915,7 @@ endforeach(scenario)
 
 # These measure what FreeDV plays and records, so they're kept from running
 # alongside anything else.
-foreach(scenario transmit ptt_key ptt_key_elsewhere tx_level receive analog play_file play_file_loop voice_keyer voice_keyer_reply voice_keyer_files voice_keyer_re_record voice_keyer_re_record_same_file recording recording_options unwritable_files monitor_volume mouse_controls tune_level_per_band frequency_units time_out_timer voice_keyer_time_out ptt_key_time_out menus help_and_restore default_config config_migration_failure exit_menu reporting_without_callsign band_names appearance_change tab_layout heard_list window_geometry receive_reports test_tone duplex_while_running restart_cycles stop_while_playing_file flapping_transmit stop_while_recording voice_keyer_recording_stop exit_while_tuning old_settings bad_command_line)
+foreach(scenario transmit ptt_key ptt_key_elsewhere tx_level receive analog play_file play_file_loop voice_keyer voice_keyer_reply voice_keyer_files voice_keyer_re_record voice_keyer_re_record_same_file recording recording_options unwritable_files monitor_volume mouse_controls tune_level_per_band frequency_units time_out_timer voice_keyer_time_out ptt_key_time_out menus help_and_restore default_config config_migration_failure exit_menu reporting_without_callsign band_names appearance_change tab_layout heard_list window_geometry receive_reports test_tone duplex_while_running restart_cycles stop_while_playing_file flapping_transmit stop_while_recording voice_keyer_recording_stop exit_while_tuning old_settings bad_command_line window_icon)
     add_test(NAME gui_main_window_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_main_window.py ${scenario})
     set_tests_properties(gui_main_window_${scenario} PROPERTIES LABELS gui RUN_SERIAL TRUE SKIP_RETURN_CODE 77)

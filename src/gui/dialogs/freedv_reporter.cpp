@@ -34,6 +34,7 @@
 #include <wx/textdlg.h>
 #include "../controls/MsgListPopup.h"
 #include "../util/FrequencyOps.h"
+#include "../util/AppIcon.h"
 #include "../util/GridSquare.h"
 #include "../util/WindowPositionRestore.h"
 
@@ -414,6 +415,7 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
     sectionSizer->Add(reportingSettingsSizer, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND) | wxFIXED_MINSIZE, 2);
     
     this->SetMinSize(GetBestSize());
+    SetFreeDVIcons(this);
 
     // Menu bar
     menuBar_ = new wxMenuBar();
