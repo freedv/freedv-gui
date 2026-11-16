@@ -119,6 +119,39 @@ jobs:
         # fine with the same compiler.
         run-clang-tidy -p . -extra-arg=-isysroot -extra-arg="$(xcrun --show-sdk-path)"
 
+  # The icon macOS shows for FreeDV.app, on a version of macOS from before
+  # Liquid Glass (26) as well as the one FreeDV is built on, for every pull
+  # request. Nothing's built: it's checked in an app bundle put together
+  # from what the build would put in FreeDV.app (see
+  # test/test_macos_app_icon.sh). test-app-folder below checks the one in
+  # the disk image as well, on each version it runs on.
+  app-icon:
+    needs: [scope]
+    if: ${{ needs.scope.outputs.tier != 'none' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Check the icon files
+      run: python3 test/test_icon_files.py
+
+    - name: Check the icon macOS shows
+      run: ./test/test_macos_app_icon.sh --stub app-icon-${{ matrix.os }}.png
+
+    # To see what it looked like.
+    - name: Stash the icon macOS showed
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: app-icon-${{ matrix.os }}
+        path: ${{github.workspace}}/app-icon-${{ matrix.os }}.png
+        if-no-files-found: ignore
+
   # On a pull request (the "pr" tier), only without sanitizers: the Linux
   # tests cover ASan and UBSan there, and macOS runners are the scarcest.
   test:
@@ -408,6 +441,11 @@ jobs:
       run: |
           mkdir FreeDV-dmg
           hdiutil attach FreeDV*.dmg -mountpoint FreeDV-dmg
+
+    - name: Check the icon macOS shows
+      shell: bash
+      working-directory: ${{github.workspace}}
+      run: ./test/test_macos_app_icon.sh FreeDV-dmg/FreeDV.app
           
     - name: Install needed packages
       run: |

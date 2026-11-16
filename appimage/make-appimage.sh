@@ -35,12 +35,30 @@ fi
 # GTK instead: Wayland when available, else X11 (and GDK_BACKEND is respected again).
 sed -i '/^export GDK_BACKEND=x11/d' linuxdeploy-plugin-gtk.sh
 
+# The icon, in each size that's installed outside an AppImage (see
+# contrib/CMakeLists.txt). linuxdeploy names them for their files, which have
+# to match Icon= in the desktop file.
+ICON_ARGS=()
+rm -rf icons
+for size in 16 24 32 48 64 96 128 256 512; do
+    if [ $size -le 48 ]; then ICON_SRC=../contrib/icon/Windows/$size.png; else ICON_SRC=../contrib/icon/Linux/$size.png; fi
+    mkdir -p icons/$size
+    cp $ICON_SRC icons/$size/freedv.png
+    ICON_ARGS+=(--icon-file icons/$size/freedv.png)
+done
+
 ./linuxdeploy-${MACH_ARCH}.AppImage \
   --executable "$APPEXEC" \
   --appdir "$APPDIR" \
-  --icon-file ../contrib/freedv256x256.png \
+  "${ICON_ARGS[@]}" \
   --custom-apprun "AppRun.sh" \
   --desktop-file $DESKTOP_FILE
+
+# Fail rather than ship an AppImage without its icon in every size.
+for size in 16 24 32 48 64 96 128 256 512; do
+    cmp icons/$size/freedv.png "$APPDIR/usr/share/icons/hicolor/${size}x${size}/apps/freedv.png" || \
+        { echo "The ${size}x${size} icon isn't in the AppImage"; exit 1; }
+done
 
 # Copy over translations, if any were built.
 if [ -d "$BUILDDIR/build_linux/share/locale" ]; then
@@ -58,6 +76,10 @@ cp -aL /etc/ssl/certs/* "$APPDIR/etc/ssl/certs"
   --appdir "$APPDIR" \
   --plugin gtk \
   --output appimage
+
+# Likewise without the icon shown for the AppImage itself (appimagetool makes
+# .DirIcon, so this can only be checked now).
+[ -e "$APPDIR/.DirIcon" ] || { echo "The AppImage has no .DirIcon"; exit 1; }
 
 # Fail rather than ship an AppImage that still forces X11 (e.g. if the plugin changes).
 if grep -q "GDK_BACKEND" "$APPDIR"/apprun-hooks/*.sh; then
