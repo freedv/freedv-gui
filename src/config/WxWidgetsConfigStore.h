@@ -68,6 +68,9 @@ void WxWidgetsConfigStore::save_(wxConfigBase* config, ConfigurationDataElement<
 }
 
 template<>
+void WxWidgetsConfigStore::load_<int>(wxConfigBase* config, ConfigurationDataElement<int>& configElement);
+
+template<>
 void WxWidgetsConfigStore::load_<unsigned int>(wxConfigBase* config, ConfigurationDataElement<unsigned int>& configElement);
 
 template<>

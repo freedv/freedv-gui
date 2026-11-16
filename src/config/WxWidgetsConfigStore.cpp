@@ -19,6 +19,8 @@
 //
 //==========================================================================
 
+#include <algorithm>
+#include <climits>
 #include <wx/tokenzr.h>
 #include <wx/numformatter.h>
 #include "WxWidgetsConfigStore.h"
@@ -56,12 +58,39 @@ void WxWidgetsConfigStore::load_<wxString>(wxConfigBase* config, ConfigurationDa
     configElement.setWithoutProcessing(val);
 }
 
+// A number in the config file too big or small for the setting's type
+// (anything can have been written there) would otherwise wrap around into
+// some other value on the way in: the default is used instead.
 template<>
-void WxWidgetsConfigStore::load_<unsigned int>(wxConfigBase* config, ConfigurationDataElement<unsigned int>& configElement)
+void WxWidgetsConfigStore::load_<int>(wxConfigBase* config, ConfigurationDataElement<int>& configElement)
 {
     long val;
     config->Read(configElement.getElementName(), &val, (long)configElement.getDefaultVal());
-    configElement.setWithoutProcessing((unsigned int)val);
+    if ((long long)val < INT_MIN || (long long)val > INT_MAX)
+    {
+        val = configElement.getDefaultVal();
+    }
+    configElement.setWithoutProcessing((int)val);
+}
+
+template<>
+void WxWidgetsConfigStore::load_<unsigned int>(wxConfigBase* config, ConfigurationDataElement<unsigned int>& configElement)
+{
+    // Read as text and then as a 64 bit number, as a long isn't one on
+    // every platform. Where it's 32 bits (Windows), one above INT_MAX is
+    // written as the negative number with the same bits, so that's read
+    // back as what it stands for; anything else outside an unsigned int
+    // is taken as the default.
+    wxString text;
+    long long val = 0;
+    if (!config->Read(configElement.getElementName(), &text) ||
+        !text.Strip(wxString::both).ToLongLong(&val) ||
+        val < INT_MIN || val > (long long)UINT_MAX)
+    {
+        configElement.setWithoutProcessing(configElement.getDefaultVal());
+        return;
+    }
+    configElement.setWithoutProcessing((unsigned int)(val < 0 ? (unsigned int)(int)val : val));
 }
 
 template<>
@@ -207,9 +236,13 @@ std::vector<int> WxWidgetsConfigStore::generateNumArrayFromString_(wxString cons
     while ( tokenizer.HasMoreTokens() )
     {
         wxString token = tokenizer.GetNextToken();
-        long tmp = 0;
-        wxNumberFormatter::FromString(token, &tmp);
-        rv.push_back((int)tmp);
+        wxLongLong_t tmp = 0;
+        if (!wxNumberFormatter::FromString(token, &tmp))
+        {
+            tmp = 0;
+        }
+        // (Within an int, rather than wrapping around into some other value.)
+        rv.push_back((int)std::clamp<long long>(tmp, INT_MIN, INT_MAX));
     }
     
     return rv;

@@ -1961,6 +1961,7 @@ void TestAgent::commandGetState_(yyjson_val* id)
     yyjson_mut_obj_add_bool(doc, reporting, "reportingEnabled", reportingConfig.reportingEnabled.get());
     AddString_(doc, reporting, "reportingCallsign", reportingConfig.reportingCallsign.get());
     AddString_(doc, reporting, "reportingGridSquare", reportingConfig.reportingGridSquare.get());
+    yyjson_mut_obj_add_uint(doc, reporting, "reportingFrequency", reportingConfig.reportingFrequency.get());
     yyjson_mut_obj_add_bool(doc, reporting, "freedvReporterEnabled", reportingConfig.freedvReporterEnabled.get());
     yyjson_mut_obj_add_bool(doc, reporting, "pskReporterEnabled", reportingConfig.pskReporterEnabled.get());
     yyjson_mut_obj_add_bool(doc, reporting, "freedvReporterForcedOff", reportingConfig.freedvReporterForcedOff.get());

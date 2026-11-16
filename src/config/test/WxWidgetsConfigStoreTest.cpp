@@ -1,3 +1,4 @@
+#include <climits>
 #include <map>
 #include <vector>
 
@@ -375,6 +376,34 @@ bool mapSkipsNonNumericEntries()
     return check("map", loaded.getWithoutProcessing(), IntMap { { "20m", 5 }, { "80m", -3 } });
 }
 
+// A number in the file too big or small for the setting's type (anything can
+// have been written there) loads as the default, rather than wrapping around
+// into some other value. Lists of numbers keep each one within an int.
+bool outOfRangeNumbersLoadAsDefault()
+{
+    bool result = true;
+    result &= check("int too big", loadFrom<int>("99999999999", 640), 640);
+    result &= check("int too small", loadFrom<int>("-99999999999", 640), 640);
+    result &= check("int in range", loadFrom<int>("-5", 640), -5);
+    result &= check("unsigned too big", loadFrom<unsigned int>("99999999999", 10u), 10u);
+    result &= check("unsigned too small", loadFrom<unsigned int>("-99999999999", 10u), 10u);
+    // As a 32 bit long writes one above INT_MAX.
+    result &= check("unsigned written as negative", loadFrom<unsigned int>("-294967296", 10u), 4000000000u);
+    result &= check("int list", loadFrom<IntList>("1,99999999999,-99999999999"), IntList { 1, INT_MAX, INT_MIN });
+    return result;
+}
+
+// What's loaded is kept within an element's limits.
+bool loadedValuesAreLimited()
+{
+    TestStore store;
+    auto config = makeConfig("[Test]\nValue=40000000\n");
+    ConfigurationDataElement<int> element("/Test/Value", 640);
+    element.setLimits(10, 10000);
+    store.load_(config.get(), element);
+    return check("loaded", element.get(), 10000);
+}
+
 bool unsignedIntLoadsFromOlderFormats()
 {
     // Stored as a plain decimal number.
@@ -426,6 +455,8 @@ int main()
     executeTestCase("stringListFormatIsStable", stringListFormatIsStable);
     executeTestCase("intListsRoundTrip", intListsRoundTrip);
     executeTestCase("intListToleratesBadInput", intListToleratesBadInput);
+    executeTestCase("outOfRangeNumbersLoadAsDefault", outOfRangeNumbersLoadAsDefault);
+    executeTestCase("loadedValuesAreLimited", loadedValuesAreLimited);
     executeTestCase("boolListsRoundTrip", boolListsRoundTrip);
     executeTestCase("mapsRoundTrip", mapsRoundTrip);
     executeTestCase("savingMapRemovesStaleEntries", savingMapRemovesStaleEntries);
