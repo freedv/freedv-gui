@@ -22,6 +22,7 @@
 #ifndef CONFIGURATION_DATA_ELEMENT_H
 #define CONFIGURATION_DATA_ELEMENT_H
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <functional>
@@ -111,6 +112,11 @@ public:
     
     void setSaveProcessor(std::function<UnderlyingDataType(UnderlyingDataType)> fn);
     void setLoadProcessor(std::function<UnderlyingDataType(UnderlyingDataType)> fn);
+
+    // Keeps the value within [minVal, maxVal] however it's set, including
+    // from the config file, where anything can have been written: one
+    // outside the range is brought to the nearer end of it.
+    void setLimits(UnderlyingDataType minVal, UnderlyingDataType maxVal);
 private:
     const char* elementName_;
     uint32_t changeEffects_;
@@ -119,8 +125,9 @@ private:
     
     std::function<UnderlyingDataType(UnderlyingDataType)> saveProcessor_;
     std::function<UnderlyingDataType(UnderlyingDataType)> loadProcessor_;
+    std::function<UnderlyingDataType(UnderlyingDataType)> limit_;
 
-    // Guards data_, default_ and the two processors above.
+    // Guards data_, default_, the two processors and the limits above.
     mutable std::mutex dataMutex_;
 };
 
@@ -132,6 +139,7 @@ ConfigurationDataElement<UnderlyingDataType>::ConfigurationDataElement(const cha
     , default_(defaultVal)
     , saveProcessor_(nullptr)
     , loadProcessor_(nullptr)
+    , limit_(nullptr)
 {
     // empty
 }
@@ -178,7 +186,7 @@ void ConfigurationDataElement<UnderlyingDataType>::copyValueFrom(IConfigurationD
 
     std::lock_guard<std::mutex> lock(dataMutex_);
     default_ = otherDefault;
-    data_ = otherVal;
+    data_ = limit_ ? limit_(otherVal) : otherVal;
 }
 
 template<typename UnderlyingDataType>
@@ -203,6 +211,10 @@ ConfigurationDataElement<UnderlyingDataType>& ConfigurationDataElement<Underlyin
     {
         val = saveProcessor_(val);
     }
+    if (limit_)
+    {
+        val = limit_(val);
+    }
     
     data_ = val;
     return *this;
@@ -212,7 +224,7 @@ template<typename UnderlyingDataType>
 void ConfigurationDataElement<UnderlyingDataType>::setWithoutProcessing(UnderlyingDataType const& val)
 {
     std::lock_guard<std::mutex> lock(dataMutex_);
-    data_ = val;
+    data_ = limit_ ? limit_(val) : val;
 }
 
 template<typename UnderlyingDataType>
@@ -221,6 +233,10 @@ void ConfigurationDataElement<UnderlyingDataType>::update(Fn&& fn)
 {
     std::lock_guard<std::mutex> lock(dataMutex_);
     fn(data_);
+    if (limit_)
+    {
+        data_ = limit_(data_);
+    }
 }
 
 template<typename UnderlyingDataType>
@@ -266,6 +282,14 @@ void ConfigurationDataElement<UnderlyingDataType>::setLoadProcessor(std::functio
 {
     std::lock_guard<std::mutex> lock(dataMutex_);
     loadProcessor_ = std::move(fn);
+}
+
+template<typename UnderlyingDataType>
+void ConfigurationDataElement<UnderlyingDataType>::setLimits(UnderlyingDataType minVal, UnderlyingDataType maxVal)
+{
+    std::lock_guard<std::mutex> lock(dataMutex_);
+    limit_ = [minVal, maxVal](UnderlyingDataType val) { return std::clamp(val, minVal, maxVal); };
+    data_ = limit_(data_);
 }
 
 #endif // CONFIGURATION_DATA_ELEMENT_H

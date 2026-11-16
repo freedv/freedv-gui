@@ -1752,7 +1752,10 @@ void MainFrame::restoreCallsignListFromCsv_()
         if (!std::getline(ss, freqStr, ',')) continue;
         if (!std::getline(ss, snrStr)) continue;
 
+        // (std::stoull() takes a minus sign, and wraps what follows it into
+        // a huge frequency: only digits are taken.)
         uint64_t freqHz = 0;
+        if (freqStr.empty() || freqStr.find_first_not_of("0123456789") != std::string::npos) continue;
         try { freqHz = std::stoull(freqStr); } catch (...) { continue; }
 
         wxString freqDisplay;
@@ -2933,7 +2936,23 @@ void MainFrame::performFreeDVOff_()
     });
     
     stopRxStream();
-         
+
+    // A file standing in for the radio, and any recording, stop with the
+    // radio: otherwise the status bar and the Tools menu go on saying
+    // they're running, and the files stay open, which leaves a recording
+    // without the lengths its header still owes (so unreadable) until
+    // FreeDV exits. Only once the streams have stopped: the pipeline's
+    // record steps write what's still queued for their files as they're
+    // torn down, so closing the files before then would lose the end of
+    // each recording.
+    executeOnUiThreadAndWait_([&]()
+    {
+        StopPlaybackFileFromRadio();
+        StopRecFileFromRadio();
+        StopRecFileFromDecoder();
+        StopRecFileFromMic();
+    });
+
     stopReporting_();
     
     // FreeDV clean up.
@@ -3898,9 +3917,11 @@ void MainFrame::startRxStream()
         // Guards against FIFO sizes accidentally being too small to fit an entier TX block.
         // Theoretically allows up to three TX packets to be queued at a time at minimum
         // (depending on mode).
+        // (In 64 bits: the size in ms times the rate doesn't always fit in an
+        // int, even when the number of samples it gives does.)
         int soundCard1OutFifoSizeSamples = std::max(
             3 * (freedvInterface.getTxNNomModemSamples() * wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate) / freedvInterface.getTxModemSampleRate(),
-            m_fifoSize_ms*wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate / 1000);
+            (int)((int64_t)m_fifoSize_ms * wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate / 1000));
 
         if (g_nSoundCards.load(std::memory_order_acquire) == 2)
         {
@@ -3911,7 +3932,7 @@ void MainFrame::startRxStream()
             // (depending on mode).
             int soundCard2OutFifoSizeSamples = std::max(
                 3 * (freedvInterface.getRxNumSpeechSamples() * wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate) / freedvInterface.getRxSpeechSampleRate(),
-                m_fifoSize_ms*wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate / 1000);
+                (int)((int64_t)m_fifoSize_ms * wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate / 1000));
             g_rxUserdata->outfifo1 = new GenericFIFO<short>(soundCard1OutFifoSizeSamples);
             g_rxUserdata->infifo2 = new GenericFIFO<short>(soundCard2InFifoSizeSamples);
             g_rxUserdata->infifo1 = new GenericFIFO<short>(soundCard1InFifoSizeSamples);

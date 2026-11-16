@@ -407,6 +407,7 @@ class MainFrame : public TopFrame
         void StopPlaybackFileFromRadio();
         void StopRecFileFromRadio();
         void StopRecFileFromDecoder();
+        void StopRecFileFromMic();
         
         bool isReceiveOnly();
 
