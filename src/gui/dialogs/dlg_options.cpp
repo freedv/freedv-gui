@@ -2774,11 +2774,19 @@ void OptionsDlg::OnTestPTT(wxCommandEvent&)
                 else        { finish(); }
             };
 
-            std::thread([=, this]() {
+            std::thread([=, this]() mutable {
                 hamlib->connect();
-                std::unique_lock<std::mutex> lk(*mtx);
-                cv->wait(lk, [finished]() { return *finished; });
+                {
+                    std::unique_lock<std::mutex> lk(*mtx);
+                    cv->wait(lk, [finished]() { return *finished; });
+                }
+                // Let go of the radio before Test PTT can be clicked again:
+                // disconnect() only asks for it, and it's the controller's
+                // destructor that waits until it's done. (A new connection
+                // made while rigctld is closing the old one can be dropped
+                // by it.)
                 hamlib->disconnect();
+                hamlib.reset();
                 CallAfter([this]() { isTesting_ = false; updateRadioControlState(); });
             }).detach();
         } else {
@@ -2804,16 +2812,22 @@ void OptionsDlg::OnTestPTT(wxCommandEvent&)
             };
             serialPort->onRigConnected += [=](IRigController*) { finish(); };
 
-            std::thread([=, this]() {
+            std::thread([=, this]() mutable {
                 serialPort->connect();
-                std::unique_lock<std::mutex> lk(*mtx);
-                cv->wait(lk, [finished]() { return *finished; });
+                {
+                    std::unique_lock<std::mutex> lk(*mtx);
+                    cv->wait(lk, [finished]() { return *finished; });
+                }
                 if (serialPort->isConnected()) {
                     serialPort->ptt(true);
                     wxSleep(1);
                     serialPort->ptt(false);
                     serialPort->disconnect();
                 }
+                // ptt() and disconnect() only queue the work: it's the
+                // destructor that waits for it, so the port's lines are back
+                // to normal and it's closed before Test PTT can be used again.
+                serialPort.reset();
                 CallAfter([this]() { isTesting_ = false; updateRadioControlState(); });
             }).detach();
         } else {
@@ -2844,11 +2858,15 @@ void OptionsDlg::OnTestPTT(wxCommandEvent&)
             else        { finish(); }
         };
 
-        std::thread([=, this]() {
+        std::thread([=, this]() mutable {
             omniRig->connect();
-            std::unique_lock<std::mutex> lk(*mtx);
-            cv->wait(lk, [finished]() { return *finished; });
+            {
+                std::unique_lock<std::mutex> lk(*mtx);
+                cv->wait(lk, [finished]() { return *finished; });
+            }
+            // (As above: let go of the radio before Test PTT can be used again.)
             omniRig->disconnect();
+            omniRig.reset();
             CallAfter([this]() { isTesting_ = false; updateRadioControlState(); });
         }).detach();
     }
