@@ -185,28 +185,23 @@ void LogEntryDialog::ShowDialog(wxString const& dxCall, wxString const& dxGrid, 
 
 void LogEntryDialog::OnOK(wxCommandEvent&)
 {
-    int64_t freqHz = 0;
+    // (Whatever was typed: words, a negative or one too big are refused
+    // rather than having a frequency cast out of them for the log.)
+    int64_t freqHz = (int64_t)ReportingConfiguration::DisplayedFrequencyToHz(
+        frequency_->GetValue(), wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz);
 
     if (frequency_->GetValue() == "" ||
         dxCall_->GetValue() == "")
     {
         wxMessageBox( _("Frequency and DX Call must be filled in in order to log the contact."), _("Error"), wxICON_ERROR);
     }
+    else if (freqHz == 0)
+    {
+        wxMessageBox( _("The frequency isn't a valid frequency."), _("Error"), wxICON_ERROR);
+    }
     else
     {
         // Forward to logger
-        double freqDouble = 0;
-        wxNumberFormatter::FromString(frequency_->GetValue(), &freqDouble);
-        
-        if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
-        {
-            freqDouble *= 1000;
-        }
-        else
-        {
-            freqDouble *= 1000000;
-        }
-        freqHz = (int64_t)freqDouble;
         
         std::time_t timeSinceUnixEpoch = logTime_.GetTicks();
 

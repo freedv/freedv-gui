@@ -94,6 +94,17 @@ public:
 
     virtual void load(wxConfigBase* config) override;
     virtual void save(wxConfigBase* config) override;
+
+    // The highest frequency FreeDV takes, in Hz: well past any radio, but
+    // short of where a uint64_t of Hz (or a double's precision) runs out.
+    static constexpr double MAX_FREQUENCY_HZ = 1e12;
+
+    // The frequency, in Hz, that text gives in the units frequencies are
+    // shown in (kHz with asKhz, otherwise MHz), or 0 if it isn't one: not a
+    // number, not above 0, or beyond MAX_FREQUENCY_HZ. Anything typed by a
+    // user, or read back from a list of them, goes through this before it
+    // becomes a frequency, rather than having a made-up one cast out of it.
+    static uint64_t DisplayedFrequencyToHz(wxString const& text, bool asKhz);
 };
 
 #endif // REPORTING_CONFIGURATION_H

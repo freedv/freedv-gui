@@ -122,7 +122,14 @@ FreeDVConfiguration::FreeDVConfiguration()
     , enableLegacyModes("/Modem/enableLegacyModes", false)
     , autoStartOnLaunch("/Modem/autoStartOnLaunch", false)
 {
-    // empty
+    // Whatever's typed into Settings, or written into the config file, has
+    // to stay within what these are used for. The audio FIFOs are allocated
+    // from the FIFO size when FreeDV starts, and the others become timers.
+    fifoSizeMs.setLimits(10, 10000);
+    voiceKeyerRxPause.setLimits(0, 3600);
+    voiceKeyerRepeats.setLimits(0, 100);
+    statsResetTimeSecs.setLimits(0, 86400);
+    txRxDelayMilliseconds.setLimits(0, 10000);
 }
 
 void FreeDVConfiguration::load(wxConfigBase* config)

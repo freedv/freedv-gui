@@ -199,6 +199,14 @@ bool nonNumericFieldsLoadAsZero()
         { makeTab(0, 1, 0, 2, 0, 3, 0, { 0, 4, 0 }, { 0 }) });
 }
 
+bool negativePageIndicesAreDropped()
+{
+    // wxWidgets would index its pages with them.
+    return tabsAre(
+        deserialize("5:0:0:0:100000:0:2:0,-1,1:-3,1"),
+        { makeTab(5, 0, 0, 0, 100000, 0, 2, { 0, 1 }, { 1 }) });
+}
+
 }
 
 int main()
@@ -222,6 +230,7 @@ int main()
     executeTestCase("savingAgainReplacesPreviousLayout", savingAgainReplacesPreviousLayout);
     executeTestCase("malformedRecordsAreIgnored", malformedRecordsAreIgnored);
     executeTestCase("nonNumericFieldsLoadAsZero", nonNumericFieldsLoadAsZero);
+    executeTestCase("negativePageIndicesAreDropped", negativePageIndicesAreDropped);
     return testResult();
 }
 

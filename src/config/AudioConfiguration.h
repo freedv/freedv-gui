@@ -107,7 +107,10 @@ AudioConfiguration::SoundDevice<DeviceId, AudioDirection>::SoundDevice()
     : deviceName(AudioConfiguration::AudioDeviceConfigName<DeviceId, AudioDirection>::GetDeviceNameConfigName(), "none")
     , sampleRate(AudioConfiguration::AudioDeviceConfigName<DeviceId, AudioDirection>::GetSampleRateConfigName(), -1)
 {
-    // empty
+    // -1 for the device's own. The FIFOs are sized from this before the
+    // device is opened, so one hand-written into the config file can't be
+    // left big enough to overflow that.
+    sampleRate.setLimits(-1, 768000);
 }
 
 template<int DeviceId, AudioConfiguration::Direction AudioDirection>
