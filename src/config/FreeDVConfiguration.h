@@ -30,6 +30,7 @@
 #include "FilterConfiguration.h"
 #include "RigControlConfiguration.h"
 #include "ReportingConfiguration.h"
+#include "EventHandler.h"
 
 class FreeDVConfiguration : public WxWidgetsConfigStore
 {
@@ -93,7 +94,6 @@ public:
     ConfigurationDataElement<bool> snrSlow;
     
     ConfigurationDataElement<bool> debugVerbose;
-    ConfigurationDataElement<bool> apiVerbose;
     
     ConfigurationDataElement<int> waterfallColor;
     ConfigurationDataElement<unsigned int> statsResetTimeSecs;
@@ -118,6 +118,17 @@ public:
 
     virtual void load(wxConfigBase* config) override;
     virtual void save(wxConfigBase* config) override;
+
+    // Copies to this configuration the settings that edited has but
+    // original doesn't, where both are copies of it made earlier (see
+    // copyFrom()): what was changed in edited since. Settings changed here
+    // meanwhile are left as they are unless edited changed them too. Says
+    // what the changes need to take effect (ConfigChange::Effect flags), and
+    // if that's anything, tells onChanged too.
+    uint32_t mergeChangesFrom(FreeDVConfiguration& original, FreeDVConfiguration& edited);
+
+    // Told of mergeChangesFrom()'s changes, on the thread it's called on.
+    EventHandler<uint32_t> onChanged;
 };
 
 #endif // FREEDV_CONFIGURATION_H

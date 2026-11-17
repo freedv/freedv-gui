@@ -2788,6 +2788,54 @@ def test_duplex_while_running():
             quit_and_check_log(app)
 
 
+def test_audio_while_running():
+    """The sound devices can be changed while FreeDV is running: the audio
+    restarts with the new ones. Changed while transmitting, that waits until
+    FreeDV is back on receive. With what it sends to the radio fed back into
+    the radio's input, it only hears itself once listening there."""
+    def times_applied(app):
+        return app.log().count("Applying settings changed while running")
+
+    with audio_devices(), Loopback(RADIO_TX, RADIO_RX):
+        # Listening to the microphone's device to begin with.
+        start_settings = settings(Rig__HalfDuplex=False)
+        start_settings["/Audio/soundCard1InDeviceName"] = VirtualAudioDevices.input_name(MICROPHONE)
+        with freedvtest.start(settings=start_settings) as app:
+            app.wait_for_window("main")
+            start_modem(app)
+
+            app.click("main.btnPTT")
+            wait_for_transmit(app)
+            time.sleep(10)
+            check_equal(app.state()["sync"], 0, "Sync with its own transmission while listening elsewhere")
+
+            # Changed while transmitting: saved, but kept until it's done.
+            change_settings(app, "RX Audio", lcSoundCard1InDevice=VirtualAudioDevices.input_label(RADIO_RX))
+            check_equal(freedvtest.read_config(app.config_path).get("/Audio/soundCard1InDeviceName"),
+                        VirtualAudioDevices.input_name(RADIO_RX), "Saved radio input device")
+            time.sleep(3)
+            check(transmitting(app), "Stopped transmitting when the settings were changed")
+            check_audible(RADIO_TX_MONITOR, "Nothing sent to the radio after the settings were changed")
+            check_equal(times_applied(app), 0, "Times the settings were applied while transmitting")
+
+            app.click("main.btnPTT")
+            wait_for_transmit(app, False)
+            app.wait_until(lambda: times_applied(app) == 1, timeout=15,
+                           description="the settings to be applied once back on receive")
+            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="the settings to be applied")
+            check(app.state()["running"], "Changing the sound devices stopped FreeDV")
+            check_equal(app.message_boxes(), [], "Errors displayed applying the settings")
+
+            app.click("main.btnPTT")
+            wait_for_transmit(app)
+            app.wait_until(lambda: app.state()["sync"] == 1, timeout=20,
+                           description="FreeDV to sync to its own transmission on the new radio input")
+            app.click("main.btnPTT")
+            wait_for_transmit(app, False)
+            stop_modem(app)
+            quit_and_check_log(app)
+
+
 def test_exit_while_tuning():
     """File > Exit with Tune on stops the tone first."""
     with audio_devices():
@@ -3099,6 +3147,59 @@ def test_voice_keyer_recording_stop():
         shutil.rmtree(folder, ignore_errors=True)
 
 
+def test_voice_keyer_recording_while_running():
+    """The sound devices changed while a voice keyer file is being recorded:
+    the change waits, as it does while transmitting, so the take carries on
+    from the microphone it started on. Once it's finished, the audio
+    restarts with the new devices."""
+    def times_applied(app):
+        return app.log().count("Applying settings changed while running")
+
+    folder = tempfile.mkdtemp(prefix="freedvtest-vk-")
+    try:
+        take = os.path.join(folder, "take.wav")
+        with audio_devices():
+            start_settings = settings(Rig__HalfDuplex=False)
+            start_settings["/Audio/soundCard1InDeviceName"] = VirtualAudioDevices.input_name(MICROPHONE)
+            with freedvtest.start(settings=start_settings) as app:
+                app.wait_for_window("main")
+                start_modem(app)
+                with Tone(MICROPHONE):
+                    app.choose_next_path(take)
+                    app.context_menu("main.btnVoiceKeyer", choose="Record new voice keyer file...")
+                    check_equal(app.get("main")["status"], "Recording file %s from microphone" % take, "Status")
+                    time.sleep(2)
+
+                    # Saved, but kept until the take is done.
+                    change_settings(app, "RX Audio", lcSoundCard1InDevice=VirtualAudioDevices.input_label(RADIO_RX))
+                    check_equal(freedvtest.read_config(app.config_path).get("/Audio/soundCard1InDeviceName"),
+                                VirtualAudioDevices.input_name(RADIO_RX), "Saved radio input device")
+                    time.sleep(3)
+                    check_equal(times_applied(app), 0, "Times the settings were applied while recording")
+                    check_equal(app.get("main")["status"], "Recording file %s from microphone" % take,
+                                "Status while the change waits")
+
+                    app.click("main.btnVoiceKeyer")
+                    check_equal(app.get("main")["status"], "", "Status after the take")
+                    app.wait_until(lambda: times_applied(app) == 1, timeout=15,
+                                   description="the settings to be applied once the take is done")
+                    app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="the settings to be applied")
+
+                check(app.state()["running"], "Changing the sound devices stopped FreeDV")
+                check_equal(app.message_boxes(), [], "Errors displayed applying the settings")
+                for button in ["main.btnVoiceKeyer", "main.btnAnalog"]:
+                    check_equal(app.get(button)["enabled"], True, button + " enabled after the audio restarted")
+                # The whole take, the time the change waited included, from
+                # the one microphone.
+                measured, seconds = readable_file_level(take, "The take")
+                check(measured > AUDIBLE and seconds >= 4,
+                      "The take is %.1f s at level %d" % (seconds, measured))
+                stop_modem(app)
+                quit_and_check_log(app)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
 SCENARIOS = {
     "transmit": test_transmit,
     "ptt_key": test_ptt_key,
@@ -3138,11 +3239,13 @@ SCENARIOS = {
     "receive_reports": test_receive_reports,
     "test_tone": test_test_tone,
     "duplex_while_running": test_duplex_while_running,
+    "audio_while_running": test_audio_while_running,
     "restart_cycles": test_restart_cycles,
     "stop_while_playing_file": test_stop_while_playing_file,
     "flapping_transmit": test_flapping_transmit,
     "stop_while_recording": test_stop_while_recording,
     "voice_keyer_recording_stop": test_voice_keyer_recording_stop,
+    "voice_keyer_recording_while_running": test_voice_keyer_recording_while_running,
     "exit_while_tuning": test_exit_while_tuning,
     "old_settings": test_old_settings,
     "bad_command_line": test_bad_command_line,

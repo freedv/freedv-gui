@@ -292,7 +292,6 @@ class MainApp : public wxApp
 
         // debugging 700D audio break up
 
-        bool       m_txRxThreadHighPriority;
 
         int        m_prevMode;
         
@@ -449,7 +448,7 @@ class MainFrame : public TopFrame
         void StopRecFileFromMic();
         
         bool isReceiveOnly();
-        
+
     protected:
 
         void setsnrBeta(bool snrSlow);
@@ -715,7 +714,50 @@ class MainFrame : public TopFrame
         
         void performFreeDVOn_();
         void performFreeDVOff_();
-        
+
+        // Parts of Start and Stop, also used to apply settings changed while
+        // FreeDV is running (see applySettingsWhileRunning_()). startModem_()
+        // and the *SessionTimers_() ones run on the UI thread, the rest on a
+        // Start, Stop or apply worker.
+        void startModem_();
+        void stopModem_();
+        void startReporting_();
+        void stopReporting_();
+        void openRigControllers_();
+        void closeRigControllers_();
+        void startSessionTimers_();
+        void stopSessionTimers_();
+
+        // Has RADE send the callsign being reported, in its end-of-over text.
+        // On the UI thread, with the modem started.
+        void setReliableTextCallsign_();
+
+        // What the settings changed while running still need to take effect
+        // (ConfigChange::Effect flags), from FreeDVConfiguration::onChanged.
+        // UI thread only, like applyingSettings_.
+        uint32_t pendingChangeEffects_ = 0;
+        bool applyingSettings_ = false;
+
+        void onSettingsChanged_(uint32_t effects);
+
+        // Updates the running audio's copies of settings it keeps (see
+        // ConfigChange::UPDATES_RUNNING_AUDIO), unless it's being started,
+        // stopped or restarted: those copy them themselves, and this is done
+        // again once they're done.
+        void updateRunningAudio_();
+
+        // True while transmitting, or while something is under way that a
+        // restart would cut off (the voice keyer, Tune, a recording for the
+        // voice keyer).
+        bool isTransmitBusy_();
+
+        // Applies settings saved while running, now if FreeDV is receiving
+        // and nothing else is being started, stopped or applied, and
+        // otherwise as soon as it is.
+        void tryApplyPendingSettings_();
+        void applySettingsWhileRunning_(uint32_t effects);
+        void updateTransmitControls_();
+
         void executeOnUiThreadAndWait_(std::function<void()> fn);
         
         void updateReportingFreqList_();

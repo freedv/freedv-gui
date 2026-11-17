@@ -57,7 +57,7 @@ FreeDVConfiguration::FreeDVConfiguration()
     , currentNotebookTab("/MainFrame/rxNbookCtrl", 0)
         
     /* Misc. audio settings */
-    , fifoSizeMs("/Audio/fifoSize_ms", (int)FIFO_SIZE)
+    , fifoSizeMs("/Audio/fifoSize_ms", (int)FIFO_SIZE, ConfigChange::RESTARTS_AUDIO)
     , transmitLevel("/Audio/transmitLevel", 0)
     , tuneLevel("/Audio/tuneLevel", 0)
     , txAttenByBand("/Audio/transmitLevelByBand", {})
@@ -85,8 +85,8 @@ FreeDVConfiguration::FreeDVConfiguration()
         
     , snrSlow("/Audio/snrSlow", false)
         
-    , debugVerbose("/Debug/verbose", false)
-    , apiVerbose("/Debug/APIverbose", false)
+    // Also RADE's own verbosity, which it only takes when the modem is opened.
+    , debugVerbose("/Debug/verbose", false, ConfigChange::RESTARTS_AUDIO)
         
     , waterfallColor("/Waterfall/Color", 0)
     , statsResetTimeSecs("/Stats/ResetTime", 10)
@@ -214,7 +214,6 @@ void FreeDVConfiguration::load(wxConfigBase* config)
     load_(config, snrSlow);
     
     load_(config, debugVerbose);
-    load_(config, apiVerbose);
     
     load_(config, waterfallColor);
     
@@ -302,7 +301,6 @@ void FreeDVConfiguration::save(wxConfigBase* config)
     save_(config, snrSlow);
     
     save_(config, debugVerbose);
-    save_(config, apiVerbose);
     
     save_(config, waterfallColor);
     
@@ -329,4 +327,33 @@ void FreeDVConfiguration::save(wxConfigBase* config)
     save_(config, tuneAttenByBand);
 
     config->Flush();
+}
+
+uint32_t FreeDVConfiguration::mergeChangesFrom(FreeDVConfiguration& original, FreeDVConfiguration& edited)
+{
+    // Not at all if they don't pair up: that would copy settings into others.
+    auto mine = elements();
+    auto originals = original.elements();
+    auto edits = edited.elements();
+    if (!elementsPairUp(mine, originals) || !elementsPairUp(mine, edits))
+    {
+        assert(false);
+        return ConfigChange::NONE;
+    }
+
+    uint32_t effects = ConfigChange::NONE;
+    for (size_t index = 0; index < mine.size(); index++)
+    {
+        if (!edits[index]->hasSameValueAs(*originals[index]) && !mine[index]->hasSameValueAs(*edits[index]))
+        {
+            mine[index]->copyValueFrom(*edits[index]);
+            effects |= mine[index]->getChangeEffects();
+        }
+    }
+
+    if (effects != ConfigChange::NONE)
+    {
+        onChanged(effects);
+    }
+    return effects;
 }
