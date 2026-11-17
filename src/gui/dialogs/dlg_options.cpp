@@ -21,7 +21,9 @@
 
 #include <wx/gbsizer.h>
 #include <wx/numformatter.h>
+#include <climits>
 #include "dlg_options.h"
+#include "../util/NumberEntry.h"
 
 extern FreeDVInterface freedvInterface;
 
@@ -1231,14 +1233,17 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         wxGetApp().appConfiguration.pttKeyCode = m_selectedPTTKeyCode;
         wxGetApp().appConfiguration.pttMomentaryMode = m_ckboxPTTMomentaryMode->GetValue();
 
-        wxGetApp().appConfiguration.txRxDelayMilliseconds = wxAtoi(m_txtTxRxDelayMilliseconds->GetValue());
+        long long number;
+        if (ReadWholeNumber(m_txtTxRxDelayMilliseconds->GetValue(), number))
+        {
+            wxGetApp().appConfiguration.txRxDelayMilliseconds = Clamped<int>(number, INT_MIN, INT_MAX);
+        }
 
         wxGetApp().appConfiguration.rigControlConfiguration.totTimerEnabled = m_ckboxTOTTimerEnabled->GetValue();
+        if (ReadWholeNumber(m_txtTOTTimerSecs->GetValue(), number))
         {
-            long totSecs;
-            m_txtTOTTimerSecs->GetValue().ToLong(&totSecs);
-            if (totSecs < 1) totSecs = 1;
-            wxGetApp().appConfiguration.rigControlConfiguration.totTimerSecs = (int)totSecs;
+            // (At least a second when it's typed in, as before.)
+            wxGetApp().appConfiguration.rigControlConfiguration.totTimerSecs = Clamped<int>(number, 1, INT_MAX);
         }
 
         wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes = m_ckboxUseAnalogModes->GetValue();
@@ -1259,11 +1264,14 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
 
         wxGetApp().appConfiguration.voiceKeyerWaveFilePath = m_txtCtrlVoiceKeyerWaveFilePath->GetValue();
         
-        long tmp;
-        m_txtCtrlVoiceKeyerRxPause->GetValue().ToLong(&tmp); if (tmp < 0) tmp = 0; wxGetApp().appConfiguration.voiceKeyerRxPause = (int)tmp;
-        m_txtCtrlVoiceKeyerRepeats->GetValue().ToLong(&tmp);
-        if (tmp < 0) {tmp = 0;} if (tmp > 100) {tmp = 100;}
-        wxGetApp().appConfiguration.voiceKeyerRepeats = (int)tmp;
+        if (ReadWholeNumber(m_txtCtrlVoiceKeyerRxPause->GetValue(), number))
+        {
+            wxGetApp().appConfiguration.voiceKeyerRxPause = Clamped<int>(number, INT_MIN, INT_MAX);
+        }
+        if (ReadWholeNumber(m_txtCtrlVoiceKeyerRepeats->GetValue(), number))
+        {
+            wxGetApp().appConfiguration.voiceKeyerRepeats = Clamped<int>(number, INT_MIN, INT_MAX);
+        }
         
         wxGetApp().appConfiguration.quickRecordRawPath = m_txtCtrlQuickRecordRawPath->GetValue();
         wxGetApp().appConfiguration.quickRecordDecodedPath = m_txtCtrlQuickRecordDecodedPath->GetValue();
@@ -1271,26 +1279,36 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         wxGetApp().m_testFrames    = m_ckboxTestFrame->GetValue();
 
         wxGetApp().m_channel_noise = m_ckboxChannelNoise->GetValue();
-        long noise_snr;
-        m_txtNoiseSNR->GetValue().ToLong(&noise_snr);
-        wxGetApp().appConfiguration.noiseSNR = (int)noise_snr;
+        if (ReadWholeNumber(m_txtNoiseSNR->GetValue(), number))
+        {
+            wxGetApp().appConfiguration.noiseSNR = Clamped<int>(number, INT_MIN, INT_MAX);
+        }
         g_noiseSNR.store(wxGetApp().appConfiguration.noiseSNR, std::memory_order_release);
         
         wxGetApp().m_tone    = m_ckboxTone->GetValue();
-        long tone_freq_hz, tone_amplitude;
-        m_txtToneFreqHz->GetValue().ToLong(&tone_freq_hz);
-        wxGetApp().m_tone_freq_hz = (int)tone_freq_hz;
-        m_txtToneAmplitude->GetValue().ToLong(&tone_amplitude);
-        wxGetApp().m_tone_amplitude = (int)tone_amplitude;
+        // The tone is generated from these as they stand: an audible
+        // frequency, and a peak a 16 bit sample can hold.
+        if (ReadWholeNumber(m_txtToneFreqHz->GetValue(), number))
+        {
+            wxGetApp().m_tone_freq_hz = Clamped<int>(number, 1, 20000);
+        }
+        if (ReadWholeNumber(m_txtToneAmplitude->GetValue(), number))
+        {
+            wxGetApp().m_tone_amplitude = Clamped<int>(number, 0, 32767);
+        }
 
         wxGetApp().m_attn_carrier_en = m_ckboxAttnCarrierEn->GetValue();
-        long attn_carrier;
-        m_txtAttnCarrier->GetValue().ToLong(&attn_carrier);
-        wxGetApp().m_attn_carrier = (int)attn_carrier;
+        if (ReadWholeNumber(m_txtAttnCarrier->GetValue(), number))
+        {
+            wxGetApp().m_attn_carrier = Clamped<int>(number, INT_MIN, INT_MAX);
+        }
 
-        long FifoSize_ms;
-        m_txtCtrlFifoSize->GetValue().ToLong(&FifoSize_ms);
-        wxGetApp().appConfiguration.fifoSizeMs = (int)FifoSize_ms;
+        // (Kept within what the FIFOs, allocated from it, can be by the
+        // setting itself.)
+        if (ReadWholeNumber(m_txtCtrlFifoSize->GetValue(), number))
+        {
+            wxGetApp().appConfiguration.fifoSizeMs = Clamped<int>(number, INT_MIN, INT_MAX);
+        }
 
         wxGetApp().m_txRxThreadHighPriority = m_ckboxTxRxThreadPriority->GetValue();
         g_dump_timing.store(m_ckboxTxRxDumpTiming->GetValue(), std::memory_order_relaxed);
@@ -1339,17 +1357,21 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         wxGetApp().appConfiguration.reportingConfiguration.udpReportingEnabled = m_ckboxUDPReportingEnable->GetValue();
         wxGetApp().appConfiguration.reportingConfiguration.udpReportingHostname = m_udpHostname->GetValue();
 
-        long udpPort;
-        m_udpPort->GetValue().ToLong(&udpPort);
-        wxGetApp().appConfiguration.reportingConfiguration.udpReportingPort = (int)udpPort;
+        // A port outside 1-65535 isn't one: rather than the nearest one,
+        // which isn't what was meant either, the port stays as it was.
+        if (ReadWholeNumber(m_udpPort->GetValue(), number) && number >= 1 && number <= 65535)
+        {
+            wxGetApp().appConfiguration.reportingConfiguration.udpReportingPort = (int)number;
+        }
 
         // UDP broadcast options (UdpReporter)
         wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastEnabled = m_ckboxUDPBroadcastEnable->GetValue();
         wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastAddress = m_udpBroadcastAddress->GetValue();
 
-        long udpBroadcastPort;
-        m_udpBroadcastPort->GetValue().ToLong(&udpBroadcastPort);
-        wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastPort = (int)udpBroadcastPort;
+        if (ReadWholeNumber(m_udpBroadcastPort->GetValue(), number) && number >= 1 && number <= 65535)
+        {
+            wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastPort = (int)number;
+        }
 
         // CSV log file path
         wxGetApp().appConfiguration.reportingConfiguration.csvLogFilePath = m_txtCtrlCsvLogFilePath->GetValue();
@@ -1372,9 +1394,10 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         }
         
         // Stats reset time
-        long resetTime;
-        m_statsResetTime->GetValue().ToLong(&resetTime);
-        wxGetApp().appConfiguration.statsResetTimeSecs = resetTime;
+        if (ReadWholeNumber(m_statsResetTime->GetValue(), number))
+        {
+            wxGetApp().appConfiguration.statsResetTimeSecs = Clamped<unsigned int>(number, 0, UINT_MAX);
+        }
         
         if (storePersistent) {
             wxGetApp().appConfiguration.apiVerbose = g_freedv_verbose;            
@@ -1430,21 +1453,18 @@ void OptionsDlg::OnApply(wxCommandEvent&)
     
     // If there's something in the frequency entry textbox (i.e. if the user pushes Apply),
     // convert to the correct units.
+    // (What isn't a frequency is left as it was typed.)
     auto freqString = m_txtCtrlNewFrequency->GetValue();
-    if (freqString.Length() > 0 && khzChanged)
+    uint64_t freqHz = ReportingConfiguration::DisplayedFrequencyToHz(freqString, oldFreqAsKHz);
+    if (freqHz > 0 && khzChanged)
     {
-        double freqDouble = 0;
-        wxNumberFormatter::FromString(freqString, &freqDouble);
-        
         if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
         {
-            freqDouble *= 1000;
-            m_txtCtrlNewFrequency->SetValue(wxNumberFormatter::ToString(freqDouble, 1));
+            m_txtCtrlNewFrequency->SetValue(wxNumberFormatter::ToString(freqHz / 1000.0, 1));
         }
         else
         {
-            freqDouble /= 1000.0;
-            m_txtCtrlNewFrequency->SetValue(wxNumberFormatter::ToString(freqDouble, 4));
+            m_txtCtrlNewFrequency->SetValue(wxNumberFormatter::ToString(freqHz / 1000000.0, 4));
         }
     }
         
@@ -1834,8 +1854,10 @@ void OptionsDlg::OnReportingFreqSelectionChange(wxCommandEvent&)
 
 void OptionsDlg::OnReportingFreqTextChange(wxCommandEvent&)
 {
-    double tmpValue = 0.0;
-    bool validNumber = wxNumberFormatter::FromString(m_txtCtrlNewFrequency->GetValue(), &tmpValue);
+    // (A frequency FreeDV can use: not just a number, but not a negative
+    // or one too big for one either.)
+    bool validFrequency = ReportingConfiguration::DisplayedFrequencyToHz(
+        m_txtCtrlNewFrequency->GetValue(), wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz) > 0;
 
     auto idx = m_freqList->FindString(m_txtCtrlNewFrequency->GetValue());
     if (idx != wxNOT_FOUND)
@@ -1859,7 +1881,7 @@ void OptionsDlg::OnReportingFreqTextChange(wxCommandEvent&)
             m_freqListMoveDown->Enable(true);
         }
     }
-    else if (validNumber && tmpValue > 0)
+    else if (validFrequency)
     {
         m_freqListAdd->Enable(true);
         m_freqListRemove->Enable(false);
@@ -1878,17 +1900,17 @@ void OptionsDlg::OnReportingFreqTextChange(wxCommandEvent&)
 void OptionsDlg::OnReportingFreqAdd(wxCommandEvent&)
 {
     auto val = m_txtCtrlNewFrequency->GetValue();
-    
-    double dVal = 0;
-    wxNumberFormatter::FromString(val, &dVal);
-    if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
+
+    // (Only a frequency goes into the list, whatever got here.)
+    bool asKhz = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz;
+    uint64_t hz = ReportingConfiguration::DisplayedFrequencyToHz(val, asKhz);
+    if (hz == 0)
     {
-        val = wxNumberFormatter::ToString(dVal, 1);
+        return;
     }
-    else
-    {
-        val = wxNumberFormatter::ToString(dVal, 4);
-    }
+
+    double dVal = asKhz ? hz / 1000.0 : hz / 1000000.0;
+    val = wxNumberFormatter::ToString(dVal, asKhz ? 1 : 4);
     m_freqList->Append(val);
     m_txtCtrlNewFrequency->SetValue("");
 }

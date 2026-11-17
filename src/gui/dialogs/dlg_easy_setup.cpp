@@ -29,6 +29,7 @@
 
 #include "../../main.h"
 #include "../util/SerialPortList.h"
+#include "../util/NumberEntry.h"
 #include "dlg_easy_setup.h"
 #include "dlg_audiooptions.h"
 #include "dlg_ptt.h"
@@ -609,18 +610,18 @@ void EasySetupDialog::ExchangePttDeviceData(int inout)
             wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialPort = m_cbSerialPort->GetValue();
             wxGetApp().appConfiguration.rigControlConfiguration.hamlibPttSerialPort = m_cbSerialPort->GetValue();
             
-            wxString s = m_tcIcomCIVHex->GetValue();
-            long hexAddress = 0;
-            m_tcIcomCIVHex->GetValue().ToLong(&hexAddress, 16);
-            wxGetApp().appConfiguration.rigControlConfiguration.hamlibIcomCIVAddress = hexAddress;
+            // What isn't an address or a rate leaves the setting as it was,
+            // rather than saving whatever was on the stack.
+            unsigned int hexAddress = 0;
+            if (ReadCIVAddress(m_tcIcomCIVHex->GetValue(), hexAddress))
+            {
+                wxGetApp().appConfiguration.rigControlConfiguration.hamlibIcomCIVAddress = hexAddress;
+            }
             
-            s = m_cbSerialRate->GetValue();
-            if (s == "default") {
-                wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialRate = 0;
-            } else {
-                long tmp;
-                m_cbSerialRate->GetValue().ToLong(&tmp); 
-                wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialRate = tmp;
+            unsigned int serialRate = 0;
+            if (ReadSerialRate(m_cbSerialRate->GetValue(), serialRate))
+            {
+                wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialRate = serialRate;
             }
             log_debug("serial rate: %d", wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialRate.get());
             
@@ -847,15 +848,12 @@ void EasySetupDialog::OnTest(wxCommandEvent&)
                 int rig = m_cbRigName->GetSelection();
                 wxString serialPort = m_cbSerialPort->GetValue();
             
-                wxString s = m_tcIcomCIVHex->GetValue();
-                long civHexAddress = 0;
-                m_tcIcomCIVHex->GetValue().ToLong(&civHexAddress, 16);
+                // (What isn't an address or a rate is tried as Hamlib's own, 0.)
+                unsigned int address = 0;
+                long civHexAddress = ReadCIVAddress(m_tcIcomCIVHex->GetValue(), address) ? (long)address : 0;
             
-                long rate = 0;
-                s = m_cbSerialRate->GetValue();
-                if (s != "default") {
-                    m_cbSerialRate->GetValue().ToLong(&rate);
-                } 
+                unsigned int serialRate = 0;
+                long rate = ReadSerialRate(m_cbSerialRate->GetValue(), serialRate) ? (long)serialRate : 0;
             
                 if (!wxGetApp().CanAccessSerialPort((const char*)serialPort.ToUTF8()))
                 {

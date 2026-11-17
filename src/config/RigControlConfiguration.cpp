@@ -55,7 +55,13 @@ RigControlConfiguration::RigControlConfiguration()
     , totTimerEnabled("/Rig/TotTimerEnabled", true)
     , totTimerSecs("/Rig/TotTimerSecs", 180)
 {
-    // empty
+    // Whatever's typed into Settings, or written into the config file, has
+    // to stay within what these are used for: a CI-V address is a byte, the
+    // serial rate goes to Hamlib as an int, and the time-out timer runs in
+    // milliseconds in an int (0 is no time-out).
+    hamlibIcomCIVAddress.setLimits(0, 0xFF);
+    hamlibSerialRate.setLimits(0, 4000000);
+    totTimerSecs.setLimits(0, 86400);
 }
 
 void RigControlConfiguration::load(wxConfigBase* config)
