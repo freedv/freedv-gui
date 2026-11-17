@@ -421,6 +421,9 @@ the Tools->FreeDV Reporter window will also cause this frequency to change to ma
 With Hamlib or OmniRig enabled (and "Manual Frequency Reporting" turned off), FreeDV also reports which sideband 
 (USB or LSB) the radio is on. Other stations' sidebands, where their versions of FreeDV report them, are shown after
 their frequencies in the Tools->FreeDV Reporter window (e.g. "14.2360 USB") and on the FreeDV Reporter website.
+Double-clicking a station that reports its sideband, or accepting its QSY request, also puts the radio on that 
+sideband (in the radio's data mode, e.g. LSB-D, unless "Use USB instead of DIGU" is checked in Settings) for as long as
+FreeDV stays on that frequency, and a QSY request you send tells the other station which sideband you're on.
 
 By default, pushing Start sets the radio to the frequency FreeDV last used, and pushing Stop returns the radio to the
 frequency and mode it had before Start. To leave the radio's frequency alone instead (FreeDV shows the radio's current

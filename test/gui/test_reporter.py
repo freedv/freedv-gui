@@ -2533,35 +2533,61 @@ def test_frequency_in_khz():
 
             quit_and_check_log(app)
 
+def require_sidebands(viewer, callsign):
+    """Skips the scenario if the server doesn't pass on the sideband of a
+    station that's just reported one (servers from before it was)."""
+    try:
+        viewer.wait_for_event("freq_change", callsign, where=lambda data: "sideband" in data, timeout=5)
+    except ReporterError:
+        raise freedvtest.audio.Unavailable("this FreeDV Reporter server doesn't pass on sidebands")
+
+
+def start_radio():
+    """Starts a radio for FreeDV to control (see freedvtest.rigctld), or skips
+    the scenario if there's no rigctld to be one."""
+    try:
+        radio = Rigctld()
+        radio.__enter__()
+        return radio
+    except RigctldError as e:
+        raise freedvtest.audio.Unavailable(str(e))
+
+
+def radio_settings(server, radio):
+    settings = reporter_settings(server.hostname)
+    settings.update(audio_settings())
+    settings.update({"/Reporting/ManualFrequencyReporting": False, "/Hamlib/UseForPTT": True,
+                     "/Hamlib/RigNameStr": Rigctld.RIG_NAME, "/Hamlib/SerialPort": radio.address})
+    return settings
+
+
+def quit_and_check_log_with_hamlib(app):
+    check_equal(app.message_boxes(), [], "Errors displayed")
+    check_equal(app.quit(), 0, "FreeDV's exit code")
+    # (Hamlib has its own idea of what's worth calling an error, as in
+    # test_rig_control.py.)
+    errors = [line for line in app.log().splitlines()
+              if (" ERROR " in line or " FATAL " in line) and "HamlibRigController.cpp" not in line]
+    check_equal(errors, [], "Errors logged by FreeDV")
+
+
 def test_sideband():
     """The sideband each station's radio is on (USB or LSB), where it says:
     shown after its frequency, and FreeDV's own reported from its radio's
     mode, following the radio."""
     with ReporterServer() as server:
-        # Servers from before the sideband was reported don't pass it on.
         probe = server.station("K1ABC", "FN42")
         probe.set_frequency(14236000, "USB")
         viewer = server.viewer()
-        try:
-            viewer.wait_for_event("freq_change", "K1ABC", where=lambda data: "sideband" in data, timeout=5)
-        except ReporterError:
-            raise freedvtest.audio.Unavailable("this FreeDV Reporter server doesn't pass on sidebands")
+        require_sidebands(viewer, "K1ABC")
 
         server.station("VK5DGR", "QF02").set_frequency(7177000, "LSB")
         server.station("W6XYZ", "CM87").set_frequency(28330000)
 
-        try:
-            radio = Rigctld()
-            radio.__enter__()
-        except RigctldError as e:
-            raise freedvtest.audio.Unavailable(str(e))
+        radio = start_radio()
         try:
             radio.set_frequency(14236000)
-            settings = reporter_settings(server.hostname)
-            settings.update(audio_settings())
-            settings.update({"/Reporting/ManualFrequencyReporting": False, "/Hamlib/UseForPTT": True,
-                             "/Hamlib/RigNameStr": Rigctld.RIG_NAME, "/Hamlib/SerialPort": radio.address})
-            with audio_devices(), freedvtest.start(settings=settings) as app:
+            with audio_devices(), freedvtest.start(settings=radio_settings(server, radio)) as app:
                 open_reporter(app)
 
                 # Shown after the frequency, where the station says.
@@ -2608,13 +2634,99 @@ def test_sideband():
                 wait_for_cell(app, CALLSIGN_OF_FREEDV, FREQUENCY, "14.2360", timeout=30)
 
                 stop_modem(app)
-                check_equal(app.message_boxes(), [], "Errors displayed")
-                check_equal(app.quit(), 0, "FreeDV's exit code")
-                # (Hamlib has its own idea of what's worth calling an error, as
-                # in test_rig_control.py.)
-                errors = [line for line in app.log().splitlines()
-                          if (" ERROR " in line or " FATAL " in line) and "HamlibRigController.cpp" not in line]
-                check_equal(errors, [], "Errors logged by FreeDV")
+                quit_and_check_log_with_hamlib(app)
+        finally:
+            radio.__exit__(None, None, None)
+
+
+def test_sideband_follow():
+    """Going to a station that's said which sideband it's on, by
+    double-clicking it or accepting its QSY request, puts the radio on that
+    sideband as well as its frequency (in the radio's data mode, as for
+    digital anywhere); asking a station to QSY tells it which sideband to
+    come to."""
+    with ReporterServer() as server:
+        vk5dgr = server.station("VK5DGR", "QF02")
+        vk5dgr.set_frequency(7177000, "LSB")
+        viewer = server.viewer()
+        require_sidebands(viewer, "VK5DGR")
+        # USB, on a band where LSB is usual.
+        k1abc = server.station("K1ABC", "FN42")
+        k1abc.set_frequency(7200000, "USB")
+        # Hasn't said.
+        w6xyz = server.station("W6XYZ", "CM87")
+        w6xyz.set_frequency(7210000)
+
+        radio = start_radio()
+        try:
+            radio.set_frequency(14236000)
+            with audio_devices(), freedvtest.start(settings=radio_settings(server, radio)) as app:
+                open_reporter(app)
+                start_modem(app)
+                app.wait_until(lambda: app.get("main.textModeStatus")["label"] != "unk",
+                               description="FreeDV to connect to the radio")
+                # (Listed by frequency.)
+                wait_for_callsigns(app, ["VK5DGR", "K1ABC", "W6XYZ", CALLSIGN_OF_FREEDV])
+
+                def wait_for_radio(frequency, mode, what):
+                    try:
+                        app.wait_until(lambda: (radio.frequency(), radio.mode()) == (frequency, mode), timeout=15)
+                    except freedvtest.FreeDVError:
+                        check_equal((radio.frequency(), radio.mode()), (frequency, mode), what)
+
+                def wait_for_reported(frequency, sideband):
+                    viewer.wait_for_event("freq_change", CALLSIGN_OF_FREEDV, timeout=20,
+                                          where=lambda data: (data["freq"], data.get("sideband")) == (frequency, sideband))
+
+                # Double-clicking: the station's sideband, in data mode.
+                app.activate_row(LIST, (CALLSIGN, "VK5DGR"))
+                wait_for_radio(7177000, "PKTLSB", "Radio after double-clicking VK5DGR (LSB)")
+                wait_for_reported(7177000, "LSB")
+                app.wait_until(lambda: app.get("main.textModeStatus")["label"] == "LSB-D", timeout=15,
+                               description="the mode shown to be LSB-D")
+                # ...and it stays there: FreeDV doesn't put it back.
+                time.sleep(3)
+                check_equal((radio.frequency(), radio.mode()), (7177000, "PKTLSB"), "Radio a while later")
+
+                # Asking K1ABC over: on our sideband.
+                app.select_row(LIST, (CALLSIGN, "K1ABC"))
+                app.click("reporter.btnSendQSY")
+                request = k1abc.wait_for_event("qsy_request")
+                check_equal((request["frequency"], request.get("sideband")), (7177000, "LSB"),
+                            "QSY request received by K1ABC")
+                app.message_boxes(clear=True)
+
+                app.activate_row(LIST, (CALLSIGN, "K1ABC"))
+                wait_for_radio(7200000, "PKTUSB", "Radio after double-clicking K1ABC (USB on 40 m)")
+                wait_for_reported(7200000, "USB")
+
+                # A station that hasn't said: the sideband usual for digital.
+                app.activate_row(LIST, (CALLSIGN, "W6XYZ"))
+                wait_for_radio(7210000, "PKTUSB", "Radio after double-clicking W6XYZ (sideband not said)")
+
+                # Being asked over, on LSB on 20 m.
+                app.answer_next_message_box("yes")
+                vk5dgr.request_qsy(CALLSIGN_OF_FREEDV, 14250000, sideband="LSB")
+                app.wait_until(lambda: app.message_boxes(), description="the QSY request to be displayed")
+                check_equal([box["message"].replace(",", "") for box in app.message_boxes(clear=True)],
+                            ["VK5DGR has requested that you QSY to 14.2500 MHz LSB. "
+                             "Would you like to change to that frequency now?"], "Messages displayed")
+                wait_for_radio(14250000, "PKTLSB", "Radio after accepting VK5DGR's QSY request")
+                wait_for_reported(14250000, "LSB")
+
+                # Asked to stay on the same frequency, on the other sideband.
+                app.answer_next_message_box("yes")
+                k1abc.request_qsy(CALLSIGN_OF_FREEDV, 14250000, sideband="USB")
+                app.wait_until(lambda: app.message_boxes(), description="the QSY request to be displayed")
+                app.message_boxes(clear=True)
+                wait_for_radio(14250000, "PKTUSB", "Radio after accepting K1ABC's QSY request (same frequency)")
+
+                # Typing a frequency in: back to the usual sideband.
+                app.set_value("main.cboReportFrequency", "7.1500")
+                wait_for_radio(7150000, "PKTUSB", "Radio after typing in a frequency")
+
+                stop_modem(app)
+                quit_and_check_log_with_hamlib(app)
         finally:
             radio.__exit__(None, None, None)
 
@@ -2648,6 +2760,7 @@ SCENARIOS = {
     "connection_burst": test_connection_burst,
     "frequency_in_khz": test_frequency_in_khz,
     "sideband": test_sideband,
+    "sideband_follow": test_sideband_follow,
 }
 
 

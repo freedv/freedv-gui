@@ -265,6 +265,11 @@ class FreeDVReporterDialog : public wxFrame
                  }
              }
 
+             IReporter::Sideband getSideband(wxDataViewItem item)
+             {
+                return item.IsOk() ? ((ReporterData*)item.GetID())->sideband : IReporter::Sideband::UNKNOWN;
+             }
+
              uint64_t getFrequency(wxDataViewItem item)
              {
                 if (item.IsOk())

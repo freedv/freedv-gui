@@ -1712,19 +1712,25 @@ void FreeDVReporterDialog::OnItemDoubleClick(wxDataViewEvent& event)
     {
         FreeDVReporterDataModel* model = (FreeDVReporterDataModel*)spotsDataModel_.get();
         auto frequency = model->getFrequency(event.GetItem());
+        auto sideband = model->getSideband(event.GetItem());
         auto rigController = snapshotRigFrequencyController();
         if (rigController && 
             (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges || 
             wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly))
         {
+            // On their sideband too, where they've said, while there (as the
+            // main window then picks the mode: see MainFrame::getCurrentMode_()).
+            wxGetApp().followSideband(frequency, sideband);
+
             rigController->setFrequency(frequency);
 
             if (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
             {
                 bool useAnalog = g_analog.load(std::memory_order_relaxed);
                 rigController->setMode(
-                    GetModeForFrequency(
+                    GetModeForSideband(
                         frequency, 
+                        sideband,
                         wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes, 
                         useAnalog));
             }

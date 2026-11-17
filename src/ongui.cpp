@@ -469,17 +469,18 @@ void MainFrame::onFrequencyModeChange_(IRigFrequencyController*, uint64_t freq, 
 
         auto newFreq = wholeFreq * 100;
 
-        // Widest 60 meter allocation is 5.250-5.450 MHz per https://en.wikipedia.org/wiki/60-meter_band.
-        bool is60MeterBand = newFreq >= 5250000 && newFreq <= 5450000;
-
-        // Update color based on the mode and current frequency.
-        bool isUsbFreq = newFreq >= 10000000 || is60MeterBand;
-        bool isLsbFreq = newFreq < 10000000 && !is60MeterBand;
-
-        bool isMatchingMode =
-            (!g_analog && (mode == IRigFrequencyController::USB || mode == IRigFrequencyController::DIGU)) ||
-            (g_analog && isUsbFreq && (mode == IRigFrequencyController::USB)) ||
-            (g_analog && isLsbFreq && (mode == IRigFrequencyController::LSB));
+        // Update color based on the mode and current frequency: the mode FreeDV
+        // would put the radio in there (on the usual sideband, or a station's
+        // after going to it), or for digital, either mode on that sideband.
+        auto expectedMode = GetModeForSideband(
+            newFreq, wxGetApp().followedSidebandAt(newFreq),
+            wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes, g_analog);
+        bool isSidebandMode =
+            mode == IRigFrequencyController::USB || mode == IRigFrequencyController::DIGU ||
+            mode == IRigFrequencyController::LSB || mode == IRigFrequencyController::DIGL;
+        bool isMatchingMode = g_analog ?
+            (mode == expectedMode) :
+            (isSidebandMode && IsLowerSidebandMode(mode) == IsLowerSidebandMode(expectedMode));
 
         if (isMatchingMode)
         {
@@ -1833,8 +1834,11 @@ void MainFrame::OnTogBtnTune(wxCommandEvent&)
 HamlibRigController::Mode MainFrame::getCurrentMode_()
 {
     bool useAnalog = g_analog.load(std::memory_order_relaxed);
-    return GetModeForFrequency(
-        wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency, 
+    uint64_t frequency = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency;
+    // (On the sideband of a station FreeDV's gone to, while it's there.)
+    return GetModeForSideband(
+        frequency,
+        wxGetApp().followedSidebandAt(frequency),
         wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes,
         useAnalog);
 }
@@ -1878,8 +1882,11 @@ void MainFrame::OnTogBtnAnalogClick (wxCommandEvent& event)
         // Request mode change on the radio side
         auto currentMode = getCurrentMode_();
 
+        // The shift is for going between sidebands: digital is usually on
+        // USB, but on a station's own sideband after going to it (and then
+        // stays on it in analog too).
         constexpr int LSB_USB_FREQ_SHIFT_HZ = 3000;
-        if (currentMode == HamlibRigController::LSB && g_analog)
+        if (IsLowerSidebandMode(currentMode) && !IsLowerSidebandMode(oldMode) && g_analog)
         {
             // If analog is enabled, we should add +3 kHz to the frequency to 
             // ensure we're still listening to the same passband that we were
@@ -1888,7 +1895,7 @@ void MainFrame::OnTogBtnAnalogClick (wxCommandEvent& event)
                 wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency + LSB_USB_FREQ_SHIFT_HZ;
             rigController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
         }
-        else if (oldMode == HamlibRigController::LSB && !g_analog)
+        else if (IsLowerSidebandMode(oldMode) && !IsLowerSidebandMode(currentMode) && !g_analog)
         {
             // Revert previous mode shift.
             wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = 

@@ -236,9 +236,33 @@ class MainApp : public wxApp
         std::shared_ptr<FreeDVReporter> m_sharedReporterObject;
         
         std::vector<std::shared_ptr<IReporter> > m_reporters;
+
+        // The sideband of the station FreeDV last went to (by double-clicking
+        // it in FreeDV Reporter, or accepting its QSY request), if it said:
+        // the radio's put on that sideband while it's on that station's
+        // frequency, rather than the one usual there (see
+        // GetModeForSideband()). Somewhere else, it's the usual one again.
+        void followSideband(uint64_t frequencyHz, IReporter::Sideband sideband)
+        {
+            m_followedSidebandFrequency = roundToFrequencyStep_(frequencyHz);
+            m_followedSideband = sideband;
+        }
+
+        IReporter::Sideband followedSidebandAt(uint64_t frequencyHz) const
+        {
+            return (m_followedSidebandFrequency != 0 && roundToFrequencyStep_(frequencyHz) == m_followedSidebandFrequency) ?
+                m_followedSideband : IReporter::Sideband::UNKNOWN;
+        }
         
         bool                loadConfig();
         bool                saveConfig();
+
+    private:
+        // To the 100 Hz FreeDV keeps its own frequency to.
+        static uint64_t roundToFrequencyStep_(uint64_t frequencyHz) { return (frequencyHz + 50) / 100 * 100; }
+        uint64_t m_followedSidebandFrequency = 0;
+        IReporter::Sideband m_followedSideband = IReporter::Sideband::UNKNOWN;
+    public:
 
         // misc
         float      m_channel_snr_dB;
@@ -713,9 +737,10 @@ class MainFrame : public TopFrame
             std::string callsign;
             uint64_t freqHz;
             std::string message;
+            IReporter::Sideband sideband;
         };
 
-        void onQsyRequest_(std::string callsign, uint64_t freqHz, std::string message);
+        void onQsyRequest_(std::string callsign, uint64_t freqHz, std::string message, IReporter::Sideband sideband);
         void onQsyRequestUIThread_(QsyRequestArgs* args);
         
         bool isFrequencyControlEnabled_()
