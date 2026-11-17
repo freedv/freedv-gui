@@ -418,6 +418,14 @@ also enabled, this frequency will automatically remain in sync with the current 
 frequency is changed in the application, the radio will also change its frequency). Double-clicking on users in 
 the Tools->FreeDV Reporter window will also cause this frequency to change to match the other user.
 
+With Hamlib or OmniRig enabled (and "Manual Frequency Reporting" turned off), FreeDV also reports which sideband 
+(USB or LSB) the radio is on. Other stations' sidebands, where their versions of FreeDV report them, are shown after
+their frequencies in the Tools->FreeDV Reporter window (e.g. "14.2360 USB") and on the FreeDV Reporter website.
+Double-clicking a station that reports its sideband, or accepting its QSY request, also puts the radio on that 
+sideband (in the radio's data mode, e.g. LSB-D, unless "Use USB instead of DIGU" is checked in Settings) for as long as
+FreeDV stays on that frequency, even if that isn't the sideband usually used on that band (e.g. LSB on 20 meters). A QSY
+request you send tells the other station which sideband you're on.
+
 By default, pushing Start sets the radio to the frequency FreeDV last used, and pushing Stop returns the radio to the
 frequency and mode it had before Start. To leave the radio's frequency alone instead (FreeDV shows the radio's current
 frequency on Start, and the radio stays where it is on Stop), uncheck "Save and restore the frequency on start and stop"
@@ -899,6 +907,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * RADE: fill in the missing high frequencies when transmitting with an 8 kHz mic (e.g. a Bluetooth headset). (PR #1614)
     * Settings: apply half duplex and the VOX tone immediately while running, allow changing the PTT key and TX/RX delay, and note which settings take effect the next time FreeDV starts. (PR #1631)
     * Settings: apply every setting while running, restarting the audio or reconnecting to the radio and reporting services as needed, once back on receive. (PR #1632)
+    * FreeDV Reporter: report which sideband (USB or LSB) the radio is on, and show other stations' after their frequencies. (PR #1644)
 2. Bugfixes:
     * Fix silence being mixed into the first half second of each transmission, and holes in the signal at its start. (PR #1562)
     * Hamlib/OmniRig: fix the radio sometimes being put back on FreeDV's frequency after being tuned elsewhere just after Start. (PR #1632)

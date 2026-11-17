@@ -88,13 +88,16 @@ def check_nothing_logged(logger, what):
     check_equal(logger.messages(WsjtxListener.STATUS), [], what + " (status)")
 
 
-def write_csv_log(path, rows):
+def write_csv_log(path, rows, sideband=None):
     """Creates the file that FreeDV fills its list of callsigns from on
-    startup. Rows are (date and time, callsign, frequency in Hz, SNR)."""
+    startup. Rows are (date and time, callsign, frequency in Hz, SNR). With
+    a sideband, the file has the sideband column that files started since
+    it was added have, with that in it."""
     with open(path, "w") as f:
-        f.write("date,time,callsign,mode,frequency_hz,snr_db\n")
+        f.write("date,time,callsign,mode,frequency_hz,snr_db%s\n" % (",sideband" if sideband is not None else ""))
         for moment, callsign, frequency, snr in rows:
-            f.write("%s,%s,%s,RADEV1,%d,%d\n" % (moment[:10], moment[11:], callsign, frequency, snr))
+            f.write("%s,%s,%s,RADEV1,%d,%d%s\n" % (moment[:10], moment[11:], callsign, frequency, snr,
+                                                  "," + sideband if sideband is not None else ""))
 
 
 def choose_callsign(app, row):
@@ -241,8 +244,9 @@ def test_callsign_list():
         heard = [("2026-03-04 05:06:07", "K1ABC", 7177000, 4), ("2026-03-04 21:43:02", "VK5DGR", 14236000, 11)]
 
         for use_utc in [False, True]:
-            # The newest is listed first.
-            write_csv_log(csv_log, heard)
+            # The newest is listed first. (Once from a file from before the
+            # sideband column was added, and once from one with it.)
+            write_csv_log(csv_log, heard, sideband="USB" if use_utc else None)
             moment = time.strptime(heard[1][0], "%Y-%m-%d %H:%M:%S")
             heard_at = calendar.timegm(moment) if use_utc else time.mktime(moment)
 

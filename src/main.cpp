@@ -1468,6 +1468,7 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, wxT("FreeDV 
     m_panelSNR = nullptr;
 
     suppressFreqModeUpdates_ = false;
+    reportedSideband_ = IReporter::Sideband::UNKNOWN;
     lastBand_ = BAND_OTHER;
     
     tools->AppendSeparator();
@@ -1742,7 +1743,8 @@ void MainFrame::restoreCallsignListFromCsv_()
 
     for (auto& csvLine : lines)
     {
-        // CSV columns: date,time,callsign,mode,frequency_hz,snr_db
+        // CSV columns: date,time,callsign,mode,frequency_hz,snr_db, then
+        // sideband in files started since that was added (not used here).
         std::istringstream ss(csvLine);
         std::string date, time, callsign, mode, freqStr, snrStr;
         if (!std::getline(ss, date, ',')) continue;
@@ -1750,7 +1752,7 @@ void MainFrame::restoreCallsignListFromCsv_()
         if (!std::getline(ss, callsign, ',')) continue;
         if (!std::getline(ss, mode, ',')) continue;
         if (!std::getline(ss, freqStr, ',')) continue;
-        if (!std::getline(ss, snrStr)) continue;
+        if (!std::getline(ss, snrStr, ',')) continue;
 
         // (std::stoull() takes a minus sign, and wraps what follows it into
         // a huge frequency: only digits are taken.)
@@ -3087,6 +3089,9 @@ void MainFrame::startReporting_()
                 {
                     obj->transmit(freedvInterface.getCurrentTxModeStr(), g_tx.load(std::memory_order_acquire));
                     obj->freqChange(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+                    // (The reporters made here start out not knowing the
+                    // sideband.)
+                    obj->sidebandChange(reportedSideband_);
                 }
             });
         }
@@ -4601,7 +4606,7 @@ void MainFrame::initializeFreeDVReporter_()
     m_reporterDialog->refreshLayout();
     
     // Set up QSY request handler
-    wxGetApp().m_sharedReporterObject->setOnQSYRequestFn(std::bind(&MainFrame::onQsyRequest_, this, _1, _2, _3));
+    wxGetApp().m_sharedReporterObject->setOnQSYRequestWithSidebandFn(std::bind(&MainFrame::onQsyRequest_, this, _1, _2, _3, _4));
     
     auto txStatus = g_tx.load(std::memory_order_acquire);
     if (!freedvInterface.isRunning())
@@ -4612,11 +4617,14 @@ void MainFrame::initializeFreeDVReporter_()
     {
         wxGetApp().m_sharedReporterObject->transmit(freedvInterface.getCurrentTxModeStr(), txStatus);
         wxGetApp().m_sharedReporterObject->freqChange(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+        // (Not a repeat: the FreeDVReporter made above is new, and doesn't
+        // know the sideband until told. It then keeps it across reconnects.)
+        wxGetApp().m_sharedReporterObject->sidebandChange(reportedSideband_);
     }
     wxGetApp().m_sharedReporterObject->connect();
 }
 
-void MainFrame::onQsyRequest_(std::string callsign, uint64_t freqHz, std::string message)
+void MainFrame::onQsyRequest_(std::string callsign, uint64_t freqHz, std::string message, IReporter::Sideband sideband)
 {
     // A separate object needs to be created here since wxWidgets doesn't support more
     // than two arguments for CallAfter().
@@ -4625,6 +4633,7 @@ void MainFrame::onQsyRequest_(std::string callsign, uint64_t freqHz, std::string
     args->callsign = std::move(callsign);
     args->freqHz = freqHz;
     args->message = std::move(message);
+    args->sideband = sideband;
 
     CallAfter(&MainFrame::onQsyRequestUIThread_, args);
 }
@@ -4635,31 +4644,43 @@ void MainFrame::onQsyRequestUIThread_(QsyRequestArgs* args)
     std::string callsign = args->callsign;
     uint64_t freqHz = args->freqHz;
     std::string message = args->message;
+    IReporter::Sideband sideband = args->sideband;
     delete args;
 
-    double freqFactor = 1000.0;
-    // TRANSLATORS: First %s is a callsign, second %s is a frequency.
-    wxString fmtMsg = _("%s has requested that you QSY to %s kHz.");
-        
-    if (!wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
+    wxString fmtMsg;
+    wxString sidebandString;
+    if (sideband == IReporter::Sideband::USB || sideband == IReporter::Sideband::LSB)
     {
-        freqFactor *= 1000.0;
-        // TRANSLATORS: First %s is a callsign, second %s is a frequency.
-        fmtMsg = _("%s has requested that you QSY to %s MHz.");
-    }
-        
-    double frequencyReadable = freqHz / freqFactor;
-    wxString freqString;
-    if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
-    {
-        freqString = wxNumberFormatter::ToString(frequencyReadable, 1);
+        // The sideband they're on, where they've said.
+        sidebandString = (sideband == IReporter::Sideband::USB) ? wxT("USB") : wxT("LSB");
+        // TRANSLATORS: First %s is a callsign, second %s is a frequency and third %s is the sideband (USB or LSB).
+        fmtMsg = _("%s has requested that you QSY to %s kHz %s.");
     }
     else
     {
-        freqString = wxNumberFormatter::ToString(frequencyReadable, 4);
+        // TRANSLATORS: First %s is a callsign, second %s is a frequency.
+        fmtMsg = _("%s has requested that you QSY to %s kHz.");
     }
+        
+    if (!wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
+    {
+        if (!sidebandString.IsEmpty())
+        {
+            // TRANSLATORS: First %s is a callsign, second %s is a frequency and third %s is the sideband (USB or LSB).
+            fmtMsg = _("%s has requested that you QSY to %s MHz %s.");
+        }
+        else
+        {
+            // TRANSLATORS: First %s is a callsign, second %s is a frequency.
+            fmtMsg = _("%s has requested that you QSY to %s MHz.");
+        }
+    }
+        
+    wxString freqString = reportFrequencyString_(freqHz);
     
-    wxString fullMessage = wxString::Format(fmtMsg, callsign, freqString);
+    wxString fullMessage = sidebandString.IsEmpty() ?
+        wxString::Format(fmtMsg, callsign, freqString) :
+        wxString::Format(fmtMsg, callsign, freqString, sidebandString);
     int dialogStyle = wxOK | wxICON_INFORMATION | wxCENTRE;
         
     auto rigController = snapshotRigFrequencyController();
@@ -4681,8 +4702,25 @@ void MainFrame::onQsyRequestUIThread_(QsyRequestArgs* args)
     auto answer = ShowMessageDialog(messageDialog);
     if (answer == wxID_YES)
     {
-        // This will implicitly cause Hamlib to change the frequency and mode.
+        // On their sideband too, while there (see getCurrentMode_()).
+        wxGetApp().followSideband(freqHz, sideband);
+
+        // This will implicitly cause Hamlib to change the frequency and mode
+        // (OnChangeReportFrequency())... Compared as OnChangeReportFrequency()
+        // does, not with what's in the box: "14.25" typed in is already
+        // 14.2500.
+        bool frequencyChanges = freqString != reportFrequencyString_(
+            wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
         m_cboReportFrequency->SetValue(freqString);
+
+        // ...if the frequency changes. If FreeDV's already there, it may
+        // still need to change sideband.
+        auto rigController = snapshotRigFrequencyController();
+        if (!frequencyChanges && rigController != nullptr && sideband != IReporter::Sideband::UNKNOWN &&
+            wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
+        {
+            rigController->setMode(getCurrentMode_());
+        }
     }
 }
 

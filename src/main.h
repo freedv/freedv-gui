@@ -236,9 +236,47 @@ class MainApp : public wxApp
         std::shared_ptr<FreeDVReporter> m_sharedReporterObject;
         
         std::vector<std::shared_ptr<IReporter> > m_reporters;
+
+        // The sideband of the station FreeDV last went to (by double-clicking
+        // it in FreeDV Reporter, or accepting its QSY request), if it said:
+        // the radio's put on that sideband while it stays on that station's
+        // frequency, rather than the one usual there (see
+        // GetModeForSideband()). Once FreeDV's somewhere else, it's forgotten
+        // (see forgetFollowedSidebandUnlessAt()), so coming back later to the
+        // same frequency is on the usual sideband again.
+        void followSideband(uint64_t frequencyHz, IReporter::Sideband sideband)
+        {
+            m_followedSidebandFrequency = roundToFrequencyStep_(frequencyHz);
+            m_followedSideband = sideband;
+        }
+
+        // Called whenever FreeDV's frequency changes (typed or chosen in, or
+        // from the radio): forgets the followed sideband unless that's still
+        // its frequency.
+        void forgetFollowedSidebandUnlessAt(uint64_t frequencyHz)
+        {
+            if (m_followedSidebandFrequency != 0 && roundToFrequencyStep_(frequencyHz) != m_followedSidebandFrequency)
+            {
+                m_followedSidebandFrequency = 0;
+                m_followedSideband = IReporter::Sideband::UNKNOWN;
+            }
+        }
+
+        IReporter::Sideband followedSidebandAt(uint64_t frequencyHz) const
+        {
+            return (m_followedSidebandFrequency != 0 && roundToFrequencyStep_(frequencyHz) == m_followedSidebandFrequency) ?
+                m_followedSideband : IReporter::Sideband::UNKNOWN;
+        }
         
         bool                loadConfig();
         bool                saveConfig();
+
+    private:
+        // To the 100 Hz FreeDV keeps its own frequency to.
+        static uint64_t roundToFrequencyStep_(uint64_t frequencyHz) { return (frequencyHz + 50) / 100 * 100; }
+        uint64_t m_followedSidebandFrequency = 0;
+        IReporter::Sideband m_followedSideband = IReporter::Sideband::UNKNOWN;
+    public:
 
         // misc
         float      m_channel_snr_dB;
@@ -616,6 +654,10 @@ class MainFrame : public TopFrame
         float      vk_rx_sync_time;
         bool suppressFreqModeUpdates_;
         bool firstFreqUpdateOnConnect_;
+
+        // The sideband last told to the reporters (see reportSideband_()).
+        IReporter::Sideband reportedSideband_;
+        void reportSideband_(IReporter::Sideband sideband);
         FilterFrequency lastBand_;
         // Restore-point: the TX/tune level that was active when we entered the
         // current band (or when Enable was first clicked for that band). Restore
@@ -719,6 +761,8 @@ class MainFrame : public TopFrame
         void executeOnUiThreadAndWait_(std::function<void()> fn);
         
         void updateReportingFreqList_();
+        // FreeDV's frequency as shown in the frequency box.
+        static wxString reportFrequencyString_(uint64_t hz);
         wxString reportFrequencyListString_(wxString const& text);
         void addReportFrequencyToList_(wxString const& freq);
         
@@ -751,9 +795,10 @@ class MainFrame : public TopFrame
             std::string callsign;
             uint64_t freqHz;
             std::string message;
+            IReporter::Sideband sideband;
         };
 
-        void onQsyRequest_(std::string callsign, uint64_t freqHz, std::string message);
+        void onQsyRequest_(std::string callsign, uint64_t freqHz, std::string message, IReporter::Sideband sideband);
         void onQsyRequestUIThread_(QsyRequestArgs* args);
         
         bool isFrequencyControlEnabled_()

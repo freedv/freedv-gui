@@ -413,6 +413,30 @@ void MainFrame::onFrequencyModeChange_(IRigFrequencyController*, uint64_t freq, 
             return;
         }
 
+        // The sideband goes to the reporters along with the frequency, so
+        // only when that's the radio's: one typed in (manual frequency
+        // reporting) may well not be what the radio is on.
+        IReporter::Sideband sideband = IReporter::Sideband::UNKNOWN;
+        if (!wxGetApp().appConfiguration.reportingConfiguration.reportingEnabled ||
+            !wxGetApp().appConfiguration.reportingConfiguration.manualFrequencyReporting)
+        {
+            if (mode == IRigFrequencyController::USB || mode == IRigFrequencyController::DIGU)
+            {
+                sideband = IReporter::Sideband::USB;
+            }
+            else if (mode == IRigFrequencyController::LSB || mode == IRigFrequencyController::DIGL)
+            {
+                sideband = IReporter::Sideband::LSB;
+            }
+        }
+        // (Sent ahead of the frequency below, so for a moment the new sideband
+        // goes with the old frequency: the reverse order has the same moment
+        // the other way round. The server batches the two, so its clients
+        // usually see both at once. Where the frequency isn't sent below, the
+        // radio's frequency is stale or isn't being reported, and FreeDV's
+        // still reporting the frequency it was on.)
+        reportSideband_(sideband);
+
         // Update string value.
         switch(mode)
         {
@@ -461,17 +485,18 @@ void MainFrame::onFrequencyModeChange_(IRigFrequencyController*, uint64_t freq, 
 
         auto newFreq = wholeFreq * 100;
 
-        // Widest 60 meter allocation is 5.250-5.450 MHz per https://en.wikipedia.org/wiki/60-meter_band.
-        bool is60MeterBand = newFreq >= 5250000 && newFreq <= 5450000;
-
-        // Update color based on the mode and current frequency.
-        bool isUsbFreq = newFreq >= 10000000 || is60MeterBand;
-        bool isLsbFreq = newFreq < 10000000 && !is60MeterBand;
-
-        bool isMatchingMode =
-            (!g_analog && (mode == IRigFrequencyController::USB || mode == IRigFrequencyController::DIGU)) ||
-            (g_analog && isUsbFreq && (mode == IRigFrequencyController::USB)) ||
-            (g_analog && isLsbFreq && (mode == IRigFrequencyController::LSB));
+        // Update color based on the mode and current frequency: the mode FreeDV
+        // would put the radio in there (on the usual sideband, or a station's
+        // after going to it), or for digital, either mode on that sideband.
+        auto expectedMode = GetModeForSideband(
+            newFreq, wxGetApp().followedSidebandAt(newFreq),
+            wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes, g_analog);
+        bool isSidebandMode =
+            mode == IRigFrequencyController::USB || mode == IRigFrequencyController::DIGU ||
+            mode == IRigFrequencyController::LSB || mode == IRigFrequencyController::DIGL;
+        bool isMatchingMode = g_analog ?
+            (mode == expectedMode) :
+            (isSidebandMode && IsLowerSidebandMode(mode) == IsLowerSidebandMode(expectedMode));
 
         if (isMatchingMode)
         {
@@ -511,6 +536,9 @@ void MainFrame::onFrequencyModeChange_(IRigFrequencyController*, uint64_t freq, 
             // here.
             auto oldFreq = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency.get();
             wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = newFreq;
+            // (The radio tuned elsewhere, e.g. by its own dial: as when a
+            // frequency's typed in, see OnChangeReportFrequency().)
+            wxGetApp().forgetFollowedSidebandUnlessAt(newFreq);
             if (oldFreq != newFreq)
             {
                 for (auto& ptr : wxGetApp().m_reporters)
@@ -568,7 +596,29 @@ void MainFrame::onRadioDisconnected_(IRigController*)
     CallAfter([&]() {
         m_txtModeStatus->SetLabel(_("unk"));
         m_txtModeStatus->Enable(false);
+
+        // Nothing's known about the sideband without the radio.
+        reportSideband_(IReporter::Sideband::UNKNOWN);
     });
+}
+
+//-------------------------------------------------------------------------
+// reportSideband_(): tells the reporters which sideband the radio is on
+// (UNKNOWN if not known), if that's changed. On the UI thread, as
+// m_reporters is changed there.
+//-------------------------------------------------------------------------
+void MainFrame::reportSideband_(IReporter::Sideband sideband)
+{
+    if (sideband == reportedSideband_)
+    {
+        return;
+    }
+
+    reportedSideband_ = sideband;
+    for (auto& ptr : wxGetApp().m_reporters)
+    {
+        ptr->sidebandChange(sideband);
+    }
 }
 
 //-------------------------------------------------------------------------
@@ -1814,8 +1864,11 @@ void MainFrame::OnTogBtnTune(wxCommandEvent&)
 HamlibRigController::Mode MainFrame::getCurrentMode_()
 {
     bool useAnalog = g_analog.load(std::memory_order_relaxed);
-    return GetModeForFrequency(
-        wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency, 
+    uint64_t frequency = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency;
+    // (On the sideband of a station FreeDV's gone to, while it's there.)
+    return GetModeForSideband(
+        frequency,
+        wxGetApp().followedSidebandAt(frequency),
         wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes,
         useAnalog);
 }
@@ -1859,8 +1912,11 @@ void MainFrame::OnTogBtnAnalogClick (wxCommandEvent& event)
         // Request mode change on the radio side
         auto currentMode = getCurrentMode_();
 
+        // The shift is for going between sidebands: digital is usually on
+        // USB, but on a station's own sideband after going to it (and then
+        // stays on it in analog too).
         constexpr int LSB_USB_FREQ_SHIFT_HZ = 3000;
-        if (currentMode == HamlibRigController::LSB && g_analog)
+        if (IsLowerSidebandMode(currentMode) && !IsLowerSidebandMode(oldMode) && g_analog)
         {
             // If analog is enabled, we should add +3 kHz to the frequency to 
             // ensure we're still listening to the same passband that we were
@@ -1869,7 +1925,7 @@ void MainFrame::OnTogBtnAnalogClick (wxCommandEvent& event)
                 wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency + LSB_USB_FREQ_SHIFT_HZ;
             rigController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
         }
-        else if (oldMode == HamlibRigController::LSB && !g_analog)
+        else if (IsLowerSidebandMode(oldMode) && !IsLowerSidebandMode(currentMode) && !g_analog)
         {
             // Revert previous mode shift.
             wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = 
@@ -2054,15 +2110,7 @@ void MainFrame::OnChangeReportFrequency( wxCommandEvent& )
     wxString freqStr = m_cboReportFrequency->GetValue();
     auto oldFreq = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency.get();
 
-    wxString oldFreqString;            
-    if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
-    {
-        oldFreqString = wxNumberFormatter::ToString(oldFreq / 1000.0, 1);
-    }
-    else
-    {
-        oldFreqString = wxNumberFormatter::ToString(oldFreq / 1000.0 / 1000.0, 4);
-    }
+    wxString oldFreqString = reportFrequencyString_(oldFreq);
 
     // Whether what's in the box can be used: empty (no frequency) or a
     // frequency.
@@ -2100,6 +2148,10 @@ void MainFrame::OnChangeReportFrequency( wxCommandEvent& )
     if (entryUsable && freqStr != oldFreqString)
     {
         log_info("Request frequency change to %" PRIu64 " Hz", wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency.get());
+
+        // Somewhere other than the station whose sideband FreeDV went to:
+        // the sideband usual here, now and if FreeDV comes back.
+        wxGetApp().forgetFollowedSidebandUnlessAt(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
 
         // Report current frequency to reporters
         for (auto& ptr : wxGetApp().m_reporters)
@@ -2183,6 +2235,12 @@ void MainFrame::OnCenterRx(wxCommandEvent&)
 
 // The frequency typed or shown in the box as the predefined list shows it
 // (rounded to 100 Hz, as it's used), or empty if it isn't a frequency.
+wxString MainFrame::reportFrequencyString_(uint64_t hz)
+{
+    return wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz ?
+        wxNumberFormatter::ToString(hz / 1000.0, 1) : wxNumberFormatter::ToString(hz / 1000.0 / 1000.0, 4);
+}
+
 wxString MainFrame::reportFrequencyListString_(wxString const& text)
 {
     bool asKhz = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz;

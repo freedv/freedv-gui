@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FreeDV 3.0.0\n"
 "Report-Msgid-Bugs-To: https://github.com/freedv/freedv-gui/issues\n"
-"POT-Creation-Date: 2026-10-31 14:25-0700\n"
+"POT-Creation-Date: 2026-11-16 22:04-0800\n"
 "PO-Revision-Date: 2026-10-06 14:00+ZONE\n"
 "Last-Translator: manotroll <manotroll@gmail.com>\n"
 "Language-Team: Brazilian Portuguese <ldpbr-translation@lists.sourceforge.net>\n"
@@ -260,6 +260,12 @@ msgstr "Configurações VOX PTT"
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Left Channel Vox Tone"
 msgstr "Timbre Vox do canal esquerdo"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"FreeDV is running: CAT and PTT port changes reconnect to the radio when "
+"applied."
+msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Hamlib Settings"
@@ -603,6 +609,12 @@ msgid "Frequency entry in kHz"
 msgstr "Entrada de frequência em kHz"
 
 #: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"FreeDV is running: frequency/mode control changes reconnect to the radio "
+"when applied."
+msgstr ""
+
+#: src/gui/dialogs/dlg_options.cpp
 msgid "Predefined Frequencies"
 msgstr "Frequências predefinidas"
 
@@ -673,6 +685,12 @@ msgstr "Gráfico do espectro médio em"
 #: src/gui/dialogs/dlg_options.cpp
 msgid "sample(s)"
 msgstr "amostra(s)"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"FreeDV is running: changes on this page briefly restart the audio when "
+"applied."
+msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
 msgid "Input To Computer From Radio:"
@@ -813,6 +831,12 @@ msgstr "Verbose"
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Enable Experimental Features"
 msgstr "Ativar recursos experimentais"
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"FreeDV is running: FIFO size and Verbose changes briefly restart the audio "
+"when applied."
+msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Simulated Interference Tone"
@@ -1552,6 +1576,10 @@ msgstr ""
 "A frequência e o indicativo DX devem ser preenchidos para registrar o "
 "contato."
 
+#: src/gui/dialogs/log_entry.cpp
+msgid "The frequency isn't a valid frequency."
+msgstr ""
+
 #: src/gui/dialogs/log_entry.h
 msgid "Confirm Log Entry"
 msgstr "Confirmar entrada de registro"
@@ -1829,6 +1857,13 @@ msgstr "Ajustar o volume do monitor..."
 
 #: src/main.cpp
 msgid ""
+"Microphone permissions must be granted to FreeDV for it to function properly."
+msgstr ""
+"Para que o FreeDV funcione corretamente, é necessário conceder permissões de "
+"microfone."
+
+#: src/main.cpp
+msgid ""
 "Reporting requires a valid callsign and grid square in Tools->Settings. "
 "Reporting will be disabled."
 msgstr ""
@@ -1836,20 +1871,13 @@ msgstr ""
 "localização válidos em Ferramentas->Configurações. A geração de relatórios "
 "será desativada."
 
-#: src/main.cpp
-msgid ""
-"Microphone permissions must be granted to FreeDV for it to function properly."
-msgstr ""
-"Para que o FreeDV funcione corretamente, é necessário conceder permissões de "
-"microfone."
+#: src/main.cpp src/topFrame.cpp
+msgid "&Start Modem"
+msgstr "&Iniciar o modem"
 
 #: src/main.cpp
 msgid "&Stop Modem"
 msgstr "&Para o Modem"
-
-#: src/main.cpp src/topFrame.cpp
-msgid "&Start Modem"
-msgstr "&Iniciar o modem"
 
 #: src/main.cpp
 msgid "No Sound Cards configured, use Tools->Settings to configure"
@@ -1945,11 +1973,23 @@ msgstr ""
 msgid "Low Sample Rate"
 msgstr "Taxa de amostragem padrão"
 
+#. TRANSLATORS: First %s is a callsign, second %s is a frequency and third %s is the sideband (USB or LSB).
+#: src/main.cpp
+#, fuzzy, c-format
+msgid "%s has requested that you QSY to %s kHz %s."
+msgstr "%s solicitou que você fizesse QSY para %s kHz."
+
 #. TRANSLATORS: First %s is a callsign, second %s is a frequency.
 #: src/main.cpp
 #, c-format
 msgid "%s has requested that you QSY to %s kHz."
 msgstr "%s solicitou que você fizesse QSY para %s kHz."
+
+#. TRANSLATORS: First %s is a callsign, second %s is a frequency and third %s is the sideband (USB or LSB).
+#: src/main.cpp
+#, fuzzy, c-format
+msgid "%s has requested that you QSY to %s MHz %s."
+msgstr "%s solicitou que você mudasse para %s MHz."
 
 #. TRANSLATORS: First %s is a callsign, second %s is a frequency.
 #: src/main.cpp

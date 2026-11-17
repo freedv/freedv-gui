@@ -265,6 +265,11 @@ class FreeDVReporterDialog : public wxFrame
                  }
              }
 
+             IReporter::Sideband getSideband(wxDataViewItem item)
+             {
+                return item.IsOk() ? ((ReporterData*)item.GetID())->sideband : IReporter::Sideband::UNKNOWN;
+             }
+
              uint64_t getFrequency(wxDataViewItem item)
              {
                 if (item.IsOk())
@@ -382,7 +387,8 @@ class FreeDVReporterDialog : public wxFrame
                 double headingVal;
                 wxString heading;
                 wxString version;
-                uint64_t frequency;
+                uint64_t frequency = 0;
+                IReporter::Sideband sideband = IReporter::Sideband::UNKNOWN;
                 wxString freqString;
                 wxString status;
                 wxString txMode;
@@ -441,6 +447,7 @@ class FreeDVReporterDialog : public wxFrame
                 std::string version;
                 bool rxOnly;
                 uint64_t frequencyHz;
+                IReporter::Sideband sideband;
                 std::string txMode;
                 bool transmitting;
                 std::string lastTxDate;
@@ -478,6 +485,7 @@ class FreeDVReporterDialog : public wxFrame
             void onUserConnectFn_(std::string sid, std::string lastUpdate, std::string callsign, std::string gridSquare, std::string version, bool rxOnly, std::string connectTime);
             void onUserDisconnectFn_(std::string sid, std::string const& lastUpdate, std::string const& callsign, std::string const& gridSquare, std::string const& version, bool rxOnly, std::string const& connectTime);
             void onFrequencyChangeFn_(std::string sid, std::string lastUpdate, std::string const& callsign, std::string const& gridSquare, uint64_t frequencyHz);
+            void onSidebandChangeFn_(std::string sid, IReporter::Sideband sideband);
             void onTransmitUpdateFn_(std::string sid, std::string lastUpdate, std::string const& callsign, std::string const& gridSquare, std::string txMode, bool transmitting, std::string lastTxDate);
             void onReceiveUpdateFn_(std::string sid, std::string lastUpdate, std::string const& callsign, std::string const& gridSquare, std::string receivedCallsign, float snr, std::string rxMode);
             void onMessageUpdateFn_(std::string sid, std::string lastUpdate, std::string message);
