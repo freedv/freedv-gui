@@ -711,6 +711,23 @@ settings will display in this window as well.</p>
 </ul>
 <h2 data-number="11.2" id="settings---edit-settings"><span
 class="header-section-number">11.2</span> Settings - Edit Settings</h2>
+<p>Settings can be changed while FreeDV is running, and take effect when
+OK or Apply is pressed:</p>
+<ul>
+<li>Changes to the sound devices, or to the FIFO size, briefly restart
+the audio. Recordings and file playback are stopped, and FreeDV needs to
+sync again.</li>
+<li>Changes to CAT control, PTT or frequency/mode control reconnect to
+the radio. As when FreeDV stops and starts, the radio may first go back
+to the frequency it had before FreeDV was started, and is then set to
+FreeDV’s frequency.</li>
+<li>Changes to reporting reconnect to PSK Reporter, FreeDV Reporter and
+the other reporting services.</li>
+</ul>
+<p>While transmitting (or using the voice keyer or Tune), changes like
+these are saved but only applied once FreeDV is back on receive. The
+Setup Wizard and the configuration import and reset options remain
+unavailable until FreeDV is stopped.</p>
 <h3 data-number="11.2.1" id="modem-options"><span
 class="header-section-number">11.2.1</span> Modem Options</h3>
 <table>
@@ -1174,11 +1191,16 @@ radio’s frequency on start and stop. (PR #1600)</li>
 <li>Settings: apply half duplex and the VOX tone immediately while
 running, allow changing the PTT key and TX/RX delay, and note which
 settings take effect the next time FreeDV starts. (PR #1631)</li>
+<li>Settings: apply every setting while running, restarting the audio or
+reconnecting to the radio and reporting services as needed, once back on
+receive. (PR #1632)</li>
 </ul></li>
 <li>Bugfixes:
 <ul>
 <li>Fix silence being mixed into the first half second of each
 transmission, and holes in the signal at its start. (PR #1562)</li>
+<li>Hamlib/OmniRig: fix the radio sometimes being put back on FreeDV’s
+frequency after being tuned elsewhere just after Start. (PR #1632)</li>
 </ul></li>
 <li>Build system:
 <ul>
@@ -1210,6 +1232,8 @@ sound cards, and diagnostics for rade_loss test failures. (PR
 <li>Add translations for Swedish, Brazilian Portuguese and Latvian. (PR
 #1615)</li>
 <li>Additional data race cleanup. (PR #1616)</li>
+<li>Settings: remove the txRxThreadPriority, txRxDumpTiming and
+APiVerbose debugging options, which had no effect. (PR #1632)</li>
 <li>Add tests of audio device and engine thread safety, re-recording a
 voice keyer message, and Settings’ Test PTT. (PR #1625)</li>
 <li>Add new FreeDV application icon. (PR #1641)</li>
