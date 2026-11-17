@@ -2654,6 +2654,7 @@ def test_sideband_follow():
         radio = start_radio()
         try:
             radio.set_frequency(14236000)
+            radio_mode_before = radio.mode()
             with audio_devices(), freedvtest.start(settings=radio_settings(server, radio)) as app:
                 open_reporter(app)
                 start_modem(app)
@@ -2721,6 +2722,17 @@ def test_sideband_follow():
                 accept_qsy(vk5dgr, 14250000, "LSB")
                 wait_for_radio(14250000, "PKTLSB", "Radio after accepting VK5DGR's QSY request (same frequency)")
 
+                # Stop and Start: still there (Start puts the radio back on
+                # FreeDV's frequency, and on the sideband it followed).
+                stop_modem(app)
+                wait_for_radio(14236000, radio_mode_before, "Radio after Stop (back where it was before Start)")
+                start_modem(app)
+                wait_for_radio(14250000, "PKTLSB", "Radio after Start again")
+                # (Where it settles: on the way there, the radio can pass
+                # through the mode it had before Stop.)
+                time.sleep(3)
+                check_equal((radio.frequency(), radio.mode()), (14250000, "PKTLSB"), "Radio a while after Start")
+
                 # Typing a frequency in: back to the usual sideband. Coming
                 # back to VK5DGR's frequency later is on the usual one too:
                 # its sideband's forgotten once FreeDV's left.
@@ -2729,9 +2741,15 @@ def test_sideband_follow():
                 app.set_value("main.cboReportFrequency", "14.2500")
                 wait_for_radio(14250000, "PKTUSB", "Radio after coming back to VK5DGR's frequency")
 
-                # So is leaving by turning the radio's dial.
+                # So is leaving by turning the radio's dial. (Asked there
+                # while the same frequency's typed in shorter, with the box
+                # still being typed in: FreeDV's still at 14.2500, so the
+                # request changes only the sideband.)
+                app.focus("main.cboReportFrequency")
+                app.set_value("main.cboReportFrequency", "14.25")
                 accept_qsy(vk5dgr, 14250000, "LSB")
                 wait_for_radio(14250000, "PKTLSB", "Radio after accepting VK5DGR's QSY request again")
+                app.focus("main.cboReportFrequency", lost=True)
                 radio.set_frequency(14240000)
                 app.wait_until(lambda: app.get("main.cboReportFrequency")["value"] == "14.2400", timeout=15,
                                description="FreeDV to follow the radio's dial")

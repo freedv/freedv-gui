@@ -719,6 +719,8 @@ class MainFrame : public TopFrame
         void executeOnUiThreadAndWait_(std::function<void()> fn);
         
         void updateReportingFreqList_();
+        // FreeDV's frequency as shown in the frequency box.
+        static wxString reportFrequencyString_(uint64_t hz);
         wxString reportFrequencyListString_(wxString const& text);
         void addReportFrequencyToList_(wxString const& freq);
         

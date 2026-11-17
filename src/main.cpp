@@ -4333,7 +4333,6 @@ void MainFrame::onQsyRequestUIThread_(QsyRequestArgs* args)
     IReporter::Sideband sideband = args->sideband;
     delete args;
 
-    double freqFactor = 1000.0;
     wxString fmtMsg;
     wxString sidebandString;
     if (sideband == IReporter::Sideband::USB || sideband == IReporter::Sideband::LSB)
@@ -4351,7 +4350,6 @@ void MainFrame::onQsyRequestUIThread_(QsyRequestArgs* args)
         
     if (!wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
     {
-        freqFactor *= 1000.0;
         if (!sidebandString.IsEmpty())
         {
             // TRANSLATORS: First %s is a callsign, second %s is a frequency and third %s is the sideband (USB or LSB).
@@ -4364,16 +4362,7 @@ void MainFrame::onQsyRequestUIThread_(QsyRequestArgs* args)
         }
     }
         
-    double frequencyReadable = freqHz / freqFactor;
-    wxString freqString;
-    if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
-    {
-        freqString = wxNumberFormatter::ToString(frequencyReadable, 1);
-    }
-    else
-    {
-        freqString = wxNumberFormatter::ToString(frequencyReadable, 4);
-    }
+    wxString freqString = reportFrequencyString_(freqHz);
     
     wxString fullMessage = sidebandString.IsEmpty() ?
         wxString::Format(fmtMsg, callsign, freqString) :
@@ -4403,8 +4392,11 @@ void MainFrame::onQsyRequestUIThread_(QsyRequestArgs* args)
         wxGetApp().followSideband(freqHz, sideband);
 
         // This will implicitly cause Hamlib to change the frequency and mode
-        // (OnChangeReportFrequency())...
-        bool frequencyChanges = m_cboReportFrequency->GetValue() != freqString;
+        // (OnChangeReportFrequency())... Compared as OnChangeReportFrequency()
+        // does, not with what's in the box: "14.25" typed in is already
+        // 14.2500.
+        bool frequencyChanges = freqString != reportFrequencyString_(
+            wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
         m_cboReportFrequency->SetValue(freqString);
 
         // ...if the frequency changes. If FreeDV's already there, it may

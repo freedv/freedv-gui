@@ -2089,15 +2089,7 @@ void MainFrame::OnChangeReportFrequency( wxCommandEvent& )
     wxString freqStr = m_cboReportFrequency->GetValue();
     auto oldFreq = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency.get();
 
-    wxString oldFreqString;            
-    if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
-    {
-        oldFreqString = wxNumberFormatter::ToString(oldFreq / 1000.0, 1);
-    }
-    else
-    {
-        oldFreqString = wxNumberFormatter::ToString(oldFreq / 1000.0 / 1000.0, 4);
-    }
+    wxString oldFreqString = reportFrequencyString_(oldFreq);
 
     // Whether what's in the box can be used: empty (no frequency) or a
     // frequency.
@@ -2222,6 +2214,12 @@ void MainFrame::OnCenterRx(wxCommandEvent&)
 
 // The frequency typed or shown in the box as the predefined list shows it
 // (rounded to 100 Hz, as it's used), or empty if it isn't a frequency.
+wxString MainFrame::reportFrequencyString_(uint64_t hz)
+{
+    return wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz ?
+        wxNumberFormatter::ToString(hz / 1000.0, 1) : wxNumberFormatter::ToString(hz / 1000.0 / 1000.0, 4);
+}
+
 wxString MainFrame::reportFrequencyListString_(wxString const& text)
 {
     bool asKhz = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz;
