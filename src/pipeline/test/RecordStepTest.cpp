@@ -5,6 +5,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <mutex>
 
 #include <sndfile.h>
 
@@ -17,6 +18,7 @@
 
 // Normally provided by the main application.
 wxMutex g_mutexProtectingCallbackData;
+std::mutex g_mutexProtectingRecordFiles;
 
 namespace {
 
@@ -67,12 +69,20 @@ public:
     RecordStep& step() { return *step_; }
 
     // Equivalent to the user starting or stopping recording; as in the
-    // application, this is done with the lock held.
+    // application, this is done with the record-file lock held.
     void setFileAvailable(bool available)
     {
-        g_mutexProtectingCallbackData.Lock();
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
         activeFile_ = available ? file_ : nullptr;
-        g_mutexProtectingCallbackData.Unlock();
+    }
+
+    // Queues samples and then stops recording before the file thread can
+    // write them out: it's held at the record-file lock throughout.
+    void recordThenStop(std::vector<short> samples)
+    {
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+        record(std::move(samples));
+        activeFile_ = nullptr;
     }
 
     // Returns true if the step behaved as a pipeline sink.
@@ -330,6 +340,241 @@ bool destroysCleanly()
     return true;
 }
 
+// A new recording holds what was recorded for it, not the tail of the one
+// before. The samples queued for the previous file can't be written to it
+// any more -- the application closes that file when the recording stops --
+// and they're no part of the new recording either.
+bool staleAudioFromAPreviousRecordingIsLeftOutOfTheNextOne()
+{
+    auto firstPath = unitTestTempPath("RecordStepTest", "-stale-first.wav");
+    auto secondPath = unitTestTempPath("RecordStepTest", "-stale-second.wav");
+
+    SF_INFO info = {};
+    info.samplerate = SAMPLE_RATE;
+    info.channels = 1;
+    info.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
+
+    SNDFILE* firstFile = sf_open(firstPath.c_str(), SFM_WRITE, &info);
+    SNDFILE* secondFile = sf_open(secondPath.c_str(), SFM_WRITE, &info);
+    if (firstFile == nullptr || secondFile == nullptr)
+    {
+        std::cout << "[could not open the test files] ";
+        return false;
+    }
+
+    std::atomic<SNDFILE*> activeFile{firstFile};
+    auto step = std::make_unique<RecordStep>(
+        SAMPLE_RATE, [&activeFile]() { return activeFile.load(); }, [](int) {});
+
+    auto record = [&](int start) {
+        auto samples = ramp(BLOCK_SIZE, start);
+        int numOutput = 0;
+        step->execute(samples.data(), samples.size(), &numOutput);
+    };
+
+    // A recording in progress, stopped with samples of its own still
+    // queued: the file thread is held at the lock the application takes
+    // when it detaches a record file, so it can't write them out first.
+    {
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+        for (int block = 0; block < 3; block++)
+        {
+            record(block * BLOCK_SIZE);
+        }
+
+        // The user stops recording, and the application detaches the file.
+        activeFile.store(nullptr);
+    }
+
+    // The file thread runs, finds no file to write to, and leaves them
+    // where they are.
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // A new recording starts, with a new file.
+    activeFile.store(secondFile);
+    std::vector<short> expected;
+    for (int block = 0; block < 3; block++)
+    {
+        auto samples = ramp(BLOCK_SIZE, 2000 + block * BLOCK_SIZE);
+        expected.insert(expected.end(), samples.begin(), samples.end());
+        record(2000 + block * BLOCK_SIZE);
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Ends the file thread, which writes whatever's still queued.
+    step = nullptr;
+
+    sf_close(firstFile);
+    sf_close(secondFile);
+
+    SF_INFO readInfo = {};
+    SNDFILE* recorded = sf_open(secondPath.c_str(), SFM_READ, &readInfo);
+    if (recorded == nullptr)
+    {
+        std::cout << "[the second file could not be read back] ";
+        return false;
+    }
+    std::vector<short> actual(readInfo.frames);
+    actual.resize(sf_read_short(recorded, actual.data(), actual.size()));
+    sf_close(recorded);
+
+    remove(firstPath.c_str());
+    remove(secondPath.c_str());
+
+    return samplesAre(actual, expected);
+}
+
+// As above, but with the file thread never having seen the first file, and
+// the next one attached a while before the next block of audio: the file
+// thread has a file to write to, and the last recording's samples queued,
+// before execute() has had a chance to drop them.
+bool staleAudioIsLeftOutWhenTheNextFileIsAttachedBeforeMoreAudio()
+{
+    auto firstPath = unitTestTempPath("RecordStepTest", "-early-first.wav");
+    auto secondPath = unitTestTempPath("RecordStepTest", "-early-second.wav");
+
+    SF_INFO info = {};
+    info.samplerate = SAMPLE_RATE;
+    info.channels = 1;
+    info.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
+
+    SNDFILE* firstFile = sf_open(firstPath.c_str(), SFM_WRITE, &info);
+    SNDFILE* secondFile = sf_open(secondPath.c_str(), SFM_WRITE, &info);
+    if (firstFile == nullptr || secondFile == nullptr)
+    {
+        std::cout << "[could not open the test files] ";
+        return false;
+    }
+
+    // No file yet, so the file thread's first look finds none.
+    std::atomic<SNDFILE*> activeFile{nullptr};
+    auto step = std::make_unique<RecordStep>(
+        SAMPLE_RATE, [&activeFile]() { return activeFile.load(); }, [](int) {});
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    auto record = [&](int start) {
+        auto samples = ramp(BLOCK_SIZE, start);
+        int numOutput = 0;
+        step->execute(samples.data(), samples.size(), &numOutput);
+    };
+
+    // A whole recording goes by with the file thread held at the lock, so
+    // it never sees the first file.
+    {
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+        activeFile.store(firstFile);
+        for (int block = 0; block < 3; block++)
+        {
+            record(block * BLOCK_SIZE);
+        }
+        activeFile.store(nullptr);
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // The next recording's file is attached, and the file thread looks
+    // again (it does every FILE_CHECK_INTERVAL_MS) before any more audio.
+    activeFile.store(secondFile);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    std::vector<short> expected;
+    for (int block = 0; block < 3; block++)
+    {
+        auto samples = ramp(BLOCK_SIZE, 2000 + block * BLOCK_SIZE);
+        expected.insert(expected.end(), samples.begin(), samples.end());
+        record(2000 + block * BLOCK_SIZE);
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Ends the file thread, which writes whatever's still queued.
+    step = nullptr;
+
+    sf_close(firstFile);
+    sf_close(secondFile);
+
+    SF_INFO readInfo = {};
+    SNDFILE* recorded = sf_open(secondPath.c_str(), SFM_READ, &readInfo);
+    if (recorded == nullptr)
+    {
+        std::cout << "[the second file could not be read back] ";
+        return false;
+    }
+    std::vector<short> actual(readInfo.frames);
+    actual.resize(sf_read_short(recorded, actual.data(), actual.size()));
+    sf_close(recorded);
+
+    remove(firstPath.c_str());
+    remove(secondPath.c_str());
+
+    return samplesAre(actual, expected);
+}
+
+// As above, but the next recording's SNDFILE lands at the address the last
+// one had -- as sf_open() after sf_close() is apt to do, since it asks for a
+// block of the same size. The two can't be told apart by their handles.
+bool staleAudioIsLeftOutEvenWhenTheNextFileHasTheSameHandle()
+{
+    Recording recording;
+
+    // Recorded and written out while the first recording is going.
+    auto first = ramp(BLOCK_SIZE * 3, 1);
+    recording.record(first);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // The tail of that recording, still queued when it stops.
+    recording.recordThenStop(ramp(BLOCK_SIZE * 3, 5000));
+
+    // Between recordings: nothing calls execute(), as in the application,
+    // where the tap is switched off while there's no file.
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // The next recording, with the same handle.
+    recording.setFileAvailable(true);
+    auto second = ramp(BLOCK_SIZE * 3, 10000);
+    recording.record(second);
+
+    std::vector<short> expected = first;
+    expected.insert(expected.end(), second.begin(), second.end());
+    return samplesAre(recording.finish(), expected);
+}
+
+// Recording doesn't take the mutex the UI thread uses for the callback
+// data: the write to disk it does would otherwise hold up the window for as
+// long as the disk takes. The recording has to keep going while the UI
+// thread is holding that one.
+bool recordingDoesNotWaitForTheUiCallbackMutex()
+{
+    Recording recording;
+
+    g_mutexProtectingCallbackData.Lock();
+
+    int expectedSamples = 0;
+    for (int block = 0; block < 10; block++)
+    {
+        auto samples = ramp(BLOCK_SIZE, block * BLOCK_SIZE);
+        expectedSamples += samples.size();
+        recording.record(samples);
+    }
+
+    // Whatever the file thread managed to write while the UI thread was
+    // holding its mutex.
+    auto giveUpAt = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (recording.numSamplesReported < expectedSamples &&
+           std::chrono::steady_clock::now() < giveUpAt)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    bool keptGoing = recording.numSamplesReported >= expectedSamples;
+
+    g_mutexProtectingCallbackData.Unlock();
+
+    if (!keptGoing)
+    {
+        std::cout << "[wrote " << recording.numSamplesReported << " of " << expectedSamples
+                  << " samples while the UI mutex was held] ";
+    }
+    return keptGoing;
+}
+
 }
 
 int main()
@@ -362,6 +607,13 @@ int main()
     executeTestCase("recordsAgainAfterQueueWasFull", recordsAgainAfterQueueWasFull);
     executeTestCase("resetDiscardsQueuedAudio", resetDiscardsQueuedAudio);
     executeTestCase("stopsWritingWhenFileGoesAway", stopsWritingWhenFileGoesAway);
+    executeTestCase("staleAudioFromAPreviousRecordingIsLeftOutOfTheNextOne",
+                    staleAudioFromAPreviousRecordingIsLeftOutOfTheNextOne);
+    executeTestCase("staleAudioIsLeftOutWhenTheNextFileIsAttachedBeforeMoreAudio",
+                    staleAudioIsLeftOutWhenTheNextFileIsAttachedBeforeMoreAudio);
+    executeTestCase("staleAudioIsLeftOutEvenWhenTheNextFileHasTheSameHandle",
+                    staleAudioIsLeftOutEvenWhenTheNextFileHasTheSameHandle);
+    executeTestCase("recordingDoesNotWaitForTheUiCallbackMutex", recordingDoesNotWaitForTheUiCallbackMutex);
     executeTestCase("destroysCleanly", destroysCleanly);
     return testResult();
 }

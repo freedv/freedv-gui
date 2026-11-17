@@ -29,6 +29,7 @@
 #include <chrono>
 #include <thread>
 #include <initguid.h>
+#include <atomic>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include "IAudioEngine.h"
@@ -84,7 +85,9 @@ private:
     int latencyFrames_;
     std::thread renderCaptureThread_;
     HANDLE renderCaptureEvent_;
-    bool isRenderCaptureRunning_;
+    // Set by start()/stop() and tested by the render/capture thread on
+    // every pass, so it has to be one the two threads agree on.
+    std::atomic<bool> isRenderCaptureRunning_;
     // Created on first start() and only closed in the destructor, so the
     // processing thread never sees a handle being closed under it.
     HANDLE semaphore_;

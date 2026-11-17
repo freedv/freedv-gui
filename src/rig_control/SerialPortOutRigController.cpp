@@ -32,10 +32,13 @@ SerialPortOutRigController::SerialPortOutRigController(std::string serialPort, b
     , dtrPos_(DTRPos)
     , rigResponseTime_(0)
 {
+    // empty
+}
+
+void SerialPortOutRigController::onConnected_()
+{
     // Ensure that PTT is disabled on successful connect.
-    onRigConnected = [&](IRigController*) {
-        ptt(false);
-    };
+    ptt(false);
 }
 
 SerialPortOutRigController::~SerialPortOutRigController()

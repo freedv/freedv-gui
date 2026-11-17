@@ -1,14 +1,13 @@
 # FreeDV language translation template
 # Copyright (C) 2026 FreeDV Project
 # This file is distributed under the same license as the FreeDV package.
-# Mooneer Salem <mooneer@gmail.com>, 2026
 #
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: FreeDV 3.0.0\n"
 "Report-Msgid-Bugs-To: mooneer@gmail.com\n"
-"POT-Creation-Date: 2026-10-26 21:25-0700\n"
+"POT-Creation-Date: 2026-11-16 22:04-0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -255,6 +254,12 @@ msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Left Channel Vox Tone"
+msgstr ""
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"FreeDV is running: CAT and PTT port changes reconnect to the radio when "
+"applied."
 msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp
@@ -581,6 +586,12 @@ msgid "Frequency entry in kHz"
 msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"FreeDV is running: frequency/mode control changes reconnect to the radio "
+"when applied."
+msgstr ""
+
+#: src/gui/dialogs/dlg_options.cpp
 msgid "Predefined Frequencies"
 msgstr ""
 
@@ -650,6 +661,12 @@ msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "sample(s)"
+msgstr ""
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"FreeDV is running: changes on this page briefly restart the audio when "
+"applied."
 msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp src/gui/dialogs/dlg_setup_wizard.cpp
@@ -786,6 +803,12 @@ msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp
 msgid "Enable Experimental Features"
+msgstr ""
+
+#: src/gui/dialogs/dlg_options.cpp
+msgid ""
+"FreeDV is running: FIFO size and Verbose changes briefly restart the audio "
+"when applied."
 msgstr ""
 
 #: src/gui/dialogs/dlg_options.cpp
@@ -1496,6 +1519,10 @@ msgstr ""
 msgid "Frequency and DX Call must be filled in in order to log the contact."
 msgstr ""
 
+#: src/gui/dialogs/log_entry.cpp
+msgid "The frequency isn't a valid frequency."
+msgstr ""
+
 #: src/gui/dialogs/log_entry.h
 msgid "Confirm Log Entry"
 msgstr ""
@@ -1768,21 +1795,21 @@ msgstr ""
 
 #: src/main.cpp
 msgid ""
-"Reporting requires a valid callsign and grid square in Tools->Settings. "
-"Reporting will be disabled."
-msgstr ""
-
-#: src/main.cpp
-msgid ""
 "Microphone permissions must be granted to FreeDV for it to function properly."
 msgstr ""
 
 #: src/main.cpp
-msgid "&Stop Modem"
+msgid ""
+"Reporting requires a valid callsign and grid square in Tools->Settings. "
+"Reporting will be disabled."
 msgstr ""
 
 #: src/main.cpp src/topFrame.cpp
 msgid "&Start Modem"
+msgstr ""
+
+#: src/main.cpp
+msgid "&Stop Modem"
 msgstr ""
 
 #: src/main.cpp
@@ -1845,10 +1872,38 @@ msgstr ""
 msgid "Sample Rate Too Low"
 msgstr ""
 
+#: src/main.cpp
+#, c-format
+msgid ""
+"The following microphone/speaker devices are set to a sample rate below the "
+"recommended minimum of %d Hz:\n"
+"%s\n"
+"\n"
+"FreeDV will still work, but speech will sound muffled to you or to other "
+"stations, depending on which device it is. If your device supports a sample "
+"rate higher than 16 kHz, consider enabling it."
+msgstr ""
+
+#: src/main.cpp
+msgid "Low Sample Rate"
+msgstr ""
+
+#. TRANSLATORS: First %s is a callsign, second %s is a frequency and third %s is the sideband (USB or LSB).
+#: src/main.cpp
+#, c-format
+msgid "%s has requested that you QSY to %s kHz %s."
+msgstr ""
+
 #. TRANSLATORS: First %s is a callsign, second %s is a frequency.
 #: src/main.cpp
 #, c-format
 msgid "%s has requested that you QSY to %s kHz."
+msgstr ""
+
+#. TRANSLATORS: First %s is a callsign, second %s is a frequency and third %s is the sideband (USB or LSB).
+#: src/main.cpp
+#, c-format
+msgid "%s has requested that you QSY to %s MHz %s."
 msgstr ""
 
 #. TRANSLATORS: First %s is a callsign, second %s is a frequency.

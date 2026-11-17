@@ -26,6 +26,7 @@
 #include <wx/listctrl.h>
 #include <map>
 #include <vector>
+#include <functional>
 #include <wx/propgrid/property.h>
 #include <wx/propgrid/props.h>
 
@@ -50,12 +51,7 @@ class OptionsDlg : public wxDialog
 
         void DisplayFifoPACounters();
         
-        void setSessionActive(bool active) 
-        {
-            sessionActive_ = active; 
-        
-            updateReportingState();
-        }
+        void setSessionActive(bool active);
         
     protected:
 
@@ -258,11 +254,8 @@ class OptionsDlg : public wxDialog
         wxStaticText  *m_textPA1;
         wxStaticText  *m_textPA2;
         wxTextCtrl    *m_txtCtrlFifoSize;
-        wxCheckBox    *m_ckboxTxRxThreadPriority;
-        wxCheckBox    *m_ckboxTxRxDumpTiming;
         wxCheckBox    *m_ckboxTxRxDumpFifoState;
         wxCheckBox    *m_ckboxVerbose;
-        wxCheckBox    *m_ckboxFreeDVAPIVerbose;
         wxCheckBox    *m_experimentalFeatures;
         wxCheckBox    *m_showDecodeStats;
         
@@ -323,6 +316,18 @@ class OptionsDlg : public wxDialog
          void testAudioInput(const wxString& inDevName, const wxString& outDevName, wxButton* btn);
 
          bool sessionActive_;
+
+         // What's shown and edited: a copy of the configuration as it was
+         // when it was shown (or last applied), and that copy as edited.
+         // Their differences are merged into wxGetApp().appConfiguration
+         // (see ExchangeData()).
+         FreeDVConfiguration originalConfig_;
+         FreeDVConfiguration editedConfig_;
+
+         // Notes shown while FreeDV is running, on the pages whose settings
+         // restart or reconnect something when they're applied.
+         std::vector<std::pair<wxStaticText*, wxString>> runningNotes_;
+         wxStaticText* addRunningNote_(wxWindow* page, wxString const& text, const char* name);
          bool isTesting_;
          std::thread* m_audioPlotThread;
 

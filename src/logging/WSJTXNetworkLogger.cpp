@@ -21,6 +21,7 @@
 //==========================================================================
 
 #include "WSJTXNetworkLogger.h"
+#include "AdifRecord.h"
 #include "git_version.h"
 
 #include "../util/logging/ulog.h"
@@ -241,7 +242,7 @@ void WSJTXNetworkLogger::logContact(std::chrono::time_point<std::chrono::system_
 
     // Send status message so loggers have the correct RX frequency
     PacketBuilder statusBuilder;
-    statusBuilder << (uint32_t)1
+    statusBuilder << MSG_STATUS
                   << UNIQUE_ID
                   << freqHz
                   << LOG_MODE
@@ -275,7 +276,7 @@ void WSJTXNetworkLogger::logContact(std::chrono::time_point<std::chrono::system_
     if (snr > UNKNOWN_SNR)
     {
         PacketBuilder decodeBuilder;
-        decodeBuilder << (uint32_t)2
+        decodeBuilder << MSG_DECODE
                       << UNIQUE_ID
                       << false
                       << msSinceMidnight // time
@@ -292,7 +293,7 @@ void WSJTXNetworkLogger::logContact(std::chrono::time_point<std::chrono::system_
     
     // Send actual log request
     PacketBuilder builder;
-    builder << (uint32_t)5
+    builder << MSG_QSO_LOGGED
             << UNIQUE_ID
             << currentTimeAsJulian // time off
             << dxCall
@@ -312,14 +313,29 @@ void WSJTXNetworkLogger::logContact(std::chrono::time_point<std::chrono::system_
             << std::string("")     // exchange RX
             << std::string("")     // ADIF propagation mode
                 ;
-    
+
     send(reportHostname_.c_str(), reportPort_, builder.getPacket(), builder.getPacketSize()).wait();
+
+    // And the same contact as an ADIF record, as WSJT-X also sends when a
+    // QSO is logged. Some logging programs (e.g. Log4OM) save the contact
+    // from this message rather than from QSO Logged above, which on its own
+    // leaves the user to finish logging it by hand. It also carries what
+    // QSO Logged has no field for, such as the FREEDV submode.
+    AdifRecord adifRecord(
+        logTime, dxCall, dxGrid, myCall, myGrid, freqHz, reportRx, reportTx, name, comments);
+
+    PacketBuilder adifBuilder;
+    adifBuilder << MSG_LOGGED_ADIF
+                << UNIQUE_ID
+                << adifRecord.toLoggedAdif(GetFreeDVVersion())
+                ;
+    send(reportHostname_.c_str(), reportPort_, adifBuilder.getPacket(), adifBuilder.getPacketSize()).wait();
 }
 
 void WSJTXNetworkLogger::sendHeartbeat_()
 {
     PacketBuilder builder;
-    builder << (uint32_t)0;
+    builder << MSG_HEARTBEAT;
     builder << UNIQUE_ID;
     builder << MAX_SCHEMA_VER;
     builder << GetFreeDVVersion();

@@ -1308,8 +1308,8 @@ def test_modem_and_debugging():
         set_value(app, "statsResetTime", "25")
 
         go_to_tab(app, "Debugging")
-        check_values(app, {"txtCtrlFifoSize": "640", "ckboxVerbose": False, "ckboxFreeDVAPIVerbose": False,
-                           "experimentalFeatures": False, "ckboxTone": False})
+        check_values(app, {"txtCtrlFifoSize": "640", "ckboxVerbose": False, "experimentalFeatures": False,
+                           "ckboxTone": False})
 
         # The interfering tone's settings only apply when there is one.
         check_enabled(app, ["txtToneFreqHz", "txtToneAmplitude"], False)
@@ -1320,16 +1320,14 @@ def test_modem_and_debugging():
 
         set_value(app, "txtCtrlFifoSize", "480")
         set_value(app, "ckboxVerbose", True)
-        set_value(app, "ckboxFreeDVAPIVerbose", True)
         set_value(app, "experimentalFeatures", True)
-        for checkbox in ["ckboxTxRxThreadPriority", "ckboxTxRxDumpTiming", "ckboxTxRxDumpFifoState"]:
-            app.click(name(checkbox))
+        app.click(name("ckboxTxRxDumpFifoState"))
         app.click(name("BtnFifoReset"))
 
         press_ok(app)
         check_saved(app, {
             "/Rig/HalfDuplex": 0, "/Debug/showDecodeStats": 1, "/Stats/ResetTime": 25, "/Audio/fifoSize_ms": 480,
-            "/Debug/verbose": 1, "/Debug/APIverbose": 1, "/ExperimentalFeatures": 1,
+            "/Debug/verbose": 1, "/ExperimentalFeatures": 1,
         })
         check_equal(app.get("main.textBits")["shown"], True, "Decode stats shown in the main window")
 
@@ -1337,9 +1335,8 @@ def test_modem_and_debugging():
         open_settings(app, "Modem")
         check_values(app, {"ckHalfDuplex": False, "showDecodeStats": True, "statsResetTime": "25"})
         go_to_tab(app, "Debugging")
-        check_values(app, {"txtCtrlFifoSize": "480", "ckboxVerbose": True, "ckboxFreeDVAPIVerbose": True,
-                           "experimentalFeatures": True, "ckboxTone": True, "txtToneFreqHz": "1500",
-                           "txtToneAmplitude": "500"})
+        check_values(app, {"txtCtrlFifoSize": "480", "ckboxVerbose": True, "experimentalFeatures": True,
+                           "ckboxTone": True, "txtToneFreqHz": "1500", "txtToneAmplitude": "500"})
         set_value(app, "ckboxTone", False)
         set_value(app, "ckboxVerbose", False)
         go_to_tab(app, "Modem")
@@ -1349,6 +1346,150 @@ def test_modem_and_debugging():
         check_equal(app.get("main.textBits")["shown"], False, "Decode stats shown in the main window")
 
         quit_and_check_log(app)
+
+
+def test_invalid_numbers():
+    """The text fields that hold numbers, filled with what a user can put in
+    them: nothing, and in the ones with no filter, words. FreeDV keeps the
+    value it had instead of storing something made up, and still starts."""
+    settings = audio_settings()
+    # The UDP port fields are only reachable with reporting on, so it's on
+    # from the start, pointed at addresses nothing answers on.
+    settings.update({"/Reporting/Enable": True, "/Reporting/Callsign": "AA1ZZZ", "/Reporting/GridSquare": "DM12",
+                     "/Reporting/UDP/Enable": True, "/Reporting/UDP/Hostname": "192.0.2.1",
+                     "/Reporting/UDPBroadcast/Enable": True, "/Reporting/FreeDV/Hostname": NOWHERE,
+                     "/Reporting/FreeDV/UseTls": False})
+    with audio_devices():
+        with freedvtest.start(settings=settings) as app:
+            open_settings(app, "Debugging")
+            check_values(app, {"txtCtrlFifoSize": "640"})
+
+            # The FIFO size has no filter, so anything can be typed into it.
+            set_value(app, "txtCtrlFifoSize", "lots")
+            press_ok(app)
+            check_saved(app, {"/Audio/fifoSize_ms": 640})
+
+            # Empty is something a user gets to in every one of these fields.
+            open_settings(app, "Debugging")
+            check_values(app, {"txtCtrlFifoSize": "640"})
+            set_value(app, "txtCtrlFifoSize", "")
+            set_value(app, "ckboxTone", True)
+            set_value(app, "txtToneFreqHz", "")
+            set_value(app, "txtToneAmplitude", "")
+            press_ok(app)
+            check_saved(app, {"/Audio/fifoSize_ms": 640})
+            # The tone's aren't saved, so they're checked where they're shown.
+            open_settings(app, "Debugging")
+            check_values(app, {"txtToneFreqHz": "1000", "txtToneAmplitude": "500"})
+            press_cancel(app)
+
+            open_settings(app, "Voice Keyer")
+            set_value(app, "txtCtrlVoiceKeyerRxPause", "wait")
+            set_value(app, "txtCtrlVoiceKeyerRepeats", "")
+            press_ok(app)
+            check_saved(app, {"/VoiceKeyer/RxPause": 10, "/VoiceKeyer/Repeats": 5})
+
+            open_settings(app, "Reporting")
+            set_value(app, "udpPort", "port")
+            set_value(app, "udpBroadcastPort", "")
+            press_ok(app)
+            check_saved(app, {"/Reporting/UDP/Port": 2237, "/Reporting/UDPBroadcast/Port": 7177})
+
+            # Numbers that aren't ports: not the nearest port either.
+            open_settings(app, "Reporting")
+            set_value(app, "udpPort", "70000")
+            set_value(app, "udpBroadcastPort", "-1")
+            press_ok(app)
+            check_saved(app, {"/Reporting/UDP/Port": 2237, "/Reporting/UDPBroadcast/Port": 7177})
+
+            open_settings(app, "Modem")
+            set_value(app, "statsResetTime", "")
+            press_ok(app)
+            check_saved(app, {"/Stats/ResetTime": 10})
+
+            open_settings(app, "Rig Control")
+            set_value(app, "txtTxRxDelayMilliseconds", "250")
+            set_value(app, "txtTOTTimerSecs", "90")
+            press_ok(app)
+            check_saved(app, {"/Audio/TxRxDelayMilliseconds": 250, "/Rig/TotTimerSecs": 90})
+
+            open_settings(app, "Rig Control")
+            set_value(app, "txtTxRxDelayMilliseconds", "")
+            set_value(app, "txtTOTTimerSecs", "")
+            press_ok(app)
+            check_saved(app, {"/Audio/TxRxDelayMilliseconds": 250, "/Rig/TotTimerSecs": 90})
+
+            # Numbers that are numbers, but far too big (or small) for what
+            # they're used for: brought within it rather than wrapped around
+            # into some other number, as the digits-only fields' longest
+            # runs of digits would be.
+            open_settings(app, "Debugging")
+            set_value(app, "txtCtrlFifoSize", "999999999")
+            set_value(app, "txtToneFreqHz", "99999999999")
+            set_value(app, "txtToneAmplitude", "99999999999")
+            press_ok(app)
+            check_saved(app, {"/Audio/fifoSize_ms": 10000})
+            open_settings(app, "Debugging")
+            check_values(app, {"txtToneFreqHz": "20000", "txtToneAmplitude": "32767"})
+            press_cancel(app)
+
+            open_settings(app, "Rig Control")
+            set_value(app, "txtTxRxDelayMilliseconds", "99999999999")
+            set_value(app, "txtTOTTimerSecs", "99999999999")
+            press_ok(app)
+            check_saved(app, {"/Audio/TxRxDelayMilliseconds": 10000, "/Rig/TotTimerSecs": 86400})
+
+            open_settings(app, "Voice Keyer")
+            set_value(app, "txtCtrlVoiceKeyerRxPause", "3000000000")
+            set_value(app, "txtCtrlVoiceKeyerRepeats", "-5")
+            press_ok(app)
+            check_saved(app, {"/VoiceKeyer/RxPause": 3600, "/VoiceKeyer/Repeats": 0})
+
+            open_settings(app, "Modem")
+            set_value(app, "statsResetTime", "99999999999")
+            press_ok(app)
+            check_saved(app, {"/Stats/ResetTime": 86400})
+
+            # The tone's frequency and amplitude are used as they stand, so
+            # start FreeDV with the junk still in the fields.
+            start_modem(app)
+            stop_modem(app)
+            quit_and_check_log(app)
+
+
+def test_out_of_range_config():
+    """Numbers in the configuration file that can't be used as they stand,
+    as anything can be written there: too big or small for what they're
+    used for, or for the type they're read into. Each is brought within its
+    range (or, where it doesn't fit its type at all, back to its default),
+    shown that way in Settings, and FreeDV still starts."""
+    settings = audio_settings()
+    settings.update({"/Reporting/Enable": True, "/Reporting/Callsign": "AA1ZZZ", "/Reporting/GridSquare": "DM12",
+                     "/Reporting/UDP/Enable": True, "/Reporting/UDP/Hostname": "192.0.2.1",
+                     "/Reporting/FreeDV/Hostname": NOWHERE, "/Reporting/FreeDV/UseTls": False,
+                     "/Reporting/UDP/Port": 70000,
+                     "/Audio/fifoSize_ms": 40000000,
+                     "/Audio/TxRxDelayMilliseconds": 99999,
+                     "/Rig/TotTimerSecs": -5,
+                     "/VoiceKeyer/Repeats": 99999999999,
+                     "/Stats/ResetTime": 99999999999})
+    with audio_devices():
+        with freedvtest.start(settings=settings) as app:
+            open_settings(app, "Debugging")
+            check_values(app, {"txtCtrlFifoSize": "10000"})
+            go_to_tab(app, "Rig Control")
+            check_values(app, {"txtTxRxDelayMilliseconds": "10000", "txtTOTTimerSecs": "0"})
+            go_to_tab(app, "Voice Keyer")
+            check_values(app, {"txtCtrlVoiceKeyerRepeats": "5"})
+            go_to_tab(app, "Modem")
+            check_values(app, {"statsResetTime": "10"})
+            go_to_tab(app, "Reporting")
+            check_values(app, {"udpPort": "65535"})
+            press_cancel(app)
+
+            start_modem(app)
+            stop_modem(app)
+            quit_and_check_log(app)
 
 
 def test_ptt_key_names():
@@ -1455,7 +1596,9 @@ def test_auto_start():
 
 
 def test_while_running():
-    """Some settings can't be changed while FreeDV is running."""
+    """Everything in Settings can be changed while FreeDV is running. The
+    pages where applying a change restarts the audio or reconnects to the
+    radio say so."""
     reporting = ["ckboxReportingEnable", "txt_callsign", "txt_grid_square", "ckboxManualFrequencyReporting",
                  "ckboxPskReporterEnable", "ckboxFreeDVReporterEnable", "useMetricDistances",
                  "freedvReporterHostname", "ckboxFreeDVReporterUseTls", "ckboxFreeDVReporterForceReceiveOnly",
@@ -1464,6 +1607,18 @@ def test_while_running():
     rig_control = ["ckboxEnableFreqModeChanges", "ckboxEnableFreqChangesOnly", "ckboxNoFreqModeChanges",
                    "ckboxUseAnalogModes", "ckboxSaveRestoreFrequency", "ckboxEnableSpacebarForPTT",
                    "txtTxRxDelayMilliseconds"]
+    running_notes = [("RX Audio", "runningNoteRxAudio"), ("TX Audio", "runningNoteTxAudio"),
+                     ("Radio", "runningNoteRadio"), ("Rig Control", "runningNoteRigControl"),
+                     ("Debugging", "runningNoteDebug")]
+
+    def check_notes(shown):
+        for tab, note in running_notes:
+            go_to_tab(app, tab)
+            check_equal(app.get(name(note))["shown"], shown, "Note on the %s page shown" % tab)
+            # Each note fits on one line.
+            info = app.get(name(note))
+            check("\n" not in info["label"], "Note on the %s page wraps at %d pixels: %r"
+                  % (tab, info["clientSize"][0], info["label"]))
 
     settings = audio_settings()
     settings.update({
@@ -1477,29 +1632,37 @@ def test_while_running():
             check_enabled(app, reporting, True)
             go_to_tab(app, "Rig Control")
             check_enabled(app, rig_control, True)
+            check_notes(False)
             press_cancel(app)
 
             start_modem(app)
             open_settings(app, "Reporting")
-            check_enabled(app, reporting, False)
+            check_enabled(app, reporting, True)
             go_to_tab(app, "Rig Control")
-            check_enabled(app, rig_control, False)
+            check_enabled(app, rig_control, True)
+            check_notes(True)
 
-            # Everything else still can be, and is saved.
+            # What's changed is saved, and FreeDV carries on running.
+            go_to_tab(app, "Rig Control")
+            set_value(app, "txtTxRxDelayMilliseconds", "250")
             go_to_tab(app, "Modem")
             set_value(app, "statsResetTime", "30")
+            go_to_tab(app, "Reporting")
+            set_value(app, "txt_callsign", "AB2YYY")
             press_ok(app)
-            check_saved(app, {"/Stats/ResetTime": 30, "/Reporting/Enable": 1, "/Reporting/Callsign": "AA1ZZZ"})
+            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="the settings to be applied")
+            check_saved(app, {"/Stats/ResetTime": 30, "/Audio/TxRxDelayMilliseconds": 250,
+                              "/Reporting/Enable": 1, "/Reporting/Callsign": "AB2YYY"})
             check(app.state()["running"], "Changing settings stopped FreeDV")
+            check_equal(app.message_boxes(), [], "Errors displayed")
 
             stop_modem(app)
             open_settings(app, "Reporting")
             check_enabled(app, reporting, True)
             go_to_tab(app, "Rig Control")
             check_enabled(app, rig_control, True)
+            check_notes(False)
             press_cancel(app)
-
-            quit_and_check_log(app)
 
 
 SCENARIOS = {
@@ -1515,6 +1678,8 @@ SCENARIOS = {
     "voice_keyer": test_voice_keyer,
     "display": test_display,
     "modem_and_debugging": test_modem_and_debugging,
+    "invalid_numbers": test_invalid_numbers,
+    "out_of_range_config": test_out_of_range_config,
     "ptt_key_names": test_ptt_key_names,
     "auto_start": test_auto_start,
     "while_running": test_while_running,

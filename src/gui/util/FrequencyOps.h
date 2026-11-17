@@ -23,6 +23,7 @@
 #define FREQUENCY_OPS_H
 
 #include "../../rig_control/HamlibRigController.h"
+#include "reporting/IReporter.h"
 
 inline HamlibRigController::Mode GetModeForFrequency(uint64_t frequency, bool useAnalogModes, bool inAnalog)
 {
@@ -52,6 +53,32 @@ inline HamlibRigController::Mode GetModeForFrequency(uint64_t frequency, bool us
     }
 
     return newMode;
+}
+
+// Whether a mode is on the lower sideband.
+inline bool IsLowerSidebandMode(HamlibRigController::Mode mode)
+{
+    return mode == HamlibRigController::LSB || mode == HamlibRigController::DIGL;
+}
+
+// The mode to use on a frequency to be on the given sideband (e.g. another
+// station's, when going to it): as GetModeForFrequency(), but on that
+// sideband rather than the one usual there, in the radio's data mode for it
+// when that's what GetModeForFrequency() would use. UNKNOWN gives what
+// GetModeForFrequency() does.
+inline HamlibRigController::Mode GetModeForSideband(
+    uint64_t frequency, IReporter::Sideband sideband, bool useAnalogModes, bool inAnalog)
+{
+    bool analogMode = useAnalogModes || inAnalog;
+    switch (sideband)
+    {
+        case IReporter::Sideband::USB:
+            return analogMode ? HamlibRigController::USB : HamlibRigController::DIGU;
+        case IReporter::Sideband::LSB:
+            return analogMode ? HamlibRigController::LSB : HamlibRigController::DIGL;
+        default:
+            return GetModeForFrequency(frequency, useAnalogModes, inAnalog);
+    }
 }
 
 #endif // FREQUENCY_OPS_H

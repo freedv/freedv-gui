@@ -76,6 +76,18 @@ def wait_for(condition, what, timeout=10):
     check(False, what() if callable(what) else what)
 
 
+def controller_threads(app):
+    """How many of FreeDV's threads belong to a rig controller. ThreadedObject
+    names each thread after its object, and only the object's destructor ends
+    it, so a controller that's never freed keeps its thread."""
+    folder = "/proc/%d/task" % app.pid
+    try:
+        return sum(1 for task in os.listdir(folder)
+                   if open(os.path.join(folder, task, "comm")).read().strip().endswith("hamlib"))
+    except OSError:
+        return None
+
+
 def errors(app):
     return [box["message"] for box in app.message_boxes()]
 
@@ -600,6 +612,100 @@ def test_lost():
             check_equal(app.quit(), 0, "FreeDV's exit code")
 
 
+def test_ptt_test():
+    """The Settings window's Test PTT button with a Hamlib radio.
+
+    Each click makes a controller of its own for the test. The handlers put
+    on that controller belong to it, so they mustn't hold it as well: that's
+    a cycle, and the controller's own thread -- which only its destructor
+    joins -- is then never ended, one more per click.
+    """
+    clicks = 3
+
+    with Rigctld() as radio, audio_devices():
+        with freedvtest.start(settings=rig_settings(radio.address)) as app:
+            app.wait_for_window("main")
+            app.menu("Settings/Edit Settings...")
+            app.wait_for_window("settings")
+            app.set_value("settings.notebook", "Radio")
+            check_equal(app.get("settings.ckUseHamlibPTT")["value"], True, "Hamlib PTT chosen")
+
+            before = controller_threads(app)
+            for attempt in range(clicks):
+                app.click("settings.buttonTestPTT")
+                check_equal(app.get("settings.buttonTestPTT")["enabled"], False,
+                            "Test PTT enabled during the test")
+                wait_for(radio.transmitting, "The radio wasn't keyed by Test PTT")
+                app.wait_until(lambda: app.get("settings.buttonTestPTT")["enabled"], timeout=15,
+                               description="Test PTT to be usable again")
+                check_equal(radio.transmitting(), False, "The radio after Test PTT")
+            check_equal(app.message_boxes(), [], "Messages displayed")
+
+            app.click("settings.sdbSizer5Cancel")
+            app.wait_for_window_closed("settings")
+
+            # (Only Linux has a thread of its own to wait for: macOS gives
+            # ThreadedObject's work to GCD instead.)
+            if before is not None:
+                wait_for(lambda: controller_threads(app) == before,
+                         lambda: "%d controller threads after %d PTT tests, %d before"
+                                 % (controller_threads(app), clicks, before))
+
+            check_equal(app.quit(), 0, "FreeDV's exit code")
+
+
+def test_settings_while_running():
+    """The radio's settings changed while FreeDV is running take effect
+    without stopping it: FreeDV lets go of the radio it had and connects with
+    the new settings, putting that radio where FreeDV is."""
+    with Rigctld() as first, Rigctld() as second, audio_devices():
+        first.set_frequency(14236000)
+        second.set_frequency(7177000)
+        with freedvtest.start(settings=rig_settings(first.address)) as app:
+            app.wait_for_window("main")
+            start_modem(app)
+            wait_for_frequency(app, "14.2360", "Frequency displayed once connected")
+
+            app.menu("Settings/Edit Settings...")
+            app.wait_for_window("settings")
+            app.set_value("settings.notebook", "Radio")
+            app.set_value("settings.cbSerialPort", second.address)
+            app.click("settings.sdbSizer5OK")
+            app.wait_for_window_closed("settings")
+            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="the settings to be applied")
+            check(app.state()["running"], "Changing the radio's settings stopped FreeDV")
+
+            # The new radio is put where FreeDV was, and followed from then on.
+            # FreeDV sets its frequency and then its mode, and sends the
+            # frequency again after a mode change (as some radios move a
+            # little on changing it), so its dial isn't turned until that's
+            # all done: a turn in between would be undone.
+            wait_for(lambda: (second.frequency(), second.mode()) == (14236000, "PKTUSB"),
+                     lambda: "The new radio is on %d Hz %s, not 14236000 Hz PKTUSB" %
+                             (second.frequency(), second.mode()))
+            time.sleep(1)
+            check_equal(displayed_frequency(app), "14.2360", "Frequency displayed once reconnected")
+            second.set_frequency(7177000)
+            wait_for_frequency(app, "7.1770", "Frequency displayed after turning the new radio's dial")
+
+            # The old one isn't.
+            first.set_frequency(3625000)
+            time.sleep(3)
+            check_equal(displayed_frequency(app), "7.1770", "Frequency displayed after turning the old radio's dial")
+
+            # Transmitting keys the new radio and not the old.
+            app.click("main.btnPTT")
+            wait_for_transmit(app)
+            wait_for(second.transmitting, "The new radio wasn't keyed")
+            check_equal(first.transmitting(), False, "The old radio keyed")
+            app.click("main.btnPTT")
+            wait_for_transmit(app, False)
+            wait_for(lambda: not second.transmitting(), "The new radio was left keyed")
+
+            stop_modem(app)
+            quit_and_check_log(app)
+
+
 SCENARIOS = {
     "control": test_control,
     "frequency_only": test_frequency_only,
@@ -609,9 +715,11 @@ SCENARIOS = {
     "editing_frequency": test_editing_frequency,
     "unreachable": test_unreachable,
     "serial_ptt": test_serial_ptt,
+    "ptt_test": test_ptt_test,
     "missing_port": test_missing_port,
     "receive_after_transmit": test_receive_after_transmit,
     "lost": test_lost,
+    "settings_while_running": test_settings_while_running,
 }
 
 

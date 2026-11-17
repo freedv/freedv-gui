@@ -199,28 +199,23 @@ void LogEntryDialog::ShowDialog(wxString const& dxCall, wxString const& dxGrid, 
 
 void LogEntryDialog::OnOK(wxCommandEvent&)
 {
-    int64_t freqHz = 0;
+    // (Whatever was typed: words, a negative or one too big are refused
+    // rather than having a frequency cast out of them for the log.)
+    int64_t freqHz = (int64_t)ReportingConfiguration::DisplayedFrequencyToHz(
+        frequency_->GetValue(), wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz);
 
     if (frequency_->GetValue() == "" ||
         dxCall_->GetValue() == "")
     {
         wxMessageBox( _("Frequency and DX Call must be filled in in order to log the contact."), _("Error"), wxICON_ERROR);
     }
+    else if (freqHz == 0)
+    {
+        wxMessageBox( _("The frequency isn't a valid frequency."), _("Error"), wxICON_ERROR);
+    }
     else
     {
         // Forward to logger
-        double freqDouble = 0;
-        wxNumberFormatter::FromString(frequency_->GetValue(), &freqDouble);
-        
-        if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
-        {
-            freqDouble *= 1000;
-        }
-        else
-        {
-            freqDouble *= 1000000;
-        }
-        freqHz = (int64_t)freqDouble;
         
         std::time_t timeSinceUnixEpoch = logTime_.GetTicks();
 
@@ -228,7 +223,7 @@ void LogEntryDialog::OnOK(wxCommandEvent&)
         if (logger == nullptr && wxGetApp().appConfiguration.reportingConfiguration.udpReportingEnabled)
         {
             logger = std::make_shared<WSJTXNetworkLogger>(
-                (const char*)wxGetApp().appConfiguration.reportingConfiguration.udpReportingHostname->ToUTF8(),
+                (const char*)wxGetApp().appConfiguration.reportingConfiguration.udpReportingHostname.get().ToUTF8(),
                 wxGetApp().appConfiguration.reportingConfiguration.udpReportingPort);
         }
         if (logger != nullptr)
@@ -237,8 +232,8 @@ void LogEntryDialog::OnOK(wxCommandEvent&)
                 std::chrono::system_clock::from_time_t(timeSinceUnixEpoch),
                 (const char*)dxCall_->GetValue().ToUTF8(),
                 (const char*)dxGrid_->GetValue().ToUTF8(),
-                (const char*)wxGetApp().appConfiguration.reportingConfiguration.reportingCallsign->ToUTF8(),
-                (const char*)wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare->ToUTF8(),
+                (const char*)wxGetApp().appConfiguration.reportingConfiguration.reportingCallsign.get().ToUTF8(),
+                (const char*)wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare.get().ToUTF8(),
                 freqHz,
                 (const char*)rxReport_->GetValue().ToUTF8(),
                 (const char*)txReport_->GetValue().ToUTF8(),

@@ -11,34 +11,59 @@ extern std::atomic<SNDFILE*> g_sfRecMicFile;
 std::atomic<bool>   g_recVoiceKeyerFile;
 extern std::atomic<bool> g_voice_keyer_tx;
 extern wxMutex g_mutexProtectingCallbackData;
+extern std::mutex g_mutexProtectingRecordFiles;
 extern std::atomic<bool> endingTx;
 extern std::atomic<bool> g_monitorVoiceKeyerAudio;
 extern std::atomic<float> g_monitorVoiceKeyerAudioVol;
+
+void MainFrame::StopRecFileFromMic()
+{
+    if (!g_recVoiceKeyerFile.load(std::memory_order_relaxed))
+    {
+        return;
+    }
+
+    // The handle goes null under the mutex RecordStep's file thread
+    // takes around its write; the file is closed once that's dropped,
+    // so a write already under way can't land in a closed SNDFILE.
+    SNDFILE* micRecordFile = nullptr;
+    {
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+        micRecordFile = g_sfRecMicFile.exchange(nullptr, std::memory_order_acq_rel);
+    }
+
+    g_mutexProtectingCallbackData.Lock();
+    g_recVoiceKeyerFile.store(false, std::memory_order_relaxed);
+    SetStatusText(wxT(""));
+    g_mutexProtectingCallbackData.Unlock();
+
+    if (micRecordFile != nullptr)
+    {
+        sf_close(micRecordFile);
+    }
+    
+    // Cache the newly recorded file for playback.
+    vkFileCache_.preload(vkFileName_);
+
+    // (Analog, disabled while recording, is left to the caller: when the
+    // modem is stopping, it stays disabled.)
+    m_togBtnVoiceKeyer->SetValue(false);
+    m_togBtnVoiceKeyer->SetBackgroundColour(wxNullColour);
+    
+    // Switch back to previous tab once done with recording
+    if (wxGetApp().appConfiguration.currentNotebookTab >= 0)
+    {
+        m_auiNbookCtrl->ChangeSelection(wxGetApp().appConfiguration.currentNotebookTab);
+    }
+}
 
 void MainFrame::OnTogBtnVoiceKeyerClick (wxCommandEvent& event)
 {
     // If recording a new VK file, stop doing that now.
     if (g_recVoiceKeyerFile.load(std::memory_order_relaxed))
-    {       
-        g_mutexProtectingCallbackData.Lock();
-        g_recVoiceKeyerFile.store(false, std::memory_order_relaxed);
-        sf_close(g_sfRecMicFile.load(std::memory_order_acquire));
-        g_sfRecMicFile.store(nullptr, std::memory_order_release);
-        SetStatusText(wxT(""));
-        g_mutexProtectingCallbackData.Unlock();
-        
-        // Cache the newly recorded file for playback.
-        vkFileCache_.preload(vkFileName_);
-        
+    {
+        StopRecFileFromMic();
         m_togBtnAnalog->Enable(true);
-        m_togBtnVoiceKeyer->SetValue(false);
-        m_togBtnVoiceKeyer->SetBackgroundColour(wxNullColour);
-        
-        // Switch back to previous tab once done with recording
-        if (wxGetApp().appConfiguration.currentNotebookTab >= 0)
-        {
-            m_auiNbookCtrl->ChangeSelection(wxGetApp().appConfiguration.currentNotebookTab);
-        }
     }
     else
     {
@@ -121,13 +146,30 @@ void MainFrame::OnRecordNewVoiceKeyerFile( wxCommandEvent& )
     sfInfo.channels   = 1;
     sfInfo.samplerate = sample_rate;
 
-    g_sfRecMicFile.store(sf_open(soundFile.c_str(), SFM_WRITE, &sfInfo), std::memory_order_release);
-    if(g_sfRecMicFile.load(std::memory_order_acquire) == NULL)
+    // A recording still going is finished off first: RecordStep's file thread
+    // writes to whatever handle it's given, and a WAV's lengths are only
+    // written when it's closed, so a take that's just replaced is left on disk
+    // unreadable. It's detached under the mutex that thread takes around each
+    // write, so nothing can be part way into it when it's closed. And it's
+    // closed before the new file is opened, not after: the new one may be the
+    // same file (the dialog offers the last one), which opening truncates,
+    // and closing the old handle then would write its header and buffered
+    // audio into the new recording.
+    SNDFILE* previousFile;
+    {
+        std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+        previousFile = g_sfRecMicFile.exchange(nullptr, std::memory_order_acq_rel);
+    }
+    if(previousFile != NULL) sf_close(previousFile);
+
+    SNDFILE* newFile = sf_open(soundFile.c_str(), SFM_WRITE, &sfInfo);
+    if(newFile == NULL)
     {
         wxString strErr = sf_strerror(NULL);
         wxMessageBox(strErr, _("Couldn't open sound file"), wxOK);
         return;
     }
+    g_sfRecMicFile.store(newFile, std::memory_order_release);
 
     SetStatusText(wxString::Format(_("Recording file %s from microphone"), soundFile), 0);
     g_recVoiceKeyerFile.store(true, std::memory_order_relaxed);

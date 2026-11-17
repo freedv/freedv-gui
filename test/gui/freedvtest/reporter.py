@@ -333,8 +333,13 @@ class Station:
 
     # -- What this station reports ----------------------------------------
 
-    def set_frequency(self, frequency_hz):
-        self._run(self._client.emit("freq_change", {"freq": frequency_hz}))
+    def set_frequency(self, frequency_hz, sideband=None):
+        """Reports a frequency and, if given, the sideband ("USB", "LSB",
+        or "" for not known) the station's radio is on."""
+        data = {"freq": frequency_hz}
+        if sideband is not None:
+            data["sideband"] = sideband
+        self._run(self._client.emit("freq_change", data))
 
     def transmit(self, mode, transmitting):
         self._run(self._client.emit("tx_report", {"mode": mode, "transmitting": transmitting}))
@@ -346,10 +351,13 @@ class Station:
     def set_message(self, message):
         self._run(self._client.emit("message_update", {"message": message}))
 
-    def request_qsy(self, callsign, frequency_hz, message=""):
-        """Asks the given station to change to a frequency."""
-        self._run(self._client.emit(
-            "qsy_request", {"dest_sid": self.sid_of(callsign), "frequency": frequency_hz, "message": message}))
+    def request_qsy(self, callsign, frequency_hz, message="", sideband=None):
+        """Asks the given station to change to a frequency (and, if given,
+        sideband: "USB" or "LSB")."""
+        data = {"dest_sid": self.sid_of(callsign), "frequency": frequency_hz, "message": message}
+        if sideband is not None:
+            data["sideband"] = sideband
+        self._run(self._client.emit("qsy_request", data))
 
     def hide(self):
         self._run(self._client.emit("hide_self"))

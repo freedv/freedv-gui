@@ -125,8 +125,8 @@ void FreeDVInterface::start(int, bool usingReliableText, bool verbose)
     // TBD - modelFile may be used by RADE in the future!
     char modelFile[1];
     modelFile[0] = 0;
-    rade_ = rade_open(modelFile, RADE_USE_C_ENCODER | RADE_USE_C_DECODER | RADE_MODE_V2 | (verbose ? 0 : RADE_VERBOSE_0));
-    assert(rade_ != nullptr);
+    rade_.store(rade_open(modelFile, RADE_USE_C_ENCODER | RADE_USE_C_DECODER | RADE_MODE_V2 | (verbose ? 0 : RADE_VERBOSE_0)));
+    assert(rade_.load() != nullptr);
 
     // rade_tx()/rade_rx() are the first code paths to actually read every byte of
     // RADE's large statically-compiled neural net weight tables -- rade_open() above
@@ -185,9 +185,16 @@ void FreeDVInterface::start(int, bool usingReliableText, bool verbose)
 
 void FreeDVInterface::stop()
 {
-    modem_stats_close(&modemStatsList_[0]);
-    delete[] modemStatsList_;
-    modemStatsList_ = nullptr;
+    // Reachable twice on a shutdown race between a Stop click's
+    // "TurningOff" thread and OnExit() (both serialize on stoppingMutex;
+    // this function is also idempotent as a backstop so the second call
+    // is a no-op instead of closing handles that are already gone).
+    if (modemStatsList_ != nullptr)
+    {
+        modem_stats_close(&modemStatsList_[0]);
+        delete[] modemStatsList_;
+        modemStatsList_ = nullptr;
+    }
     
     if (radeTextPtr_ != nullptr)
     {
@@ -195,13 +202,13 @@ void FreeDVInterface::stop()
         radeTextPtr_ = nullptr;
     }
     
-    modemStatsList_ = nullptr;
-
-    if (rade_ != nullptr)
+    // Clear rade_ before closing so isRunning() is false (and the getters
+    // see nullptr) before the handle goes away.
+    auto rade = rade_.exchange(nullptr);
+    if (rade != nullptr)
     {
-        rade_close(rade_);
+        rade_close(rade);
     }
-    rade_ = nullptr;
 
     if (lpcnetEncState_ != nullptr)
     {
@@ -256,7 +263,7 @@ int FreeDVInterface::getTxSpeechSampleRate() const
 
 int FreeDVInterface::getTxNumSpeechSamples() const
 {
-    return rade_n_features_in_out(rade_) * LPCNET_FRAME_SIZE / NB_TOTAL_FEATURES;
+    return rade_n_features_in_out(rade_.load()) * LPCNET_FRAME_SIZE / NB_TOTAL_FEATURES;
 }
 
 int FreeDVInterface::getTxNNomModemSamples() const FREEDV_NONBLOCKING
@@ -264,7 +271,7 @@ int FreeDVInterface::getTxNNomModemSamples() const FREEDV_NONBLOCKING
     // Verified that rade_api.c from librade has no unbounded operations
     // as of 2025-10-03.
     FREEDV_BEGIN_VERIFIED_SAFE
-    return std::max(rade_n_tx_out(rade_), radeTxStep_ != nullptr ? radeTxStep_->eooLengthInSamples() : rade_n_tx_eoo_out(rade_));
+    return std::max(rade_n_tx_out(rade_.load()), radeTxStep_ != nullptr ? radeTxStep_->eooLengthInSamples() : rade_n_tx_eoo_out(rade_.load()));
     FREEDV_END_VERIFIED_SAFE
 }
 
@@ -275,12 +282,12 @@ int FreeDVInterface::getRxModemSampleRate() const
 
 int FreeDVInterface::getRxNumModemSamples() const
 {
-    return rade_nin_max(rade_);
+    return rade_nin_max(rade_.load());
 }
 
 int FreeDVInterface::getRxNumSpeechSamples() const FREEDV_NONBLOCKING
 {
-    return rade_n_features_in_out(rade_) * LPCNET_FRAME_SIZE / NB_TOTAL_FEATURES;
+    return rade_n_features_in_out(rade_.load()) * LPCNET_FRAME_SIZE / NB_TOTAL_FEATURES;
 }
 
 int FreeDVInterface::getRxSpeechSampleRate() const FREEDV_NONBLOCKING
@@ -290,7 +297,8 @@ int FreeDVInterface::getRxSpeechSampleRate() const FREEDV_NONBLOCKING
 
 void FreeDVInterface::setReliableText(const char* callsign)
 {
-    if (rade_ != nullptr && radeTextPtr_ != nullptr)
+    auto rade = rade_.load();
+    if (rade != nullptr && radeTextPtr_ != nullptr)
     {
         log_info("generating RADE text string");
         rade_text_generate_tx_string(radeTextPtr_, callsign, strlen(callsign));
@@ -316,7 +324,11 @@ IPipelineStep* FreeDVInterface::createTransmitPipeline(
     // Special handling for RADE. Note that ParallelStep is not being used
     // as it has known issues with Bluetooth and macOS (but only with RADE;
     // analog and legacy modes appear to function properly).
-    radeTxStep_ = new RADETransmitStep(rade_, lpcnetEncState_, radeTextPtr_);
+    radeTxStep_ = new RADETransmitStep(rade_.load(), lpcnetEncState_, radeTextPtr_);
+
+    // An 8 kHz mic gives RADE nothing above 4 kHz to encode; have the
+    // backend fill in that part of the features instead.
+    radeTxStep_->setNarrowbandInput(inputSampleRate <= 8000);
         
     auto pipeline = new AudioPipeline(inputSampleRate, outputSampleRate);
     pipeline->appendPipelineStep(radeTxStep_);
@@ -336,7 +348,7 @@ IPipelineStep* FreeDVInterface::createReceivePipeline(
     state->getFreqOffsetFn = getFreqOffsetFn;
     state->getSigPwrAvgFn = getSigPwrAvgFn;
    
-    auto rxStep = new RADEReceiveStep(rade_, &fargan_, radeTextPtr_, +[](RADEReceiveStep* step) FREEDV_NONBLOCKING {
+    auto rxStep = new RADEReceiveStep(rade_.load(), &fargan_, radeTextPtr_, +[](RADEReceiveStep* step) FREEDV_NONBLOCKING {
         FreeDVInterface* state = (FreeDVInterface*)step->getStateObj();
         auto finalSync = step->getSync();
         (*step->getRxStateFn()()).store(finalSync, std::memory_order_release);
@@ -345,7 +357,7 @@ IPipelineStep* FreeDVInterface::createReceivePipeline(
 
         // Verified that rade_freq_offset() is a simple getter as of 2026-10-22.
         FREEDV_BEGIN_VERIFIED_SAFE
-        state->rxFreqOffset_.store(rade_freq_offset(state->rade_), std::memory_order_release);
+        state->rxFreqOffset_.store(rade_freq_offset(state->rade_.load()), std::memory_order_release);
         FREEDV_END_VERIFIED_SAFE
     }, getFreqOffsetFn);
     rxStep->setStateObj(this);

@@ -22,41 +22,47 @@
 #include "RigControlConfiguration.h"
 
 RigControlConfiguration::RigControlConfiguration()
-    : hamlibUseForPTT("/Hamlib/UseForPTT", false)
-    , hamlibEnableFreqModeChanges("/Hamlib/EnableFreqModeChanges", true)
-    , hamlibEnableFreqChangesOnly("/Hamlib/EnableFreqChangesOnly", false)
+    : hamlibUseForPTT("/Hamlib/UseForPTT", false, ConfigChange::RECONNECTS_RADIO)
+    , hamlibEnableFreqModeChanges("/Hamlib/EnableFreqModeChanges", true, ConfigChange::RECONNECTS_RADIO)
+    , hamlibEnableFreqChangesOnly("/Hamlib/EnableFreqChangesOnly", false, ConfigChange::RECONNECTS_RADIO)
     , hamlibUseAnalogModes("/Hamlib/UseAnalogModes", false)
-    , hamlibSaveRestoreFrequency("/Hamlib/SaveRestoreFrequency", true)
-    , hamlibIcomCIVAddress("/Hamlib/IcomCIVHex", 0)
-    , hamlibRigName("/Hamlib/RigNameStr", "")
-    , hamlibPTTType("/Hamlib/PttType", 0)
-    , hamlibSerialRate("/Hamlib/SerialRate", 0)
-    , hamlibSerialPort("/Hamlib/SerialPort", "")
-    , hamlibPttSerialPort("/Hamlib/PttSerialPort", "")
-    , hamlibForceRTSOn("/Hamlib/ForceRTSOn", false)
-    , hamlibForceDTROn("/Hamlib/ForceDTROn", false)
+    , hamlibSaveRestoreFrequency("/Hamlib/SaveRestoreFrequency", true, ConfigChange::RECONNECTS_RADIO)
+    , hamlibIcomCIVAddress("/Hamlib/IcomCIVHex", 0, ConfigChange::RECONNECTS_RADIO)
+    , hamlibRigName("/Hamlib/RigNameStr", "", ConfigChange::RECONNECTS_RADIO)
+    , hamlibPTTType("/Hamlib/PttType", 0, ConfigChange::RECONNECTS_RADIO)
+    , hamlibSerialRate("/Hamlib/SerialRate", 0, ConfigChange::RECONNECTS_RADIO)
+    , hamlibSerialPort("/Hamlib/SerialPort", "", ConfigChange::RECONNECTS_RADIO)
+    , hamlibPttSerialPort("/Hamlib/PttSerialPort", "", ConfigChange::RECONNECTS_RADIO)
+    , hamlibForceRTSOn("/Hamlib/ForceRTSOn", false, ConfigChange::RECONNECTS_RADIO)
+    , hamlibForceDTROn("/Hamlib/ForceDTROn", false, ConfigChange::RECONNECTS_RADIO)
         
-    , useSerialPTT("/Rig/UseSerialPTT", false)
-    , serialPTTPort("/Rig/Port", "")
-    , serialPTTUseRTS("/Rig/UseRTS", true)
-    , serialPTTPolarityRTS("/Rig/RTSPolarity", true)
-    , serialPTTUseDTR("/Rig/UseDTR", false)
-    , serialPTTPolarityDTR("/Rig/DTRPolarity", false)
+    , useSerialPTT("/Rig/UseSerialPTT", false, ConfigChange::RECONNECTS_RADIO)
+    , serialPTTPort("/Rig/Port", "", ConfigChange::RECONNECTS_RADIO)
+    , serialPTTUseRTS("/Rig/UseRTS", true, ConfigChange::RECONNECTS_RADIO)
+    , serialPTTPolarityRTS("/Rig/RTSPolarity", true, ConfigChange::RECONNECTS_RADIO)
+    , serialPTTUseDTR("/Rig/UseDTR", false, ConfigChange::RECONNECTS_RADIO)
+    , serialPTTPolarityDTR("/Rig/DTRPolarity", false, ConfigChange::RECONNECTS_RADIO)
 
 #if defined(WIN32)
-    , useOmniRig("/Rig/UseOmniRig", false)
-    , omniRigRigId("/Rig/OmniRigRigId", 0)
+    , useOmniRig("/Rig/UseOmniRig", false, ConfigChange::RECONNECTS_RADIO)
+    , omniRigRigId("/Rig/OmniRigRigId", 0, ConfigChange::RECONNECTS_RADIO)
 #endif // defined(WIN32)
                 
-    , useSerialPTTInput("/Rig/UseSerialPTTInput", false)
-    , serialPTTInputPort("/Rig/PttInPort", "")
-    , serialPTTInputPolarityCTS("/Rig/CTSPolarity", false)
+    , useSerialPTTInput("/Rig/UseSerialPTTInput", false, ConfigChange::REOPENS_PTT_INPUT)
+    , serialPTTInputPort("/Rig/PttInPort", "", ConfigChange::REOPENS_PTT_INPUT)
+    , serialPTTInputPolarityCTS("/Rig/CTSPolarity", false, ConfigChange::REOPENS_PTT_INPUT)
         
-    , leftChannelVoxTone("/Rig/leftChannelVoxTone",  false)
+    , leftChannelVoxTone("/Rig/leftChannelVoxTone",  false, ConfigChange::UPDATES_RUNNING_AUDIO)
     , totTimerEnabled("/Rig/TotTimerEnabled", true)
     , totTimerSecs("/Rig/TotTimerSecs", 180)
 {
-    // empty
+    // Whatever's typed into Settings, or written into the config file, has
+    // to stay within what these are used for: a CI-V address is a byte, the
+    // serial rate goes to Hamlib as an int, and the time-out timer runs in
+    // milliseconds in an int (0 is no time-out).
+    hamlibIcomCIVAddress.setLimits(0, 0xFF);
+    hamlibSerialRate.setLimits(0, 4000000);
+    totTimerSecs.setLimits(0, 86400);
 }
 
 void RigControlConfiguration::load(wxConfigBase* config)

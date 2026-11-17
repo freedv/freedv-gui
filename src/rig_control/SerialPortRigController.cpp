@@ -214,6 +214,7 @@ void SerialPortRigController::connectImpl_()
             goto error;           
         }
 
+        onConnected_();
         onRigConnected(this);
         return;
     
@@ -323,6 +324,7 @@ error:
             }
         }
 
+        onConnected_();
         onRigConnected(this);
 
     }
@@ -347,5 +349,6 @@ void SerialPortRigController::disconnectImpl_()
 #endif
     serialPortHandle_ = COM_HANDLE_INVALID;
 
+    onDisconnected_();
     onRigDisconnected(this);
 }

@@ -69,7 +69,15 @@ PulseAudioDevice::~PulseAudioDevice()
 
 bool PulseAudioDevice::isRunning()
 {
-    return stream_ != nullptr;
+    // streamConnected_ is what start() and stopImpl_() set, under objLock_,
+    // and the only part of the state that can be answered without taking it.
+    // stream_ itself is guarded by that lock: the application asks this from
+    // the "TurningOn" worker (startRxStream()) while a close that worker
+    // outlasts takes the devices down from the UI thread, and reading the
+    // pointer here would race with the write stopImpl_() makes. A stream
+    // that was made but never connected carries nothing, and there was
+    // nothing set up to pace work to it either.
+    return streamConnected_.load(std::memory_order_acquire);
 }
 
 void PulseAudioDevice::start()
@@ -163,6 +171,12 @@ void PulseAudioDevice::start()
         {
             log_warn("Could not set up semaphore (errno = %d)", errno);
         }
+        else
+        {
+            semReady_.store(true, std::memory_order_release);
+        }
+
+        streamConnected_.store(true, std::memory_order_release);
     }
 
     pa_threaded_mainloop_unlock(mainloop_);
@@ -178,6 +192,9 @@ void PulseAudioDevice::stopImpl_()
     std::unique_lock<std::mutex> lk(objLock_);
     if (stream_ != nullptr)
     {
+        // Say so before anything else goes away: isRunning() answers from
+        // this alone, and a stream part way down is not one to work to.
+        streamConnected_.store(false, std::memory_order_release);
         pa_threaded_mainloop_lock(mainloop_);
 
         // Disconnect stream and wait for response from mainloop. A stream
@@ -194,7 +211,14 @@ void PulseAudioDevice::stopImpl_()
 
         pa_threaded_mainloop_unlock(mainloop_);
 
-        sem_destroy(&sem_);
+        // Only a stream that connected had a semaphore to set up in the
+        // first place; tearing one down that was never initialized is
+        // undefined.
+        if (semReady_.load(std::memory_order_acquire))
+        {
+            sem_destroy(&sem_);
+            semReady_.store(false, std::memory_order_release);
+        }
     }
 
     // Only after the stream has terminated, as waiting for that needs the main loop.
@@ -356,7 +380,9 @@ void PulseAudioDevice::setHelperRealTime()
 
 void PulseAudioDevice::startRealTimeWork()
 {
-    sleepFallback_ = false;
+    // With no semaphore set up there's nothing to be woken by, so the wait
+    // has to be a plain sleep.
+    sleepFallback_ = !semReady_.load(std::memory_order_acquire);
     if (clock_gettime(CLOCK_MONOTONIC, &ts_) == -1)
     {
         sleepFallback_ = true;
@@ -369,7 +395,7 @@ void PulseAudioDevice::stopRealTimeWork(bool fastMode)
 {
     constexpr int64_t NSEC_TO_SEC = 1000000000;
 
-    if (sleepFallback_)
+    if (sleepFallback_ || !semReady_.load(std::memory_order_acquire))
     {
         // Fallback to simple sleep.
         IAudioDevice::stopRealTimeWork(fastMode);
@@ -446,7 +472,12 @@ void PulseAudioDevice::StreamReadCallback_(pa_stream *s, size_t length, void *us
         }
         pa_stream_drop(s);
     } while (pa_stream_readable_size(s) > 0);
-    sem_post(&thisObj->sem_);
+
+    // Only a stream that connected had a semaphore to be paced by.
+    if (thisObj->semReady_.load(std::memory_order_acquire))
+    {
+        sem_post(&thisObj->sem_);
+    }
 }
 
 void PulseAudioDevice::StreamWriteCallback_(pa_stream *s, size_t length, void *userdata)

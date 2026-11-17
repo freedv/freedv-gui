@@ -37,6 +37,7 @@
 
 #include "gui/util/NameOverrideAccessible.h"
 #include "gui/util/LabelOverrideAccessible.h"
+#include "gui/util/AppIcon.h"
 #include "util/logging/ulog.h"
 
 #if defined(__WXGTK__) && defined(HAS_GTK3)
@@ -411,6 +412,7 @@ bool TabFreeAuiNotebook::LoadPerspective(const wxString& layout) {
 TopFrame::TopFrame(wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style) : wxFrame(parent, id, title, pos, size, style)
 {
     WXWIDGETS_SET_LAYOUT_DIRECTION;
+    SetFreeDVIcons(this);
     
 #if wxUSE_ACCESSIBILITY
     // Initialize accessibility logic
