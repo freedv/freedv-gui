@@ -519,6 +519,18 @@ sync with the current VFO on the radio (i.e. if the frequency is changed
 in the application, the radio will also change its frequency).
 Double-clicking on users in the Tools-&gt;FreeDV Reporter window will
 also cause this frequency to change to match the other user.</p>
+<p>With Hamlib or OmniRig enabled (and “Manual Frequency Reporting”
+turned off), FreeDV also reports which sideband (USB or LSB) the radio
+is on. Other stations’ sidebands, where their versions of FreeDV report
+them, are shown after their frequencies in the Tools-&gt;FreeDV Reporter
+window (e.g. “14.2360 USB”) and on the FreeDV Reporter website.
+Double-clicking a station that reports its sideband, or accepting its
+QSY request, also puts the radio on that sideband (in the radio’s data
+mode, e.g. LSB-D, unless “Use USB instead of DIGU” is checked in
+Settings) for as long as FreeDV stays on that frequency, even if that
+isn’t the sideband usually used on that band (e.g. LSB on 20 meters). A
+QSY request you send tells the other station which sideband you’re
+on.</p>
 <p>By default, pushing Start sets the radio to the frequency FreeDV last
 used, and pushing Stop returns the radio to the frequency and mode it
 had before Start. To leave the radio’s frequency alone instead (FreeDV
@@ -1194,6 +1206,8 @@ settings take effect the next time FreeDV starts. (PR #1631)</li>
 <li>Settings: apply every setting while running, restarting the audio or
 reconnecting to the radio and reporting services as needed, once back on
 receive. (PR #1632)</li>
+<li>FreeDV Reporter: report which sideband (USB or LSB) the radio is on,
+and show other stations’ after their frequencies. (PR #1644)</li>
 </ul></li>
 <li>Bugfixes:
 <ul>
