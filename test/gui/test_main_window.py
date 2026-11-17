@@ -1257,14 +1257,16 @@ def test_recording_options():
         def recordings():
             return (sorted(os.listdir(raw_folder)), sorted(os.listdir(decoded_folder)))
 
-        # Someone that's been heard before, for FreeDV to list.
+        # Someone that's been heard before, for FreeDV to list. (In a log
+        # with the sideband column: one without it would be given it, and
+        # backed up alongside, when FreeDV starts writing to it.)
         csv_log = os.path.join(folder, "heard.csv")
         with open(csv_log, "w") as f:
-            f.write("date,time,callsign,mode,frequency_hz,snr_db\n")
+            f.write("date,time,callsign,mode,frequency_hz,snr_db,sideband\n")
             # The last one written is the one on top: FreeDV puts each
             # heard station at the top of the list.
-            f.write("2026-03-03,04:05:06,vk5dgr/p,RADEV1,14236000,6\n")
-            f.write("2026-03-04,05:06:07,K1ABC/P,RADEV1,14236000,7\n")
+            f.write("2026-03-03,04:05:06,vk5dgr/p,RADEV1,14236000,6,USB\n")
+            f.write("2026-03-04,05:06:07,K1ABC/P,RADEV1,14236000,7,\n")
 
         extra = dict(QuickRecord__SavePath=raw_folder, QuickRecord__SaveDecodedPath=decoded_folder,
                      Reporting__Enable=True, Reporting__Callsign=CALLSIGN, Reporting__GridSquare="DM12",
