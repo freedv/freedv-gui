@@ -23,7 +23,77 @@
 #include <climits>
 #include <wx/tokenzr.h>
 #include <wx/numformatter.h>
+#include <cassert>
+#include <cstring>
+#include <wx/memconf.h>
+#include "util/logging/ulog.h"
 #include "WxWidgetsConfigStore.h"
+
+namespace
+{
+    // Where elements() is collecting elements, if it is (on this thread).
+    thread_local std::vector<IConfigurationDataElement*>* elementsBeingListed = nullptr;
+}
+
+void WxWidgetsConfigStore::noteSaved_(IConfigurationDataElement& configElement)
+{
+    if (elementsBeingListed != nullptr)
+    {
+        elementsBeingListed->push_back(&configElement);
+    }
+}
+
+std::vector<IConfigurationDataElement*> WxWidgetsConfigStore::elements()
+{
+    // save() names each of them, and its list is the one that's kept up to
+    // date. Into a configuration that's thrown away afterwards.
+    std::vector<IConfigurationDataElement*> result;
+    wxMemoryConfig scratch;
+    auto* outer = elementsBeingListed;
+    elementsBeingListed = &result;
+    save(&scratch);
+    elementsBeingListed = outer;
+    return result;
+}
+
+bool WxWidgetsConfigStore::elementsPairUp(
+    std::vector<IConfigurationDataElement*> const& first,
+    std::vector<IConfigurationDataElement*> const& second)
+{
+    bool pairUp = first.size() == second.size();
+    if (!pairUp)
+    {
+        log_error("Configurations to copy between have %zu and %zu settings", first.size(), second.size());
+    }
+    for (size_t index = 0; index < first.size() && index < second.size(); index++)
+    {
+        if (strcmp(first[index]->getElementName(), second[index]->getElementName()) != 0)
+        {
+            // (Those after it most likely don't either.)
+            log_error("Setting %zu of configurations to copy between is %s in one and %s in the other",
+                index, first[index]->getElementName(), second[index]->getElementName());
+            return false;
+        }
+    }
+    return pairUp;
+}
+
+void WxWidgetsConfigStore::copyFrom(WxWidgetsConfigStore& other)
+{
+    // Not at all if they don't pair up: that would copy settings into others.
+    auto mine = elements();
+    auto theirs = other.elements();
+    if (!elementsPairUp(mine, theirs))
+    {
+        assert(false);
+        return;
+    }
+
+    for (size_t index = 0; index < mine.size(); index++)
+    {
+        mine[index]->copyValueFrom(*theirs[index]);
+    }
+}
 
 // wxWidgets by default expands anything that looks like an environment variable
 // (e.g. $HOME) when reading strings. Settings should instead come back exactly as 
@@ -106,6 +176,7 @@ void WxWidgetsConfigStore::load_<std::vector<int> >(wxConfigBase* config, Config
 template<>
 void WxWidgetsConfigStore::save_<std::vector<int> >(wxConfigBase* config, ConfigurationDataElement<std::vector<int> >& configElement)
 {
+    noteSaved_(configElement);
     wxString val = generateStringFromArray_(configElement.getWithoutProcessing());
     config->Write(configElement.getElementName(), val);
 }
@@ -123,6 +194,7 @@ void WxWidgetsConfigStore::load_<std::vector<bool> >(wxConfigBase* config, Confi
 template<>
 void WxWidgetsConfigStore::save_<std::vector<bool> >(wxConfigBase* config, ConfigurationDataElement<std::vector<bool> >& configElement)
 {
+    noteSaved_(configElement);
     wxString val = generateStringFromArray_(configElement.getWithoutProcessing());
     config->Write(configElement.getElementName(), val);
 }
@@ -144,6 +216,7 @@ void WxWidgetsConfigStore::load_<std::vector<wxString> >(wxConfigBase* config, C
 template<>
 void WxWidgetsConfigStore::save_<std::vector<wxString> >(wxConfigBase* config, ConfigurationDataElement<std::vector<wxString> >& configElement)
 {
+    noteSaved_(configElement);
     wxString val = generateStringFromArray_(configElement.getWithoutProcessing());
     config->Write(configElement.getElementName(), val);
 }
@@ -170,6 +243,7 @@ void WxWidgetsConfigStore::load_<std::map<wxString, int> >(wxConfigBase* config,
 template<>
 void WxWidgetsConfigStore::save_<std::map<wxString, int> >(wxConfigBase* config, ConfigurationDataElement<std::map<wxString, int> >& configElement)
 {
+    noteSaved_(configElement);
     wxString path = configElement.getElementName();
     wxString groupName = path.AfterLast('/');
     wxString parentPath = path.BeforeLast('/');

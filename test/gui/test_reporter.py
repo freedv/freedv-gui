@@ -1235,6 +1235,55 @@ def test_turn_off():
             quit_and_check_log(app)
 
 
+def change_settings(app, tab, **values):
+    """Changes settings in the Settings window, and waits for FreeDV to have
+    applied them."""
+    app.menu("Settings/Edit Settings...")
+    app.wait_for_window("settings")
+    app.set_value("settings.notebook", tab)
+    for name, value in values.items():
+        app.set_value("settings." + name, value)
+    app.click("settings.sdbSizer5OK")
+    app.wait_for_window_closed("settings")
+    app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="the settings to be applied")
+
+
+def test_settings_while_running():
+    """Reporting settings changed while FreeDV is running take effect without
+    stopping it: it reconnects to the server with them."""
+    new_callsign = "AB2YYY"
+    with audio_devices(), ReporterServer() as server:
+        watcher = server.viewer()
+        settings = reporter_settings(server.hostname)
+        settings.update(audio_settings())
+        with freedvtest.start(settings=settings) as app:
+            app.wait_for_window("main")
+            start_modem_only(app)
+            app.wait_until(lambda: CALLSIGN_OF_FREEDV in watcher.callsigns(), timeout=15,
+                           description="FreeDV to be listed on the server")
+
+            # A new callsign: listed as that instead.
+            change_settings(app, "Reporting", txt_callsign=new_callsign)
+            check(app.state()["running"], "Changing the callsign stopped FreeDV")
+            app.wait_until(lambda: new_callsign in watcher.callsigns() and
+                           CALLSIGN_OF_FREEDV not in watcher.callsigns(),
+                           timeout=15, description="FreeDV to be listed under its new callsign")
+
+            # Off FreeDV Reporter...
+            change_settings(app, "Reporting", ckboxFreeDVReporterEnable=False)
+            app.wait_until(lambda: new_callsign not in watcher.callsigns(), timeout=15,
+                           description="FreeDV to leave the server's list")
+
+            # ...and back on.
+            change_settings(app, "Reporting", ckboxFreeDVReporterEnable=True)
+            app.wait_until(lambda: new_callsign in watcher.callsigns(), timeout=15,
+                           description="FreeDV to be listed on the server again")
+            check(app.state()["running"], "Changing reporting settings stopped FreeDV")
+
+            stop_modem(app)
+            quit_and_check_log(app)
+
+
 def test_off_at_start():
     """Left off FreeDV Reporter the last time, FreeDV starts out that way."""
     with audio_devices(), ReporterServer() as server:
@@ -1311,8 +1360,9 @@ def test_qsy_with_radio():
 
 
 def test_new_callsign():
-    """Changing who FreeDV reports as, which can only be done while it's
-    stopped: it's listed under the new callsign from then on."""
+    """Changing who FreeDV reports as while it's stopped: it's listed under
+    the new callsign from then on. (For changing it while running, see
+    test_settings_while_running().)"""
     with audio_devices(), ReporterServer() as server:
         watcher = server.viewer()
         settings = reporter_settings(server.hostname)
@@ -1333,11 +1383,16 @@ def test_new_callsign():
                 app.wait_for_window_closed("settings")
                 check_equal(app.message_boxes(), [], "Messages displayed")
 
+            # Settings saved without changing any of these doesn't reconnect.
             open_settings()
             for control in ["txt_callsign", "txt_grid_square", "freedvReporterHostname"]:
-                check_equal(app.get("settings." + control)["enabled"], False, control + " enabled while running")
+                check_equal(app.get("settings." + control)["enabled"], True, control + " enabled while running")
+            connections = len(watcher.events("new_connection", CALLSIGN_OF_FREEDV))
             close_settings()
+            time.sleep(3)
             check_equal(watcher.callsigns(), [CALLSIGN_OF_FREEDV], "Listed on the server after closing Settings")
+            check_equal(len(watcher.events("new_connection", CALLSIGN_OF_FREEDV)), connections,
+                        "Times FreeDV connected again after closing Settings")
 
             stop_modem(app)
             app.wait_until(lambda: watcher.callsigns() == [], timeout=20,
@@ -2546,6 +2601,7 @@ SCENARIOS = {
     "row_actions": test_row_actions,
     "turn_off": test_turn_off,
     "off_at_start": test_off_at_start,
+    "settings_while_running": test_settings_while_running,
     "qsy_with_radio": test_qsy_with_radio,
     "new_callsign": test_new_callsign,
     "sort_every_column": test_sort_every_column,

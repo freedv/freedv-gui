@@ -654,6 +654,58 @@ def test_ptt_test():
             check_equal(app.quit(), 0, "FreeDV's exit code")
 
 
+def test_settings_while_running():
+    """The radio's settings changed while FreeDV is running take effect
+    without stopping it: FreeDV lets go of the radio it had and connects with
+    the new settings, putting that radio where FreeDV is."""
+    with Rigctld() as first, Rigctld() as second, audio_devices():
+        first.set_frequency(14236000)
+        second.set_frequency(7177000)
+        with freedvtest.start(settings=rig_settings(first.address)) as app:
+            app.wait_for_window("main")
+            start_modem(app)
+            wait_for_frequency(app, "14.2360", "Frequency displayed once connected")
+
+            app.menu("Settings/Edit Settings...")
+            app.wait_for_window("settings")
+            app.set_value("settings.notebook", "Radio")
+            app.set_value("settings.cbSerialPort", second.address)
+            app.click("settings.sdbSizer5OK")
+            app.wait_for_window_closed("settings")
+            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="the settings to be applied")
+            check(app.state()["running"], "Changing the radio's settings stopped FreeDV")
+
+            # The new radio is put where FreeDV was, and followed from then on.
+            # FreeDV sets its frequency and then its mode, and sends the
+            # frequency again after a mode change (as some radios move a
+            # little on changing it), so its dial isn't turned until that's
+            # all done: a turn in between would be undone.
+            wait_for(lambda: (second.frequency(), second.mode()) == (14236000, "PKTUSB"),
+                     lambda: "The new radio is on %d Hz %s, not 14236000 Hz PKTUSB" %
+                             (second.frequency(), second.mode()))
+            time.sleep(1)
+            check_equal(displayed_frequency(app), "14.2360", "Frequency displayed once reconnected")
+            second.set_frequency(7177000)
+            wait_for_frequency(app, "7.1770", "Frequency displayed after turning the new radio's dial")
+
+            # The old one isn't.
+            first.set_frequency(3625000)
+            time.sleep(3)
+            check_equal(displayed_frequency(app), "7.1770", "Frequency displayed after turning the old radio's dial")
+
+            # Transmitting keys the new radio and not the old.
+            app.click("main.btnPTT")
+            wait_for_transmit(app)
+            wait_for(second.transmitting, "The new radio wasn't keyed")
+            check_equal(first.transmitting(), False, "The old radio keyed")
+            app.click("main.btnPTT")
+            wait_for_transmit(app, False)
+            wait_for(lambda: not second.transmitting(), "The new radio was left keyed")
+
+            stop_modem(app)
+            quit_and_check_log(app)
+
+
 SCENARIOS = {
     "control": test_control,
     "frequency_only": test_frequency_only,
@@ -667,6 +719,7 @@ SCENARIOS = {
     "missing_port": test_missing_port,
     "receive_after_transmit": test_receive_after_transmit,
     "lost": test_lost,
+    "settings_while_running": test_settings_while_running,
 }
 
 

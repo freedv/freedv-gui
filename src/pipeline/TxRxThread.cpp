@@ -98,7 +98,6 @@ extern GenericFIFO<short> g_plotDemodInFifo;
 extern GenericFIFO<short> g_plotSpeechOutFifo;
 extern int g_txLevel;
 extern std::atomic<float> g_txLevelScale;
-extern std::atomic<int> g_dump_timing;
 extern std::atomic<int> g_resyncs;
 extern std::atomic<bool> g_recFileFromRadio;
 extern std::atomic<unsigned int> g_recFromRadioSamples;

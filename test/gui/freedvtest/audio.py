@@ -372,9 +372,10 @@ class VirtualAudioDevices:
     @staticmethod
     def input_label(name):
         """What FreeDV lists the input_name() of a device as."""
-        if WINDOWS:
+        if WINDOWS or MACOS:
+            # (Inside a Loopback block, the device listened to instead.)
             return VirtualAudioDevices.input_name(name)
-        return name if MACOS else "Monitor of " + name
+        return "Monitor of " + name
 
     def __enter__(self):
         if WINDOWS:

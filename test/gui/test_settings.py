@@ -1308,8 +1308,8 @@ def test_modem_and_debugging():
         set_value(app, "statsResetTime", "25")
 
         go_to_tab(app, "Debugging")
-        check_values(app, {"txtCtrlFifoSize": "640", "ckboxVerbose": False, "ckboxFreeDVAPIVerbose": False,
-                           "experimentalFeatures": False, "ckboxTone": False})
+        check_values(app, {"txtCtrlFifoSize": "640", "ckboxVerbose": False, "experimentalFeatures": False,
+                           "ckboxTone": False})
 
         # The interfering tone's settings only apply when there is one.
         check_enabled(app, ["txtToneFreqHz", "txtToneAmplitude"], False)
@@ -1320,16 +1320,14 @@ def test_modem_and_debugging():
 
         set_value(app, "txtCtrlFifoSize", "480")
         set_value(app, "ckboxVerbose", True)
-        set_value(app, "ckboxFreeDVAPIVerbose", True)
         set_value(app, "experimentalFeatures", True)
-        for checkbox in ["ckboxTxRxThreadPriority", "ckboxTxRxDumpTiming", "ckboxTxRxDumpFifoState"]:
-            app.click(name(checkbox))
+        app.click(name("ckboxTxRxDumpFifoState"))
         app.click(name("BtnFifoReset"))
 
         press_ok(app)
         check_saved(app, {
             "/Rig/HalfDuplex": 0, "/Debug/showDecodeStats": 1, "/Stats/ResetTime": 25, "/Audio/fifoSize_ms": 480,
-            "/Debug/verbose": 1, "/Debug/APIverbose": 1, "/ExperimentalFeatures": 1,
+            "/Debug/verbose": 1, "/ExperimentalFeatures": 1,
         })
         check_equal(app.get("main.textBits")["shown"], True, "Decode stats shown in the main window")
 
@@ -1337,9 +1335,8 @@ def test_modem_and_debugging():
         open_settings(app, "Modem")
         check_values(app, {"ckHalfDuplex": False, "showDecodeStats": True, "statsResetTime": "25"})
         go_to_tab(app, "Debugging")
-        check_values(app, {"txtCtrlFifoSize": "480", "ckboxVerbose": True, "ckboxFreeDVAPIVerbose": True,
-                           "experimentalFeatures": True, "ckboxTone": True, "txtToneFreqHz": "1500",
-                           "txtToneAmplitude": "500"})
+        check_values(app, {"txtCtrlFifoSize": "480", "ckboxVerbose": True, "experimentalFeatures": True,
+                           "ckboxTone": True, "txtToneFreqHz": "1500", "txtToneAmplitude": "500"})
         set_value(app, "ckboxTone", False)
         set_value(app, "ckboxVerbose", False)
         go_to_tab(app, "Modem")
@@ -1599,23 +1596,23 @@ def test_auto_start():
 
 
 def test_while_running():
-    """Some settings can't be changed while FreeDV is running, and some can
-    but only take effect the next time it's started, which the pages they're
-    on say."""
+    """Everything in Settings can be changed while FreeDV is running. The
+    pages where applying a change restarts the audio or reconnects to the
+    radio say so."""
     reporting = ["ckboxReportingEnable", "txt_callsign", "txt_grid_square", "ckboxManualFrequencyReporting",
                  "ckboxPskReporterEnable", "ckboxFreeDVReporterEnable", "useMetricDistances",
                  "freedvReporterHostname", "ckboxFreeDVReporterUseTls", "ckboxFreeDVReporterForceReceiveOnly",
                  "useCardinalDirections", "ckboxUDPReportingEnable", "ckboxUDPBroadcastEnable",
                  "ckbox_use_utc_time"]
     rig_control = ["ckboxEnableFreqModeChanges", "ckboxEnableFreqChangesOnly", "ckboxNoFreqModeChanges",
-                   "ckboxUseAnalogModes", "ckboxSaveRestoreFrequency"]
-    # Read each time they're used, so they can always be changed.
-    ptt = ["ckboxEnableSpacebarForPTT", "txtTxRxDelayMilliseconds"]
-    next_start_notes = [("RX Audio", "nextStartNoteRxAudio"), ("TX Audio", "nextStartNoteTxAudio"),
-                        ("Radio", "nextStartNoteRadio"), ("Debugging", "nextStartNoteDebug")]
+                   "ckboxUseAnalogModes", "ckboxSaveRestoreFrequency", "ckboxEnableSpacebarForPTT",
+                   "txtTxRxDelayMilliseconds"]
+    running_notes = [("RX Audio", "runningNoteRxAudio"), ("TX Audio", "runningNoteTxAudio"),
+                     ("Radio", "runningNoteRadio"), ("Rig Control", "runningNoteRigControl"),
+                     ("Debugging", "runningNoteDebug")]
 
     def check_notes(shown):
-        for tab, note in next_start_notes:
+        for tab, note in running_notes:
             go_to_tab(app, tab)
             check_equal(app.get(name(note))["shown"], shown, "Note on the %s page shown" % tab)
             # Each note fits on one line.
@@ -1635,27 +1632,29 @@ def test_while_running():
             check_enabled(app, reporting, True)
             go_to_tab(app, "Rig Control")
             check_enabled(app, rig_control, True)
-            check_enabled(app, ptt, True)
             check_notes(False)
             press_cancel(app)
 
             start_modem(app)
             open_settings(app, "Reporting")
-            check_enabled(app, reporting, False)
+            check_enabled(app, reporting, True)
             go_to_tab(app, "Rig Control")
-            check_enabled(app, rig_control, False)
-            check_enabled(app, ptt, True)
+            check_enabled(app, rig_control, True)
             check_notes(True)
 
-            # Everything else still can be, and is saved.
+            # What's changed is saved, and FreeDV carries on running.
             go_to_tab(app, "Rig Control")
             set_value(app, "txtTxRxDelayMilliseconds", "250")
             go_to_tab(app, "Modem")
             set_value(app, "statsResetTime", "30")
+            go_to_tab(app, "Reporting")
+            set_value(app, "txt_callsign", "AB2YYY")
             press_ok(app)
+            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="the settings to be applied")
             check_saved(app, {"/Stats/ResetTime": 30, "/Audio/TxRxDelayMilliseconds": 250,
-                              "/Reporting/Enable": 1, "/Reporting/Callsign": "AA1ZZZ"})
+                              "/Reporting/Enable": 1, "/Reporting/Callsign": "AB2YYY"})
             check(app.state()["running"], "Changing settings stopped FreeDV")
+            check_equal(app.message_boxes(), [], "Errors displayed")
 
             stop_modem(app)
             open_settings(app, "Reporting")

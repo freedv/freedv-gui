@@ -88,7 +88,6 @@ std::atomic<float>  g_monitorVoiceKeyerAudioVol(0.0f);
 std::atomic<float>  g_tone_phase(0.0f);
 
 int g_txLevel = 0;
-std::atomic<int> g_dump_timing(0);
 std::atomic<int> g_dump_fifo_state(0);
 std::atomic<int> g_resyncs(0);
 

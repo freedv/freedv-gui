@@ -63,8 +63,8 @@ extern FreeDVInterface freedvInterface;
 constexpr int WXK_F13_LINUX = 436;
 constexpr int WXK_F24_LINUX = WXK_F13_LINUX + 11;
 
-// Space either side of the notes about settings that wait for the next start.
-constexpr int NEXT_START_NOTE_BORDER = 5;
+// Space either side of the notes about what applying settings does while running.
+constexpr int RUNNING_NOTE_BORDER = 5;
 
 // Returns a human-readable name for a PTT key code.
 // A whole number typed into a settings field (in base), or false if what's
@@ -140,11 +140,8 @@ extern std::atomic<int>    g_outfifo2_empty;
 extern std::atomic<int>    g_AEstatus1[4];
 extern std::atomic<int>    g_AEstatus2[4];
 extern wxDatagramSocket    *g_sock;
-extern std::atomic<int>    g_dump_timing;
 extern std::atomic<bool>   g_half_duplex;
-extern paCallBackData*     g_rxUserdata;
 extern std::atomic<int>    g_dump_fifo_state;
-extern int                 g_freedv_verbose;
 extern wxConfigBase *pConfig;
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=
@@ -202,8 +199,8 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     sizerVox->Add(m_ckLeftChannelVoxTone, 0, wxALIGN_LEFT|static_cast<int>(wxALIGN_CENTER_VERTICAL), 5);
     sizerRadio->Add(sizerVox, 0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), 5);
     sizerRadio->Add(
-        addNextStartNote_(m_radioTab, _("FreeDV is running: CAT and PTT port changes apply the next time it starts."), "nextStartNoteRadio"),
-        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxLEFT) | static_cast<int>(wxRIGHT), NEXT_START_NOTE_BORDER);
+        addRunningNote_(m_radioTab, _("FreeDV is running: CAT and PTT port changes reconnect to the radio when applied."), "runningNoteRadio"),
+        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxLEFT) | static_cast<int>(wxRIGHT), RUNNING_NOTE_BORDER);
 
     // Hamlib settings
     wxStaticBox* hamlibBox = new wxStaticBox(m_radioTab, wxID_ANY, _("Hamlib Settings"));
@@ -598,6 +595,9 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     sbSizer_hamlib->Add(m_ckboxFrequencyEntryAsKHz, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);
 
     sizerRigControl->Add(sbSizer_hamlib,0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND), 5);
+    sizerRigControl->Add(
+        addRunningNote_(m_rigControlTab, _("FreeDV is running: frequency/mode control changes reconnect to the radio when applied."), "runningNoteRigControl"),
+        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), RUNNING_NOTE_BORDER);
     
     wxStaticBoxSizer* sbSizer_freqList;
     wxStaticBox *sb_freqList = new wxStaticBox(m_rigControlTab, wxID_ANY, _("Predefined Frequencies"));
@@ -748,8 +748,8 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     {
         wxBoxSizer* sizerRxAudio = new wxBoxSizer(wxVERTICAL);
         sizerRxAudio->Add(
-            addNextStartNote_(m_rxAudioTab, _("FreeDV is running: changes on this page apply the next time it starts."), "nextStartNoteRxAudio"),
-            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), NEXT_START_NOTE_BORDER);
+            addRunningNote_(m_rxAudioTab, _("FreeDV is running: changes on this page briefly restart the audio when applied."), "runningNoteRxAudio"),
+            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), RUNNING_NOTE_BORDER);
 
         // SC1 In
         sizerRxAudio->Add(new wxStaticText(m_rxAudioTab, wxID_ANY, _("Input To Computer From Radio:")), 0, wxLEFT | wxTOP, 5);
@@ -810,8 +810,8 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     {
         wxBoxSizer* sizerTxAudio = new wxBoxSizer(wxVERTICAL);
         sizerTxAudio->Add(
-            addNextStartNote_(m_txAudioTab, _("FreeDV is running: changes on this page apply the next time it starts."), "nextStartNoteTxAudio"),
-            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), NEXT_START_NOTE_BORDER);
+            addRunningNote_(m_txAudioTab, _("FreeDV is running: changes on this page briefly restart the audio when applied."), "runningNoteTxAudio"),
+            0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), RUNNING_NOTE_BORDER);
 
         m_ckTxReceiveOnly = new wxCheckBox(m_txAudioTab, wxID_ANY, _("Receive only (I will not be transmitting)"));
         sizerTxAudio->Add(m_ckTxReceiveOnly, 0, wxALL, 5);
@@ -1050,30 +1050,21 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
 
     wxBoxSizer* sbDebugOptionsSizer = new wxBoxSizer(wxHORIZONTAL);
     wxBoxSizer* sbDebugOptionsSizer2 = new wxBoxSizer(wxHORIZONTAL);
-    wxBoxSizer* sbDebugOptionsSizer3 = new wxBoxSizer(wxHORIZONTAL);
 
     m_ckboxVerbose = new wxCheckBox(sb_fifo2, wxID_ANY, _("Verbose"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
     sbDebugOptionsSizer->Add(m_ckboxVerbose, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);   
-    m_ckboxTxRxThreadPriority = new wxCheckBox(sb_fifo2, wxID_ANY, wxT("txRxThreadPriority"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
-    sbDebugOptionsSizer->Add(m_ckboxTxRxThreadPriority, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);
-    m_ckboxTxRxDumpTiming = new wxCheckBox(sb_fifo2, wxID_ANY, wxT("txRxDumpTiming"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
-    sbDebugOptionsSizer->Add(m_ckboxTxRxDumpTiming, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);
-    
     m_ckboxTxRxDumpFifoState = new wxCheckBox(sb_fifo2, wxID_ANY, wxT("txRxDumpFifoState"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
-    sbDebugOptionsSizer2->Add(m_ckboxTxRxDumpFifoState, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);   
-    m_ckboxFreeDVAPIVerbose = new wxCheckBox(sb_fifo2, wxID_ANY, wxT("APiVerbose"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
-    sbDebugOptionsSizer2->Add(m_ckboxFreeDVAPIVerbose, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);   
+    sbDebugOptionsSizer->Add(m_ckboxTxRxDumpFifoState, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);   
     
     m_experimentalFeatures = new wxCheckBox(sb_fifo2, wxID_ANY, _("Enable Experimental Features"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
-    sbDebugOptionsSizer3->Add(m_experimentalFeatures, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);   
+    sbDebugOptionsSizer2->Add(m_experimentalFeatures, 0, static_cast<int>(wxALL) | wxALIGN_LEFT, 5);   
 
     sbSizer_fifo2->Add(sbDebugOptionsSizer, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND) | 0);
     sbSizer_fifo2->Add(sbDebugOptionsSizer2, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND) | 0);
-    sbSizer_fifo2->Add(sbDebugOptionsSizer3, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND) | 0);
 
     sizerDebug->Add(
-        addNextStartNote_(m_debugTab, _("FreeDV is running: FIFO and thread priority changes apply the next time it starts."), "nextStartNoteDebug"),
-        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), NEXT_START_NOTE_BORDER);
+        addRunningNote_(m_debugTab, _("FreeDV is running: FIFO size and Verbose changes briefly restart the audio when applied."), "runningNoteDebug"),
+        0, static_cast<int>(wxEXPAND) | static_cast<int>(wxALL), RUNNING_NOTE_BORDER);
     sizerDebug->Add(sbSizer_fifo,0, static_cast<int>(wxALL)|static_cast<int>(wxEXPAND), 3);
     sizerDebug->Add(sbSizer_fifo2,0, static_cast<int>(wxALL)|static_cast<int>(wxEXPAND), 3);
 
@@ -1164,10 +1155,7 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     m_txtCtrlFifoSize->MoveBeforeInTabOrder(m_BtnFifoReset);
     m_BtnFifoReset->MoveBeforeInTabOrder(m_ckboxVerbose);
 
-    m_ckboxVerbose->MoveBeforeInTabOrder(m_ckboxTxRxThreadPriority);
-    m_ckboxTxRxThreadPriority->MoveBeforeInTabOrder(m_ckboxTxRxDumpTiming);
-    m_ckboxTxRxDumpTiming->MoveBeforeInTabOrder(m_ckboxTxRxDumpFifoState);
-    m_ckboxTxRxDumpFifoState->MoveBeforeInTabOrder(m_ckboxFreeDVAPIVerbose);
+    m_ckboxVerbose->MoveBeforeInTabOrder(m_ckboxTxRxDumpFifoState);
 
 #ifdef __WXMSW__
     m_ckboxDebugConsole->MoveBeforeInTabOrder(m_txtCtrlFifoSize);
@@ -1285,11 +1273,8 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     m_buttonChooseCsvLogFilePath->SetName("settings.buttonChooseCsvLogFilePath");
     m_BtnFifoReset->SetName("settings.BtnFifoReset");
     m_txtCtrlFifoSize->SetName("settings.txtCtrlFifoSize");
-    m_ckboxTxRxThreadPriority->SetName("settings.ckboxTxRxThreadPriority");
-    m_ckboxTxRxDumpTiming->SetName("settings.ckboxTxRxDumpTiming");
     m_ckboxTxRxDumpFifoState->SetName("settings.ckboxTxRxDumpFifoState");
     m_ckboxVerbose->SetName("settings.ckboxVerbose");
-    m_ckboxFreeDVAPIVerbose->SetName("settings.ckboxFreeDVAPIVerbose");
     m_experimentalFeatures->SetName("settings.experimentalFeatures");
     m_showDecodeStats->SetName("settings.showDecodeStats");
     m_sdbSizer5OK->SetName("settings.sdbSizer5OK");
@@ -1461,15 +1446,22 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
 {
     if(inout == EXCHANGE_DATA_IN)
     {
+        // What's shown is a copy of the configuration, which nothing else
+        // changes: what the user changes in it is merged into the one FreeDV
+        // runs with on OK or Apply (see below), leaving anything else
+        // changed meanwhile (e.g. the frequency, from the radio) as it is.
+        originalConfig_.copyFrom(wxGetApp().appConfiguration);
+        editedConfig_.copyFrom(wxGetApp().appConfiguration);
+
         // Radio tab
         populatePortList();
-        m_ckLeftChannelVoxTone->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.leftChannelVoxTone);
+        m_ckLeftChannelVoxTone->SetValue(editedConfig_.rigControlConfiguration.leftChannelVoxTone);
 
-        m_ckUseHamlibPTT->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseForPTT);
+        m_ckUseHamlibPTT->SetValue(editedConfig_.rigControlConfiguration.hamlibUseForPTT);
         m_cbRigName->SetSelection(wxGetApp().m_intHamlibRig);
         resetIcomCIVStatus();
-        m_cbSerialPort->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialPort);
-        m_cbPttSerialPort->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.hamlibPttSerialPort);
+        m_cbSerialPort->SetValue(editedConfig_.rigControlConfiguration.hamlibSerialPort);
+        m_cbPttSerialPort->SetValue(editedConfig_.rigControlConfiguration.hamlibPttSerialPort);
 
         {
             auto selectedRig = m_cbRigName->GetCurrentSelection();
@@ -1484,42 +1476,42 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
                 populateBaudRateList();
             }
         }
-        if (wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialRate == 0) {
+        if (editedConfig_.rigControlConfiguration.hamlibSerialRate == 0) {
             m_cbSerialRate->SetSelection(0);
         } else {
-            m_cbSerialRate->SetValue(wxString::Format(wxT("%i"), wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialRate.get()));
+            m_cbSerialRate->SetValue(wxString::Format(wxT("%i"), editedConfig_.rigControlConfiguration.hamlibSerialRate.get()));
         }
 
-        m_tcIcomCIVHex->SetValue(wxString::Format(wxT("%02X"), wxGetApp().appConfiguration.rigControlConfiguration.hamlibIcomCIVAddress.get()));
-        m_cbPttMethod->SetSelection((int)wxGetApp().appConfiguration.rigControlConfiguration.hamlibPTTType);
-        m_ckForceRTSOn->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.hamlibForceRTSOn);
-        m_ckForceDTROn->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.hamlibForceDTROn);
+        m_tcIcomCIVHex->SetValue(wxString::Format(wxT("%02X"), editedConfig_.rigControlConfiguration.hamlibIcomCIVAddress.get()));
+        m_cbPttMethod->SetSelection((int)editedConfig_.rigControlConfiguration.hamlibPTTType);
+        m_ckForceRTSOn->SetValue(editedConfig_.rigControlConfiguration.hamlibForceRTSOn);
+        m_ckForceDTROn->SetValue(editedConfig_.rigControlConfiguration.hamlibForceDTROn);
 
-        m_ckUseSerialPTT->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.useSerialPTT);
-        m_cbCtlDevicePath->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.serialPTTPort);
-        m_rbUseRTS->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.serialPTTUseRTS);
-        m_ckRTSPos->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.serialPTTPolarityRTS);
-        m_rbUseDTR->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.serialPTTUseDTR);
-        m_ckDTRPos->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.serialPTTPolarityDTR);
+        m_ckUseSerialPTT->SetValue(editedConfig_.rigControlConfiguration.useSerialPTT);
+        m_cbCtlDevicePath->SetValue(editedConfig_.rigControlConfiguration.serialPTTPort);
+        m_rbUseRTS->SetValue(editedConfig_.rigControlConfiguration.serialPTTUseRTS);
+        m_ckRTSPos->SetValue(editedConfig_.rigControlConfiguration.serialPTTPolarityRTS);
+        m_rbUseDTR->SetValue(editedConfig_.rigControlConfiguration.serialPTTUseDTR);
+        m_ckDTRPos->SetValue(editedConfig_.rigControlConfiguration.serialPTTPolarityDTR);
 
-        m_ckUsePTTInput->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.useSerialPTTInput);
-        m_cbCtlDevicePathPttIn->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.serialPTTInputPort);
-        m_ckCTSPos->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.serialPTTInputPolarityCTS);
+        m_ckUsePTTInput->SetValue(editedConfig_.rigControlConfiguration.useSerialPTTInput);
+        m_cbCtlDevicePathPttIn->SetValue(editedConfig_.rigControlConfiguration.serialPTTInputPort);
+        m_ckCTSPos->SetValue(editedConfig_.rigControlConfiguration.serialPTTInputPolarityCTS);
 
 #if defined(WIN32)
-        m_ckUseOmniRig->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.useOmniRig);
-        m_cbOmniRigRigId->SetSelection(wxGetApp().appConfiguration.rigControlConfiguration.omniRigRigId);
+        m_ckUseOmniRig->SetValue(editedConfig_.rigControlConfiguration.useOmniRig);
+        m_cbOmniRigRigId->SetSelection(editedConfig_.rigControlConfiguration.omniRigRigId);
 #endif
 
         updateRadioControlState();
 
         // Populate FreeDV Reporter color settings
-        wxColour rxBackgroundColor(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRxRowBackgroundColor);
-        wxColour rxForegroundColor(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRxRowForegroundColor);
-        wxColour txBackgroundColor(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterTxRowBackgroundColor);
-        wxColour txForegroundColor(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterTxRowForegroundColor);
-        wxColour msgBackgroundColor(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterMsgRowBackgroundColor);
-        wxColour msgForegroundColor(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterMsgRowForegroundColor);
+        wxColour rxBackgroundColor(editedConfig_.reportingConfiguration.freedvReporterRxRowBackgroundColor);
+        wxColour rxForegroundColor(editedConfig_.reportingConfiguration.freedvReporterRxRowForegroundColor);
+        wxColour txBackgroundColor(editedConfig_.reportingConfiguration.freedvReporterTxRowBackgroundColor);
+        wxColour txForegroundColor(editedConfig_.reportingConfiguration.freedvReporterTxRowForegroundColor);
+        wxColour msgBackgroundColor(editedConfig_.reportingConfiguration.freedvReporterMsgRowBackgroundColor);
+        wxColour msgForegroundColor(editedConfig_.reportingConfiguration.freedvReporterMsgRowForegroundColor);
 
         m_freedvReporterRxBackgroundColor->SetColour(rxBackgroundColor);
         m_freedvReporterRxForegroundColor->SetColour(rxForegroundColor);
@@ -1529,44 +1521,44 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         m_freedvReporterMsgForegroundColor->SetColour(msgForegroundColor);
 
         // Populate reporting frequency list.
-        for (auto& item : wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyList.get())
+        for (auto& item : editedConfig_.reportingConfiguration.reportingFrequencyList.get())
         {
             m_freqList->Append(item);
         }
         
-        m_ckboxEnableSpacebarForPTT->SetValue(wxGetApp().appConfiguration.enableSpaceBarForPTT);
-        m_ckboxPTTMomentaryMode->SetValue(wxGetApp().appConfiguration.pttMomentaryMode);
-        m_selectedPTTKeyCode = wxGetApp().appConfiguration.pttKeyCode;
+        m_ckboxEnableSpacebarForPTT->SetValue(editedConfig_.enableSpaceBarForPTT);
+        m_ckboxPTTMomentaryMode->SetValue(editedConfig_.pttMomentaryMode);
+        m_selectedPTTKeyCode = editedConfig_.pttKeyCode;
         m_capturingPTTKey = false;
         m_txtPTTKeyName->SetValue(getPTTKeyName(m_selectedPTTKeyCode));
         m_txtPTTKeyName->SetEditable(false);
-        bool pttEnabled = wxGetApp().appConfiguration.enableSpaceBarForPTT;
+        bool pttEnabled = editedConfig_.enableSpaceBarForPTT;
         m_txtPTTKeyName->Enable(pttEnabled);
         m_btnSetPTTKey->Enable(pttEnabled);
-        m_txtTxRxDelayMilliseconds->SetValue(wxString::Format("%d", wxGetApp().appConfiguration.txRxDelayMilliseconds.get()));
+        m_txtTxRxDelayMilliseconds->SetValue(wxString::Format("%d", editedConfig_.txRxDelayMilliseconds.get()));
 
-        m_ckboxTOTTimerEnabled->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.totTimerEnabled);
-        m_txtTOTTimerSecs->SetValue(wxString::Format("%d", wxGetApp().appConfiguration.rigControlConfiguration.totTimerSecs.get()));
-        m_txtTOTTimerSecs->Enable(wxGetApp().appConfiguration.rigControlConfiguration.totTimerEnabled);
+        m_ckboxTOTTimerEnabled->SetValue(editedConfig_.rigControlConfiguration.totTimerEnabled);
+        m_txtTOTTimerSecs->SetValue(wxString::Format("%d", editedConfig_.rigControlConfiguration.totTimerSecs.get()));
+        m_txtTOTTimerSecs->Enable(editedConfig_.rigControlConfiguration.totTimerEnabled);
 
-        m_ckboxUseAnalogModes->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes);
-        m_ckboxSaveRestoreFrequency->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.hamlibSaveRestoreFrequency);
-        m_ckboxEnableFreqModeChanges->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges);
-        m_ckboxEnableFreqChangesOnly->SetValue(wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly);
-        m_ckboxNoFreqModeChanges->SetValue(!wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges && !wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly);
-        m_ckboxFrequencyEntryAsKHz->SetValue(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz);
+        m_ckboxUseAnalogModes->SetValue(editedConfig_.rigControlConfiguration.hamlibUseAnalogModes);
+        m_ckboxSaveRestoreFrequency->SetValue(editedConfig_.rigControlConfiguration.hamlibSaveRestoreFrequency);
+        m_ckboxEnableFreqModeChanges->SetValue(editedConfig_.rigControlConfiguration.hamlibEnableFreqModeChanges);
+        m_ckboxEnableFreqChangesOnly->SetValue(editedConfig_.rigControlConfiguration.hamlibEnableFreqChangesOnly);
+        m_ckboxNoFreqModeChanges->SetValue(!editedConfig_.rigControlConfiguration.hamlibEnableFreqModeChanges && !editedConfig_.rigControlConfiguration.hamlibEnableFreqChangesOnly);
+        m_ckboxFrequencyEntryAsKHz->SetValue(editedConfig_.reportingConfiguration.reportingFrequencyAsKhz);
         
         /* Plot settings */
-        m_cbxNumSpectrumAveraging->SetSelection(wxGetApp().appConfiguration.currentSpectrumAveraging);
+        m_cbxNumSpectrumAveraging->SetSelection(editedConfig_.currentSpectrumAveraging);
          
         /* Voice Keyer */
 
-        m_txtCtrlVoiceKeyerWaveFilePath->SetValue(wxGetApp().appConfiguration.voiceKeyerWaveFilePath);
-        m_txtCtrlVoiceKeyerRxPause->SetValue(wxString::Format(wxT("%i"), wxGetApp().appConfiguration.voiceKeyerRxPause.get()));
-        m_txtCtrlVoiceKeyerRepeats->SetValue(wxString::Format(wxT("%i"), wxGetApp().appConfiguration.voiceKeyerRepeats.get()));
+        m_txtCtrlVoiceKeyerWaveFilePath->SetValue(editedConfig_.voiceKeyerWaveFilePath);
+        m_txtCtrlVoiceKeyerRxPause->SetValue(wxString::Format(wxT("%i"), editedConfig_.voiceKeyerRxPause.get()));
+        m_txtCtrlVoiceKeyerRepeats->SetValue(wxString::Format(wxT("%i"), editedConfig_.voiceKeyerRepeats.get()));
 
-        m_txtCtrlQuickRecordRawPath->SetValue(wxGetApp().appConfiguration.quickRecordRawPath);
-        m_txtCtrlQuickRecordDecodedPath->SetValue(wxGetApp().appConfiguration.quickRecordDecodedPath);
+        m_txtCtrlQuickRecordRawPath->SetValue(editedConfig_.quickRecordRawPath);
+        m_txtCtrlQuickRecordDecodedPath->SetValue(editedConfig_.quickRecordDecodedPath);
 
         // Audio device selection
         populateAudioDeviceList(m_lcSoundCard1InDevice,  IAudioEngine::AUDIO_ENGINE_IN);
@@ -1574,25 +1566,25 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         populateAudioDeviceList(m_lcSoundCard2InDevice,  IAudioEngine::AUDIO_ENGINE_IN);
         populateAudioDeviceList(m_lcSoundCard2OutDevice, IAudioEngine::AUDIO_ENGINE_OUT);
 
-        selectListDevice(m_lcSoundCard1InDevice, m_tcSoundCard1InDevice, wxGetApp().appConfiguration.audioConfiguration.soundCard1In.deviceName);
-        selectListDevice(m_lcSoundCard2InDevice, m_tcSoundCard2InDevice, wxGetApp().appConfiguration.audioConfiguration.soundCard2In.deviceName);
+        selectListDevice(m_lcSoundCard1InDevice, m_tcSoundCard1InDevice, editedConfig_.audioConfiguration.soundCard1In.deviceName);
+        selectListDevice(m_lcSoundCard2InDevice, m_tcSoundCard2InDevice, editedConfig_.audioConfiguration.soundCard2In.deviceName);
 
         {
-            wxString sc2in  = wxGetApp().appConfiguration.audioConfiguration.soundCard2In.deviceName;
-            wxString sc2out = wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.deviceName;
+            wxString sc2in  = editedConfig_.audioConfiguration.soundCard2In.deviceName;
+            wxString sc2out = editedConfig_.audioConfiguration.soundCard2Out.deviceName;
             bool rxOnly = (sc2in.IsEmpty() || sc2in == "none") &&
                           (sc2out.IsEmpty() || sc2out == "none");
             m_ckTxReceiveOnly->SetValue(rxOnly);
             if (rxOnly)
             {
                 // 1-card mode: SC1Out is speakers
-                selectListDevice(m_lcSoundCard1OutDevice, m_tcSoundCard1OutDevice, wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.deviceName);
+                selectListDevice(m_lcSoundCard1OutDevice, m_tcSoundCard1OutDevice, editedConfig_.audioConfiguration.soundCard1Out.deviceName);
             }
             else
             {
                 // 2-card mode: SC2Out is speakers, SC1Out is radio TX output
-                selectListDevice(m_lcSoundCard1OutDevice, m_tcSoundCard1OutDevice, wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.deviceName);
-                selectListDevice(m_lcSoundCard2OutDevice, m_tcSoundCard2OutDevice, wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.deviceName);
+                selectListDevice(m_lcSoundCard1OutDevice, m_tcSoundCard1OutDevice, editedConfig_.audioConfiguration.soundCard2Out.deviceName);
+                selectListDevice(m_lcSoundCard2OutDevice, m_tcSoundCard2OutDevice, editedConfig_.audioConfiguration.soundCard1Out.deviceName);
             }
             m_lcSoundCard2InDevice->Enable(!rxOnly);
             m_tcSoundCard2InDevice->Enable(!rxOnly);
@@ -1602,67 +1594,64 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
             m_btnSoundCard2OutTest->Enable(!rxOnly);
         }
 
-        m_ckHalfDuplex->SetValue(wxGetApp().appConfiguration.halfDuplexMode);
+        m_ckHalfDuplex->SetValue(editedConfig_.halfDuplexMode);
 
         m_ckboxTone->SetValue(wxGetApp().m_tone);
         m_txtToneFreqHz->SetValue(wxString::Format(wxT("%i"),wxGetApp().m_tone_freq_hz.load(std::memory_order_acquire)));
         m_txtToneAmplitude->SetValue(wxString::Format(wxT("%i"),wxGetApp().m_tone_amplitude.load(std::memory_order_acquire)));
 
-        m_txtCtrlFifoSize->SetValue(wxString::Format(wxT("%i"),wxGetApp().appConfiguration.fifoSizeMs.get()));
+        m_txtCtrlFifoSize->SetValue(wxString::Format(wxT("%i"),editedConfig_.fifoSizeMs.get()));
 
-        m_ckboxTxRxThreadPriority->SetValue(wxGetApp().m_txRxThreadHighPriority);
-        m_ckboxTxRxDumpTiming->SetValue(g_dump_timing.load(std::memory_order_relaxed));
         m_ckboxTxRxDumpFifoState->SetValue(g_dump_fifo_state.load(std::memory_order_relaxed));
-        m_ckboxVerbose->SetValue(wxGetApp().appConfiguration.debugVerbose);
-        m_ckboxFreeDVAPIVerbose->SetValue(g_freedv_verbose);
-        m_showDecodeStats->SetValue(wxGetApp().appConfiguration.showDecodeStats);
+        m_ckboxVerbose->SetValue(editedConfig_.debugVerbose);
+        m_showDecodeStats->SetValue(editedConfig_.showDecodeStats);
 
-        m_experimentalFeatures->SetValue(wxGetApp().appConfiguration.experimentalFeatures);
+        m_experimentalFeatures->SetValue(editedConfig_.experimentalFeatures);
 
-        m_ckboxAutoStartOnLaunch->SetValue(wxGetApp().appConfiguration.autoStartOnLaunch);
+        m_ckboxAutoStartOnLaunch->SetValue(editedConfig_.autoStartOnLaunch);
 
 #ifdef __WXMSW__
-        m_ckboxDebugConsole->SetValue(wxGetApp().appConfiguration.debugConsoleEnabled);
+        m_ckboxDebugConsole->SetValue(editedConfig_.debugConsoleEnabled);
 #endif
         
         // General reporting config
-        m_ckboxReportingEnable->SetValue(wxGetApp().appConfiguration.reportingConfiguration.reportingEnabled);
-        m_txt_callsign->SetValue(wxGetApp().appConfiguration.reportingConfiguration.reportingCallsign);
-        m_txt_grid_square->SetValue(wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare);
-        m_ckboxManualFrequencyReporting->SetValue(wxGetApp().appConfiguration.reportingConfiguration.manualFrequencyReporting);
+        m_ckboxReportingEnable->SetValue(editedConfig_.reportingConfiguration.reportingEnabled);
+        m_txt_callsign->SetValue(editedConfig_.reportingConfiguration.reportingCallsign);
+        m_txt_grid_square->SetValue(editedConfig_.reportingConfiguration.reportingGridSquare);
+        m_ckboxManualFrequencyReporting->SetValue(editedConfig_.reportingConfiguration.manualFrequencyReporting);
         
         // PSK Reporter options
-        m_ckboxPskReporterEnable->SetValue(wxGetApp().appConfiguration.reportingConfiguration.pskReporterEnabled);
+        m_ckboxPskReporterEnable->SetValue(editedConfig_.reportingConfiguration.pskReporterEnabled);
         
         // FreeDV Reporter options
-        m_ckboxFreeDVReporterEnable->SetValue(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterEnabled);
-        m_freedvReporterHostname->SetValue(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterHostname);
-        m_ckboxFreeDVReporterUseTls->SetValue(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterUseTls);
-        m_useMetricDistances->SetValue(wxGetApp().appConfiguration.reportingConfiguration.useMetricDistances);
-        m_useCardinalDirections->SetValue(wxGetApp().appConfiguration.reportingConfiguration.reportingDirectionAsCardinal);
-        m_ckboxFreeDVReporterForceReceiveOnly->SetValue(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterForceReceiveOnly);
+        m_ckboxFreeDVReporterEnable->SetValue(editedConfig_.reportingConfiguration.freedvReporterEnabled);
+        m_freedvReporterHostname->SetValue(editedConfig_.reportingConfiguration.freedvReporterHostname);
+        m_ckboxFreeDVReporterUseTls->SetValue(editedConfig_.reportingConfiguration.freedvReporterUseTls);
+        m_useMetricDistances->SetValue(editedConfig_.reportingConfiguration.useMetricDistances);
+        m_useCardinalDirections->SetValue(editedConfig_.reportingConfiguration.reportingDirectionAsCardinal);
+        m_ckboxFreeDVReporterForceReceiveOnly->SetValue(editedConfig_.reportingConfiguration.freedvReporterForceReceiveOnly);
         
         // UDP reporting options
-        m_ckboxUDPReportingEnable->SetValue(wxGetApp().appConfiguration.reportingConfiguration.udpReportingEnabled);
-        m_udpHostname->SetValue(wxGetApp().appConfiguration.reportingConfiguration.udpReportingHostname);
-        m_udpPort->SetValue(wxString::Format(wxT("%i"), wxGetApp().appConfiguration.reportingConfiguration.udpReportingPort.get()));
+        m_ckboxUDPReportingEnable->SetValue(editedConfig_.reportingConfiguration.udpReportingEnabled);
+        m_udpHostname->SetValue(editedConfig_.reportingConfiguration.udpReportingHostname);
+        m_udpPort->SetValue(wxString::Format(wxT("%i"), editedConfig_.reportingConfiguration.udpReportingPort.get()));
 
         // UDP broadcast options (UdpReporter)
-        m_ckboxUDPBroadcastEnable->SetValue(wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastEnabled);
-        m_udpBroadcastAddress->SetValue(wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastAddress);
-        m_udpBroadcastPort->SetValue(wxString::Format(wxT("%i"), wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastPort.get()));
+        m_ckboxUDPBroadcastEnable->SetValue(editedConfig_.reportingConfiguration.udpBroadcastEnabled);
+        m_udpBroadcastAddress->SetValue(editedConfig_.reportingConfiguration.udpBroadcastAddress);
+        m_udpBroadcastPort->SetValue(wxString::Format(wxT("%i"), editedConfig_.reportingConfiguration.udpBroadcastPort.get()));
 
         // CSV log file path
-        m_txtCtrlCsvLogFilePath->SetValue(wxGetApp().appConfiguration.reportingConfiguration.csvLogFilePath);
+        m_txtCtrlCsvLogFilePath->SetValue(editedConfig_.reportingConfiguration.csvLogFilePath);
 
         // Callsign list config
-        m_ckbox_use_utc_time->SetValue(wxGetApp().appConfiguration.reportingConfiguration.useUTCForReporting);
+        m_ckbox_use_utc_time->SetValue(editedConfig_.reportingConfiguration.useUTCForReporting);
         
         // Stats reset time
-        m_statsResetTime->SetValue(wxString::Format(wxT("%i"), wxGetApp().appConfiguration.statsResetTimeSecs.get()));
+        m_statsResetTime->SetValue(wxString::Format(wxT("%i"), editedConfig_.statsResetTimeSecs.get()));
         
         // Waterfall color
-        switch (wxGetApp().appConfiguration.waterfallColor)
+        switch (editedConfig_.waterfallColor)
         {
             case 1:
                 m_waterfallColorScheme1->SetValue(false);
@@ -1684,18 +1673,18 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         
         if (m_waterfallColorScheme1->GetValue())
         {
-            wxGetApp().appConfiguration.waterfallColor = 0;
+            editedConfig_.waterfallColor = 0;
         }
         else if (m_waterfallColorScheme2->GetValue())
         {
-            wxGetApp().appConfiguration.waterfallColor = 1;
+            editedConfig_.waterfallColor = 1;
         }
         else if (m_waterfallColorScheme3->GetValue())
         {
-            wxGetApp().appConfiguration.waterfallColor = 2;
+            editedConfig_.waterfallColor = 2;
         }
         
-        if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
+        if (editedConfig_.reportingConfiguration.reportingFrequencyAsKhz)
         {
             m_labelEnterFreq->SetLabel(_("Enter frequency (kHz):"));
         }
@@ -1717,22 +1706,22 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
     {
         // Populate FreeDV Reporter color settings
         wxColour rxBackgroundColor = m_freedvReporterRxBackgroundColor->GetColour();
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRxRowBackgroundColor = rxBackgroundColor.GetAsString(wxC2S_HTML_SYNTAX);
+        editedConfig_.reportingConfiguration.freedvReporterRxRowBackgroundColor = rxBackgroundColor.GetAsString(wxC2S_HTML_SYNTAX);
 
         wxColour rxForegroundColor = m_freedvReporterRxForegroundColor->GetColour();
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRxRowForegroundColor = rxForegroundColor.GetAsString(wxC2S_HTML_SYNTAX);
+        editedConfig_.reportingConfiguration.freedvReporterRxRowForegroundColor = rxForegroundColor.GetAsString(wxC2S_HTML_SYNTAX);
 
         wxColour txBackgroundColor = m_freedvReporterTxBackgroundColor->GetColour();
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterTxRowBackgroundColor = txBackgroundColor.GetAsString(wxC2S_HTML_SYNTAX);
+        editedConfig_.reportingConfiguration.freedvReporterTxRowBackgroundColor = txBackgroundColor.GetAsString(wxC2S_HTML_SYNTAX);
 
         wxColour txForegroundColor = m_freedvReporterTxForegroundColor->GetColour();
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterTxRowForegroundColor = txForegroundColor.GetAsString(wxC2S_HTML_SYNTAX);
+        editedConfig_.reportingConfiguration.freedvReporterTxRowForegroundColor = txForegroundColor.GetAsString(wxC2S_HTML_SYNTAX);
 
         wxColour msgBackgroundColor = m_freedvReporterMsgBackgroundColor->GetColour();
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterMsgRowBackgroundColor = msgBackgroundColor.GetAsString(wxC2S_HTML_SYNTAX);
+        editedConfig_.reportingConfiguration.freedvReporterMsgRowBackgroundColor = msgBackgroundColor.GetAsString(wxC2S_HTML_SYNTAX);
 
         wxColour msgForegroundColor = m_freedvReporterMsgForegroundColor->GetColour();
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterMsgRowForegroundColor = msgForegroundColor.GetAsString(wxC2S_HTML_SYNTAX);
+        editedConfig_.reportingConfiguration.freedvReporterMsgRowForegroundColor = msgForegroundColor.GetAsString(wxC2S_HTML_SYNTAX);
 
         // Save new reporting frequency list.
         std::vector<wxString> tmpList;
@@ -1741,53 +1730,51 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         {
             tmpList.push_back(m_freqList->GetString(index));
         }
-        wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyList = tmpList;
+        editedConfig_.reportingConfiguration.reportingFrequencyList = tmpList;
         
-        wxGetApp().appConfiguration.enableSpaceBarForPTT = m_ckboxEnableSpacebarForPTT->GetValue();
-        wxGetApp().appConfiguration.pttKeyCode = m_selectedPTTKeyCode;
-        wxGetApp().appConfiguration.pttMomentaryMode = m_ckboxPTTMomentaryMode->GetValue();
+        editedConfig_.enableSpaceBarForPTT = m_ckboxEnableSpacebarForPTT->GetValue();
+        editedConfig_.pttKeyCode = m_selectedPTTKeyCode;
+        editedConfig_.pttMomentaryMode = m_ckboxPTTMomentaryMode->GetValue();
 
         long long number;
         if (ReadWholeNumber(m_txtTxRxDelayMilliseconds->GetValue(), number))
         {
-            wxGetApp().appConfiguration.txRxDelayMilliseconds = Clamped<int>(number, INT_MIN, INT_MAX);
+            editedConfig_.txRxDelayMilliseconds = Clamped<int>(number, INT_MIN, INT_MAX);
         }
 
-        wxGetApp().appConfiguration.rigControlConfiguration.totTimerEnabled = m_ckboxTOTTimerEnabled->GetValue();
+        editedConfig_.rigControlConfiguration.totTimerEnabled = m_ckboxTOTTimerEnabled->GetValue();
         if (ReadWholeNumber(m_txtTOTTimerSecs->GetValue(), number))
         {
             // (At least a second when it's typed in, as before.)
-            wxGetApp().appConfiguration.rigControlConfiguration.totTimerSecs = Clamped<int>(number, 1, INT_MAX);
+            editedConfig_.rigControlConfiguration.totTimerSecs = Clamped<int>(number, 1, INT_MAX);
         }
 
-        wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes = m_ckboxUseAnalogModes->GetValue();
-        wxGetApp().appConfiguration.rigControlConfiguration.hamlibSaveRestoreFrequency = m_ckboxSaveRestoreFrequency->GetValue();
+        editedConfig_.rigControlConfiguration.hamlibUseAnalogModes = m_ckboxUseAnalogModes->GetValue();
+        editedConfig_.rigControlConfiguration.hamlibSaveRestoreFrequency = m_ckboxSaveRestoreFrequency->GetValue();
         
-        wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges = m_ckboxEnableFreqModeChanges->GetValue();
-        wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly = m_ckboxEnableFreqChangesOnly->GetValue();
+        editedConfig_.rigControlConfiguration.hamlibEnableFreqModeChanges = m_ckboxEnableFreqModeChanges->GetValue();
+        editedConfig_.rigControlConfiguration.hamlibEnableFreqChangesOnly = m_ckboxEnableFreqChangesOnly->GetValue();
         
-        wxGetApp().appConfiguration.halfDuplexMode = m_ckHalfDuplex->GetValue();
-        // Read by the audio threads as they go, so it applies while running too.
-        g_half_duplex.store(wxGetApp().appConfiguration.halfDuplexMode, std::memory_order_release);
+        editedConfig_.halfDuplexMode = m_ckHalfDuplex->GetValue();
         
         /* Plot settings */
-        wxGetApp().appConfiguration.currentSpectrumAveraging = m_cbxNumSpectrumAveraging->GetSelection();
+        editedConfig_.currentSpectrumAveraging = m_cbxNumSpectrumAveraging->GetSelection();
         
         /* Voice Keyer */
 
-        wxGetApp().appConfiguration.voiceKeyerWaveFilePath = m_txtCtrlVoiceKeyerWaveFilePath->GetValue();
+        editedConfig_.voiceKeyerWaveFilePath = m_txtCtrlVoiceKeyerWaveFilePath->GetValue();
         
         if (ReadWholeNumber(m_txtCtrlVoiceKeyerRxPause->GetValue(), number))
         {
-            wxGetApp().appConfiguration.voiceKeyerRxPause = Clamped<int>(number, INT_MIN, INT_MAX);
+            editedConfig_.voiceKeyerRxPause = Clamped<int>(number, INT_MIN, INT_MAX);
         }
         if (ReadWholeNumber(m_txtCtrlVoiceKeyerRepeats->GetValue(), number))
         {
-            wxGetApp().appConfiguration.voiceKeyerRepeats = Clamped<int>(number, INT_MIN, INT_MAX);
+            editedConfig_.voiceKeyerRepeats = Clamped<int>(number, INT_MIN, INT_MAX);
         }
         
-        wxGetApp().appConfiguration.quickRecordRawPath = m_txtCtrlQuickRecordRawPath->GetValue();
-        wxGetApp().appConfiguration.quickRecordDecodedPath = m_txtCtrlQuickRecordDecodedPath->GetValue();
+        editedConfig_.quickRecordRawPath = m_txtCtrlQuickRecordRawPath->GetValue();
+        editedConfig_.quickRecordDecodedPath = m_txtCtrlQuickRecordDecodedPath->GetValue();
 
         // Audio device config — save names and look up default sample rates.
         // Mapping: 1-card (receive-only): SC1Out = speakers, SC2* = "none"
@@ -1810,25 +1797,25 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
 
             if (m_ckTxReceiveOnly->GetValue())
             {
-                wxGetApp().appConfiguration.audioConfiguration.soundCard1In.deviceName  = sc1in;
-                wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.deviceName = spk;
-                wxGetApp().appConfiguration.audioConfiguration.soundCard2In.deviceName  = "none";
-                wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.deviceName = "none";
+                editedConfig_.audioConfiguration.soundCard1In.deviceName  = sc1in;
+                editedConfig_.audioConfiguration.soundCard1Out.deviceName = spk;
+                editedConfig_.audioConfiguration.soundCard2In.deviceName  = "none";
+                editedConfig_.audioConfiguration.soundCard2Out.deviceName = "none";
                 int r;
-                r = getSR(sc1in, IAudioEngine::AUDIO_ENGINE_IN);  if (r > 0) wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate  = r;
-                r = getSR(spk,   IAudioEngine::AUDIO_ENGINE_OUT); if (r > 0) wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate = r;
+                r = getSR(sc1in, IAudioEngine::AUDIO_ENGINE_IN);  if (r > 0) editedConfig_.audioConfiguration.soundCard1In.sampleRate  = r;
+                r = getSR(spk,   IAudioEngine::AUDIO_ENGINE_OUT); if (r > 0) editedConfig_.audioConfiguration.soundCard1Out.sampleRate = r;
             }
             else
             {
-                wxGetApp().appConfiguration.audioConfiguration.soundCard1In.deviceName  = sc1in;
-                wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.deviceName = radioTx;
-                wxGetApp().appConfiguration.audioConfiguration.soundCard2In.deviceName  = sc2in;
-                wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.deviceName = spk;
+                editedConfig_.audioConfiguration.soundCard1In.deviceName  = sc1in;
+                editedConfig_.audioConfiguration.soundCard1Out.deviceName = radioTx;
+                editedConfig_.audioConfiguration.soundCard2In.deviceName  = sc2in;
+                editedConfig_.audioConfiguration.soundCard2Out.deviceName = spk;
                 int r;
-                r = getSR(sc1in,   IAudioEngine::AUDIO_ENGINE_IN);  if (r > 0) wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate  = r;
-                r = getSR(radioTx, IAudioEngine::AUDIO_ENGINE_OUT); if (r > 0) wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate = r;
-                r = getSR(sc2in,   IAudioEngine::AUDIO_ENGINE_IN);  if (r > 0) wxGetApp().appConfiguration.audioConfiguration.soundCard2In.sampleRate  = r;
-                r = getSR(spk,     IAudioEngine::AUDIO_ENGINE_OUT); if (r > 0) wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate = r;
+                r = getSR(sc1in,   IAudioEngine::AUDIO_ENGINE_IN);  if (r > 0) editedConfig_.audioConfiguration.soundCard1In.sampleRate  = r;
+                r = getSR(radioTx, IAudioEngine::AUDIO_ENGINE_OUT); if (r > 0) editedConfig_.audioConfiguration.soundCard1Out.sampleRate = r;
+                r = getSR(sc2in,   IAudioEngine::AUDIO_ENGINE_IN);  if (r > 0) editedConfig_.audioConfiguration.soundCard2In.sampleRate  = r;
+                r = getSR(spk,     IAudioEngine::AUDIO_ENGINE_OUT); if (r > 0) editedConfig_.audioConfiguration.soundCard2Out.sampleRate = r;
             }
 
             audioEngine->stop();
@@ -1850,111 +1837,94 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         // setting itself.)
         if (ReadWholeNumber(m_txtCtrlFifoSize->GetValue(), number))
         {
-            wxGetApp().appConfiguration.fifoSizeMs = Clamped<int>(number, INT_MIN, INT_MAX);
+            editedConfig_.fifoSizeMs = Clamped<int>(number, INT_MIN, INT_MAX);
         }
 
-        wxGetApp().m_txRxThreadHighPriority = m_ckboxTxRxThreadPriority->GetValue();
-        g_dump_timing.store(m_ckboxTxRxDumpTiming->GetValue(), std::memory_order_relaxed);
         g_dump_fifo_state.store(m_ckboxTxRxDumpFifoState->GetValue(), std::memory_order_relaxed);
-        wxGetApp().appConfiguration.debugVerbose = m_ckboxVerbose->GetValue();
-        if (wxGetApp().appConfiguration.debugVerbose)
-        {
-            ulog_set_level(LOG_TRACE);
-        }
-        else
-        {
-            ulog_set_level(LOG_INFO);
-        }
-        g_freedv_verbose = m_ckboxFreeDVAPIVerbose->GetValue();
+        editedConfig_.debugVerbose = m_ckboxVerbose->GetValue();
 
-        wxGetApp().appConfiguration.showDecodeStats = m_showDecodeStats->GetValue();
+        editedConfig_.showDecodeStats = m_showDecodeStats->GetValue();
         
-        wxGetApp().appConfiguration.autoStartOnLaunch = m_ckboxAutoStartOnLaunch->GetValue();
+        editedConfig_.autoStartOnLaunch = m_ckboxAutoStartOnLaunch->GetValue();
 
 #ifdef __WXMSW__
-        wxGetApp().appConfiguration.debugConsoleEnabled = m_ckboxDebugConsole->GetValue();
+        editedConfig_.debugConsoleEnabled = m_ckboxDebugConsole->GetValue();
 #endif
 
-        wxGetApp().appConfiguration.experimentalFeatures = m_experimentalFeatures->GetValue();
+        editedConfig_.experimentalFeatures = m_experimentalFeatures->GetValue();
 
         // General reporting config
-        wxGetApp().appConfiguration.reportingConfiguration.reportingEnabled = m_ckboxReportingEnable->GetValue();
-        wxGetApp().appConfiguration.reportingConfiguration.reportingCallsign = m_txt_callsign->GetValue();
-        wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare = m_txt_grid_square->GetValue();
-        wxGetApp().appConfiguration.reportingConfiguration.manualFrequencyReporting = m_ckboxManualFrequencyReporting->GetValue();
+        editedConfig_.reportingConfiguration.reportingEnabled = m_ckboxReportingEnable->GetValue();
+        editedConfig_.reportingConfiguration.reportingCallsign = m_txt_callsign->GetValue();
+        editedConfig_.reportingConfiguration.reportingGridSquare = m_txt_grid_square->GetValue();
+        editedConfig_.reportingConfiguration.manualFrequencyReporting = m_ckboxManualFrequencyReporting->GetValue();
         
         // PSK Reporter options
-        wxGetApp().appConfiguration.reportingConfiguration.pskReporterEnabled = m_ckboxPskReporterEnable->GetValue();
+        editedConfig_.reportingConfiguration.pskReporterEnabled = m_ckboxPskReporterEnable->GetValue();
         
         // FreeDV Reporter options
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterEnabled = m_ckboxFreeDVReporterEnable->GetValue();
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterHostname = m_freedvReporterHostname->GetValue();
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterUseTls = m_ckboxFreeDVReporterUseTls->GetValue();
-        wxGetApp().appConfiguration.reportingConfiguration.useMetricDistances = m_useMetricDistances->GetValue();
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterForceReceiveOnly = m_ckboxFreeDVReporterForceReceiveOnly->GetValue();
-        wxGetApp().appConfiguration.reportingConfiguration.reportingDirectionAsCardinal = m_useCardinalDirections->GetValue();
+        editedConfig_.reportingConfiguration.freedvReporterEnabled = m_ckboxFreeDVReporterEnable->GetValue();
+        editedConfig_.reportingConfiguration.freedvReporterHostname = m_freedvReporterHostname->GetValue();
+        editedConfig_.reportingConfiguration.freedvReporterUseTls = m_ckboxFreeDVReporterUseTls->GetValue();
+        editedConfig_.reportingConfiguration.useMetricDistances = m_useMetricDistances->GetValue();
+        editedConfig_.reportingConfiguration.freedvReporterForceReceiveOnly = m_ckboxFreeDVReporterForceReceiveOnly->GetValue();
+        editedConfig_.reportingConfiguration.reportingDirectionAsCardinal = m_useCardinalDirections->GetValue();
         
         // UDP reporting options
-        wxGetApp().appConfiguration.reportingConfiguration.udpReportingEnabled = m_ckboxUDPReportingEnable->GetValue();
-        wxGetApp().appConfiguration.reportingConfiguration.udpReportingHostname = m_udpHostname->GetValue();
+        editedConfig_.reportingConfiguration.udpReportingEnabled = m_ckboxUDPReportingEnable->GetValue();
+        editedConfig_.reportingConfiguration.udpReportingHostname = m_udpHostname->GetValue();
 
         // A port outside 1-65535 isn't one: rather than the nearest one,
         // which isn't what was meant either, the port stays as it was.
         if (ReadWholeNumber(m_udpPort->GetValue(), number) && number >= 1 && number <= 65535)
         {
-            wxGetApp().appConfiguration.reportingConfiguration.udpReportingPort = (int)number;
+            editedConfig_.reportingConfiguration.udpReportingPort = (int)number;
         }
 
         // UDP broadcast options (UdpReporter)
-        wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastEnabled = m_ckboxUDPBroadcastEnable->GetValue();
-        wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastAddress = m_udpBroadcastAddress->GetValue();
+        editedConfig_.reportingConfiguration.udpBroadcastEnabled = m_ckboxUDPBroadcastEnable->GetValue();
+        editedConfig_.reportingConfiguration.udpBroadcastAddress = m_udpBroadcastAddress->GetValue();
 
         if (ReadWholeNumber(m_udpBroadcastPort->GetValue(), number) && number >= 1 && number <= 65535)
         {
-            wxGetApp().appConfiguration.reportingConfiguration.udpBroadcastPort = (int)number;
+            editedConfig_.reportingConfiguration.udpBroadcastPort = (int)number;
         }
 
         // CSV log file path
-        wxGetApp().appConfiguration.reportingConfiguration.csvLogFilePath = m_txtCtrlCsvLogFilePath->GetValue();
+        editedConfig_.reportingConfiguration.csvLogFilePath = m_txtCtrlCsvLogFilePath->GetValue();
 
         // Callsign list config
-        wxGetApp().appConfiguration.reportingConfiguration.useUTCForReporting = m_ckbox_use_utc_time->GetValue();
+        editedConfig_.reportingConfiguration.useUTCForReporting = m_ckbox_use_utc_time->GetValue();
         
         // Waterfall color
         if (m_waterfallColorScheme1->GetValue())
         {
-            wxGetApp().appConfiguration.waterfallColor = 0;
+            editedConfig_.waterfallColor = 0;
         }
         else if (m_waterfallColorScheme2->GetValue())
         {
-            wxGetApp().appConfiguration.waterfallColor = 1;
+            editedConfig_.waterfallColor = 1;
         }
         else if (m_waterfallColorScheme3->GetValue())
         {
-            wxGetApp().appConfiguration.waterfallColor = 2;
+            editedConfig_.waterfallColor = 2;
         }
         
         // Stats reset time
         if (ReadWholeNumber(m_statsResetTime->GetValue(), number))
         {
-            wxGetApp().appConfiguration.statsResetTimeSecs = Clamped<unsigned int>(number, 0, UINT_MAX);
+            editedConfig_.statsResetTimeSecs = Clamped<unsigned int>(number, 0, UINT_MAX);
         }
         
         // Radio tab settings
-        wxGetApp().appConfiguration.rigControlConfiguration.leftChannelVoxTone = m_ckLeftChannelVoxTone->GetValue();
-        if (g_rxUserdata != nullptr)
-        {
-            // FreeDV is running: the radio's audio callback reads this as it goes.
-            g_rxUserdata->leftChannelVoxTone.store(
-                wxGetApp().appConfiguration.rigControlConfiguration.leftChannelVoxTone, std::memory_order_release);
-        }
+        editedConfig_.rigControlConfiguration.leftChannelVoxTone = m_ckLeftChannelVoxTone->GetValue();
 
-        wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseForPTT = m_ckUseHamlibPTT->GetValue();
+        editedConfig_.rigControlConfiguration.hamlibUseForPTT = m_ckUseHamlibPTT->GetValue();
         wxGetApp().m_intHamlibRig = m_cbRigName->GetSelection();
-        wxGetApp().appConfiguration.rigControlConfiguration.hamlibRigName =
+        editedConfig_.rigControlConfiguration.hamlibRigName =
             (wxGetApp().m_intHamlibRig >= 0) ? HamlibRigController::RigIndexToName(wxGetApp().m_intHamlibRig) : "";
-        wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialPort = m_cbSerialPort->GetValue();
-        wxGetApp().appConfiguration.rigControlConfiguration.hamlibPttSerialPort = m_cbPttSerialPort->GetValue();
+        editedConfig_.rigControlConfiguration.hamlibSerialPort = m_cbSerialPort->GetValue();
+        editedConfig_.rigControlConfiguration.hamlibPttSerialPort = m_cbPttSerialPort->GetValue();
 
         {
             // Empty for Hamlib's own address (0). Otherwise a byte: one
@@ -1964,51 +1934,70 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
             long long hexAddr = 0;
             if (civText.IsEmpty())
             {
-                wxGetApp().appConfiguration.rigControlConfiguration.hamlibIcomCIVAddress = 0;
+                editedConfig_.rigControlConfiguration.hamlibIcomCIVAddress = 0;
             }
             else if (ReadWholeNumber(civText, hexAddr, 16) && hexAddr >= 0 && hexAddr <= 0xFF)
             {
-                wxGetApp().appConfiguration.rigControlConfiguration.hamlibIcomCIVAddress = (unsigned int)hexAddr;
+                editedConfig_.rigControlConfiguration.hamlibIcomCIVAddress = (unsigned int)hexAddr;
             }
         }
         {
             wxString rateStr = m_cbSerialRate->GetValue();
             if (rateStr == "default") {
-                wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialRate = 0;
+                editedConfig_.rigControlConfiguration.hamlibSerialRate = 0;
             } else if (ReadWholeNumber(rateStr, number) && number > 0) {
-                wxGetApp().appConfiguration.rigControlConfiguration.hamlibSerialRate = Clamped<unsigned int>(number, 0, UINT_MAX);
+                editedConfig_.rigControlConfiguration.hamlibSerialRate = Clamped<unsigned int>(number, 0, UINT_MAX);
             }
         }
 
-        wxGetApp().appConfiguration.rigControlConfiguration.hamlibPTTType = m_cbPttMethod->GetSelection();
-        wxGetApp().appConfiguration.rigControlConfiguration.hamlibForceRTSOn = m_ckForceRTSOn->GetValue();
-        wxGetApp().appConfiguration.rigControlConfiguration.hamlibForceDTROn = m_ckForceDTROn->GetValue();
+        editedConfig_.rigControlConfiguration.hamlibPTTType = m_cbPttMethod->GetSelection();
+        editedConfig_.rigControlConfiguration.hamlibForceRTSOn = m_ckForceRTSOn->GetValue();
+        editedConfig_.rigControlConfiguration.hamlibForceDTROn = m_ckForceDTROn->GetValue();
 
-        wxGetApp().appConfiguration.rigControlConfiguration.useSerialPTT = m_ckUseSerialPTT->IsChecked();
-        wxGetApp().appConfiguration.rigControlConfiguration.serialPTTPort = m_cbCtlDevicePath->GetValue();
-        wxGetApp().appConfiguration.rigControlConfiguration.serialPTTUseRTS = m_rbUseRTS->GetValue();
-        wxGetApp().appConfiguration.rigControlConfiguration.serialPTTPolarityRTS = m_ckRTSPos->IsChecked();
-        wxGetApp().appConfiguration.rigControlConfiguration.serialPTTUseDTR = m_rbUseDTR->GetValue();
-        wxGetApp().appConfiguration.rigControlConfiguration.serialPTTPolarityDTR = m_ckDTRPos->IsChecked();
+        editedConfig_.rigControlConfiguration.useSerialPTT = m_ckUseSerialPTT->IsChecked();
+        editedConfig_.rigControlConfiguration.serialPTTPort = m_cbCtlDevicePath->GetValue();
+        editedConfig_.rigControlConfiguration.serialPTTUseRTS = m_rbUseRTS->GetValue();
+        editedConfig_.rigControlConfiguration.serialPTTPolarityRTS = m_ckRTSPos->IsChecked();
+        editedConfig_.rigControlConfiguration.serialPTTUseDTR = m_rbUseDTR->GetValue();
+        editedConfig_.rigControlConfiguration.serialPTTPolarityDTR = m_ckDTRPos->IsChecked();
 
-        wxGetApp().appConfiguration.rigControlConfiguration.useSerialPTTInput = m_ckUsePTTInput->IsChecked();
-        wxGetApp().appConfiguration.rigControlConfiguration.serialPTTInputPort = m_cbCtlDevicePathPttIn->GetValue();
-        wxGetApp().appConfiguration.rigControlConfiguration.serialPTTInputPolarityCTS = m_ckCTSPos->IsChecked();
+        editedConfig_.rigControlConfiguration.useSerialPTTInput = m_ckUsePTTInput->IsChecked();
+        editedConfig_.rigControlConfiguration.serialPTTInputPort = m_cbCtlDevicePathPttIn->GetValue();
+        editedConfig_.rigControlConfiguration.serialPTTInputPolarityCTS = m_ckCTSPos->IsChecked();
 
 #if defined(WIN32)
-        wxGetApp().appConfiguration.rigControlConfiguration.useOmniRig = m_ckUseOmniRig->GetValue();
-        wxGetApp().appConfiguration.rigControlConfiguration.omniRigRigId = m_cbOmniRigRigId->GetCurrentSelection();
+        editedConfig_.rigControlConfiguration.useOmniRig = m_ckUseOmniRig->GetValue();
+        editedConfig_.rigControlConfiguration.omniRigRigId = m_cbOmniRigRigId->GetCurrentSelection();
 #endif
 
+        // The frequency units last, as the frequency list is converted to
+        // what's stored using the units it was entered in.
+        editedConfig_.reportingConfiguration.reportingFrequencyAsKhz = m_ckboxFrequencyEntryAsKHz->GetValue();
+
+        // Into the configuration FreeDV runs with. Settings that something
+        // running only reads at Start are then applied to it (see
+        // FreeDVConfiguration::onChanged); the rest take effect below or as
+        // they're next used.
+        auto& config = wxGetApp().appConfiguration;
+        config.mergeChangesFrom(originalConfig_, editedConfig_);
+        originalConfig_.copyFrom(editedConfig_);
+
+        // Read by the audio threads as they go, so it applies while running too.
+        g_half_duplex.store(config.halfDuplexMode, std::memory_order_release);
+
+        if (config.debugVerbose)
+        {
+            ulog_set_level(LOG_TRACE);
+        }
+        else
+        {
+            ulog_set_level(LOG_INFO);
+        }
+
         if (storePersistent) {
-            wxGetApp().appConfiguration.apiVerbose = g_freedv_verbose;
-            wxGetApp().appConfiguration.save(pConfig);
-            
-            // Save reporting frequency units last due to how the frequency list is stored.
-            // Then reload the configuration to ensure that the displayed frequencies are correct.
-            wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz = m_ckboxFrequencyEntryAsKHz->GetValue();
-            wxGetApp().appConfiguration.save(pConfig);
-            wxGetApp().appConfiguration.load(pConfig);
+            // Then reloaded, so that the frequencies are shown in the units chosen.
+            config.save(pConfig);
+            config.load(pConfig);
         }
     }
 }
@@ -2170,7 +2159,8 @@ void OptionsDlg::OnFifoReset(wxCommandEvent&)
 
 void OptionsDlg::updateReportingState()
 {    
-    if (!sessionActive_)
+    // All of these can be changed while FreeDV is running too: the reporters
+    // reconnect with the new settings once they're applied.
     {
         m_ckbox_use_utc_time->Enable(true);
         m_ckboxReportingEnable->Enable(true);
@@ -2230,29 +2220,6 @@ void OptionsDlg::updateReportingState()
             m_ckboxUDPBroadcastEnable->Enable(false);
         }
     }
-    else
-    {
-        // Txt Msg/Reporter options cannot be modified during a session.
-        m_ckboxReportingEnable->Enable(false);
-        m_txt_callsign->Enable(false);
-        m_txt_grid_square->Enable(false);
-        m_ckboxManualFrequencyReporting->Enable(false);
-        m_ckboxPskReporterEnable->Enable(false);
-        m_ckboxFreeDVReporterEnable->Enable(false);
-        m_useMetricDistances->Enable(false);
-        m_freedvReporterHostname->Enable(false);
-        m_ckboxFreeDVReporterUseTls->Enable(false);
-        m_ckboxFreeDVReporterForceReceiveOnly->Enable(false);
-        m_useCardinalDirections->Enable(false);
-        m_udpHostname->Enable(false);
-        m_udpPort->Enable(false);
-        m_ckboxUDPReportingEnable->Enable(false);
-        m_udpBroadcastAddress->Enable(false);
-        m_udpBroadcastPort->Enable(false);
-        m_ckboxUDPBroadcastEnable->Enable(false);
-
-        m_ckbox_use_utc_time->Enable(false);
-    }
 }
 
 void OptionsDlg::updateToneState()
@@ -2263,28 +2230,13 @@ void OptionsDlg::updateToneState()
 
 void OptionsDlg::updateRigControlState()
 {
-    if (!sessionActive_)
-    {
-        m_ckboxEnableFreqModeChanges->Enable(true);
-        m_ckboxEnableFreqChangesOnly->Enable(true);
-        m_ckboxNoFreqModeChanges->Enable(true);
-        m_ckboxUseAnalogModes->Enable(m_ckboxEnableFreqModeChanges->GetValue());
-        m_ckboxSaveRestoreFrequency->Enable(!m_ckboxNoFreqModeChanges->GetValue());
-    }
-    else
-    {
-        // Rig control settings cannot be updated during a session.
-        m_ckboxUseAnalogModes->Enable(false);
-        m_ckboxSaveRestoreFrequency->Enable(false);
-        m_ckboxEnableFreqModeChanges->Enable(false);
-        m_ckboxEnableFreqChangesOnly->Enable(false);
-        m_ckboxNoFreqModeChanges->Enable(false);
-    }
-
-    // The PTT key and the TX/RX delay are read each time they're used, so
-    // they can be changed while FreeDV is running.
-    m_ckboxEnableSpacebarForPTT->Enable(true);
-    m_txtTxRxDelayMilliseconds->Enable(true);
+    // These can be changed while FreeDV is running too: the radio is
+    // reconnected with them once they're applied.
+    m_ckboxEnableFreqModeChanges->Enable(true);
+    m_ckboxEnableFreqChangesOnly->Enable(true);
+    m_ckboxNoFreqModeChanges->Enable(true);
+    m_ckboxUseAnalogModes->Enable(m_ckboxEnableFreqModeChanges->GetValue());
+    m_ckboxSaveRestoreFrequency->Enable(!m_ckboxNoFreqModeChanges->GetValue());
 }
 
 void OptionsDlg::setSessionActive(bool active)
@@ -2294,7 +2246,7 @@ void OptionsDlg::setSessionActive(bool active)
     updateReportingState();
     updateRigControlState();
 
-    for (auto& [note, text] : nextStartNotes_)
+    for (auto& [note, text] : runningNotes_)
     {
         if (active)
         {
@@ -2302,7 +2254,7 @@ void OptionsDlg::setSessionActive(bool active)
             // wherever it fits, and wraps rather than being cut off where it
             // doesn't (e.g. in a longer translation).
             note->SetLabel(text);
-            int width = note->GetParent()->GetClientSize().GetWidth() - 2 * NEXT_START_NOTE_BORDER;
+            int width = note->GetParent()->GetClientSize().GetWidth() - 2 * RUNNING_NOTE_BORDER;
             if (width > 0)
             {
                 note->Wrap(width);
@@ -2313,12 +2265,12 @@ void OptionsDlg::setSessionActive(bool active)
     }
 }
 
-wxStaticText* OptionsDlg::addNextStartNote_(wxWindow* page, wxString const& text, const char* name)
+wxStaticText* OptionsDlg::addRunningNote_(wxWindow* page, wxString const& text, const char* name)
 {
     auto note = new wxStaticText(page, wxID_ANY, text);
     note->SetName(wxString("settings.") + name);
     note->Hide();
-    nextStartNotes_.emplace_back(note, text);
+    runningNotes_.emplace_back(note, text);
     return note;
 }
     
