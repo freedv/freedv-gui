@@ -4402,13 +4402,15 @@ void MainFrame::onQsyRequestUIThread_(QsyRequestArgs* args)
         // On their sideband too, while there (see getCurrentMode_()).
         wxGetApp().followSideband(freqHz, sideband);
 
-        // This will implicitly cause Hamlib to change the frequency and mode.
+        // This will implicitly cause Hamlib to change the frequency and mode
+        // (OnChangeReportFrequency())...
+        bool frequencyChanges = m_cboReportFrequency->GetValue() != freqString;
         m_cboReportFrequency->SetValue(freqString);
 
         // ...if the frequency changes. If FreeDV's already there, it may
         // still need to change sideband.
         auto rigController = snapshotRigFrequencyController();
-        if (rigController != nullptr && sideband != IReporter::Sideband::UNKNOWN &&
+        if (!frequencyChanges && rigController != nullptr && sideband != IReporter::Sideband::UNKNOWN &&
             wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
         {
             rigController->setMode(getCurrentMode_());

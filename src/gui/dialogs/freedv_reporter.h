@@ -387,8 +387,8 @@ class FreeDVReporterDialog : public wxFrame
                 double headingVal;
                 wxString heading;
                 wxString version;
-                uint64_t frequency;
-                IReporter::Sideband sideband;
+                uint64_t frequency = 0;
+                IReporter::Sideband sideband = IReporter::Sideband::UNKNOWN;
                 wxString freqString;
                 wxString status;
                 wxString txMode;

@@ -239,13 +239,27 @@ class MainApp : public wxApp
 
         // The sideband of the station FreeDV last went to (by double-clicking
         // it in FreeDV Reporter, or accepting its QSY request), if it said:
-        // the radio's put on that sideband while it's on that station's
+        // the radio's put on that sideband while it stays on that station's
         // frequency, rather than the one usual there (see
-        // GetModeForSideband()). Somewhere else, it's the usual one again.
+        // GetModeForSideband()). Once FreeDV's somewhere else, it's forgotten
+        // (see forgetFollowedSidebandUnlessAt()), so coming back later to the
+        // same frequency is on the usual sideband again.
         void followSideband(uint64_t frequencyHz, IReporter::Sideband sideband)
         {
             m_followedSidebandFrequency = roundToFrequencyStep_(frequencyHz);
             m_followedSideband = sideband;
+        }
+
+        // Called whenever FreeDV's frequency changes (typed or chosen in, or
+        // from the radio): forgets the followed sideband unless that's still
+        // its frequency.
+        void forgetFollowedSidebandUnlessAt(uint64_t frequencyHz)
+        {
+            if (m_followedSidebandFrequency != 0 && roundToFrequencyStep_(frequencyHz) != m_followedSidebandFrequency)
+            {
+                m_followedSidebandFrequency = 0;
+                m_followedSideband = IReporter::Sideband::UNKNOWN;
+            }
         }
 
         IReporter::Sideband followedSidebandAt(uint64_t frequencyHz) const

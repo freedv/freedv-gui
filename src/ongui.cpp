@@ -419,6 +419,12 @@ void MainFrame::onFrequencyModeChange_(IRigFrequencyController*, uint64_t freq, 
                 sideband = IReporter::Sideband::LSB;
             }
         }
+        // (Sent ahead of the frequency below, so for a moment the new sideband
+        // goes with the old frequency: the reverse order has the same moment
+        // the other way round. The server batches the two, so its clients
+        // usually see both at once. Where the frequency isn't sent below, the
+        // radio's frequency is stale or isn't being reported, and FreeDV's
+        // still reporting the frequency it was on.)
         reportSideband_(sideband);
 
         // Update string value.
@@ -520,6 +526,9 @@ void MainFrame::onFrequencyModeChange_(IRigFrequencyController*, uint64_t freq, 
             // here.
             auto oldFreq = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency.get();
             wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = newFreq;
+            // (The radio tuned elsewhere, e.g. by its own dial: as when a
+            // frequency's typed in, see OnChangeReportFrequency().)
+            wxGetApp().forgetFollowedSidebandUnlessAt(newFreq);
             if (oldFreq != newFreq)
             {
                 for (auto& ptr : wxGetApp().m_reporters)
@@ -2126,6 +2135,10 @@ void MainFrame::OnChangeReportFrequency( wxCommandEvent& )
     if (entryUsable && freqStr != oldFreqString)
     {
         log_info("Request frequency change to %" PRIu64 " Hz", wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency.get());
+
+        // Somewhere other than the station whose sideband FreeDV went to:
+        // the sideband usual here, now and if FreeDV comes back.
+        wxGetApp().forgetFollowedSidebandUnlessAt(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
 
         // Report current frequency to reporters
         for (auto& ptr : wxGetApp().m_reporters)

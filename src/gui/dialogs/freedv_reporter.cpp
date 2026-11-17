@@ -3596,8 +3596,6 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onUserConnectFn_(std::string
         }
 
         temp->version = version;
-        temp->frequency = 0;
-        temp->sideband = IReporter::Sideband::UNKNOWN;
         temp->freqString = parent_->UNKNOWN_STR;
         temp->userMessage = parent_->UNKNOWN_STR;
         temp->transmitting = false;
