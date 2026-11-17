@@ -3276,8 +3276,24 @@ void MainFrame::performFreeDVOff_()
     });
     
     stopRxStream();
-         
-    executeOnUiThreadAndWait_([&]() 
+
+    // A file standing in for the radio, and any recording, stop with the
+    // radio: otherwise the status bar and the Tools menu go on saying
+    // they're running, and the files stay open, which leaves a recording
+    // without the lengths its header still owes (so unreadable) until
+    // FreeDV exits. Only once the streams have stopped: the pipeline's
+    // record steps write what's still queued for their files as they're
+    // torn down, so closing the files before then would lose the end of
+    // each recording.
+    executeOnUiThreadAndWait_([&]()
+    {
+        StopPlaybackFileFromRadio();
+        StopRecFileFromRadio();
+        StopRecFileFromDecoder();
+        StopRecFileFromMic();
+    });
+
+    executeOnUiThreadAndWait_([&]()
     {
         wxGetApp().m_reporters.clear();
         if (wxGetApp().m_sharedReporterObject)
