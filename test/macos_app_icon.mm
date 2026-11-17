@@ -120,7 +120,10 @@ int main(int argc, char** argv)
             fprintf(stderr, "usage: %s <app bundle> [PNG to save what's shown to]\n", argv[0]);
             return 2;
         }
-        NSString* appPath = [[NSString stringWithUTF8String:argv[1]] stringByStandardizingPath];
+        // Made absolute: NSWorkspace doesn't look for a relative path from
+        // the current directory, so it would show the plain document icon
+        // for one (for a file it can't find) rather than the app's.
+        NSString* appPath = [[NSURL fileURLWithPath:[NSString stringWithUTF8String:argv[1]]] URLByStandardizingPath].path;
         NSString* savePath = argc > 2 ? [NSString stringWithUTF8String:argv[2]] : nil;
         NSBundle* bundle = [NSBundle bundleWithPath:appPath];
         if (bundle == nil)
