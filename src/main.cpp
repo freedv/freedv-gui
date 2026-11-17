@@ -1743,7 +1743,8 @@ void MainFrame::restoreCallsignListFromCsv_()
 
     for (auto& csvLine : lines)
     {
-        // CSV columns: date,time,callsign,mode,frequency_hz,snr_db
+        // CSV columns: date,time,callsign,mode,frequency_hz,snr_db, then
+        // sideband in files started since that was added (not used here).
         std::istringstream ss(csvLine);
         std::string date, time, callsign, mode, freqStr, snrStr;
         if (!std::getline(ss, date, ',')) continue;
@@ -1751,7 +1752,7 @@ void MainFrame::restoreCallsignListFromCsv_()
         if (!std::getline(ss, callsign, ',')) continue;
         if (!std::getline(ss, mode, ',')) continue;
         if (!std::getline(ss, freqStr, ',')) continue;
-        if (!std::getline(ss, snrStr)) continue;
+        if (!std::getline(ss, snrStr, ',')) continue;
 
         // (std::stoull() takes a minus sign, and wraps what follows it into
         // a huge frequency: only digits are taken.)
