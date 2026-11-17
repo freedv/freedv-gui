@@ -2981,6 +2981,8 @@ void MainFrame::performFreeDVOn_()
                             {
                                 obj->transmit(freedvInterface.getCurrentTxModeStr(), g_tx.load(std::memory_order_acquire));
                                 obj->freqChange(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+                                // (The reporters made for this session start out not knowing
+                                // the sideband.)
                                 obj->sidebandChange(reportedSideband_);
                             }
                         });
@@ -4301,6 +4303,8 @@ void MainFrame::initializeFreeDVReporter_()
     {
         wxGetApp().m_sharedReporterObject->transmit(freedvInterface.getCurrentTxModeStr(), txStatus);
         wxGetApp().m_sharedReporterObject->freqChange(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+        // (Not a repeat: the FreeDVReporter made above is new, and doesn't
+        // know the sideband until told. It then keeps it across reconnects.)
         wxGetApp().m_sharedReporterObject->sidebandChange(reportedSideband_);
     }
     wxGetApp().m_sharedReporterObject->connect();
