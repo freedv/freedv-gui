@@ -2345,6 +2345,24 @@ def test_ptt_key_time_out():
             stop_modem(app)
             quit_and_check_log(app)
 
+        # Letting go of the key once the time-out's warning window has the
+        # keyboard ends the transmission too: the warning belongs to the same
+        # transmission rather than taking the keyboard away from it.
+        with freedvtest.start(settings=settings(Rig__PttMomentaryMode=True, Rig__PttKeyCode=WXK_F5,
+                                                Rig__TotTimerSecs=18)) as app:
+            app.wait_for_window("main")
+            app.activate("main")
+            start_modem(app)
+            app.key("main.notebook", "F5", hold=True)
+            wait_for_transmit(app)
+            app.wait_for_window("totWarning", timeout=10)
+            app.activate("totWarning")
+            app.key("totWarning.btnExtend", "F5", release=True)
+            wait_for_transmit(app, False)
+            check(not app.window_exists("totWarning"), "The time-out warning is still there")
+            stop_modem(app)
+            quit_and_check_log(app)
+
         # Letting go of the key while TX is still starting must not leave the
         # rig keyed. A delay before TX begins makes that window easy to hit.
         with freedvtest.start(settings=settings(Rig__PttMomentaryMode=True, Rig__PttKeyCode=WXK_F5,
