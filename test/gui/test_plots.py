@@ -167,15 +167,18 @@ def test_tuned_away():
             app.wait_until(lambda: app.state()["sync"] == 1, timeout=20, description="FreeDV to sync")
             show(app, "Waterfall")  # (transmitting shows what's coming from the microphone instead)
 
-            # Transmit moves with receive, so FreeDV still hears itself in
-            # the same place after tuning both.
+            # Only receive moves (what's transmitted stays at the centre), so
+            # FreeDV now hears itself well off frequency. RADE V2 only syncs
+            # to a signal within about 31 Hz, and treats anything further off
+            # as a false sync, so it loses it.
             app.mouse(PLOTS["Waterfall"], "left_dclick", x=0.7, y=0.5)
             check(tuned_to(app) > CENTRE + 100, "Double-clicking the waterfall tuned to %d" % tuned_to(app))
-            time.sleep(4)
-            app.wait_until(lambda: app.state()["sync"] == 1, timeout=20,
-                           description="FreeDV to sync having tuned transmit and receive together")
+            app.wait_until(lambda: app.state()["sync"] == 0, timeout=20,
+                           description="FreeDV to lose sync having tuned away")
 
+            # Tuning back to the middle finds it again.
             app.mouse(PLOTS["Waterfall"], "middle_down")
+            check_equal(tuned_to(app), CENTRE, "Tuned to after middle-clicking the waterfall")
             time.sleep(4)
             app.wait_until(lambda: app.state()["sync"] == 1, timeout=20, description="FreeDV to sync back at the middle")
 
