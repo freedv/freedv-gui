@@ -47,7 +47,17 @@ bool getAndAssignReplaceUnderlyingValue()
     std::string value = element.get();
     value.append("def");
     element = value;
-    return element.get() == "abcdef";
+    if (element.get() != "abcdef") return false;
+
+    // The same round trip with both processors set: what's assigned goes
+    // through the save processor, what's read back through the load one.
+    element.setSaveProcessor([](std::string val) { return val + "|stored"; });
+    element.setLoadProcessor([](std::string val) { return val.substr(0, val.size() - 7); });
+
+    element = "ghi";
+    std::string converted = element;
+    return element.getWithoutProcessing() == "ghi|stored" &&
+        element.get() == "ghi" && converted == "ghi";
 }
 
 // A writer thread does get/modify/set read-modify-write cycles while a
@@ -479,28 +489,43 @@ bool limitsHoldForKind(
     UnderlyingType const& low, UnderlyingType const& middle, UnderlyingType const& high,
     UnderlyingType const& below, UnderlyingType const& above)
 {
-    ConfigurationDataElement<UnderlyingType> element("/Test/Value", middle);
-    element.setLimits(low, high);
-
-    bool result = element.getWithoutProcessing() == middle;
-
-    element = above;
-    result &= element.getWithoutProcessing() == high;
-    element = below;
-    result &= element.getWithoutProcessing() == low;
-
-    element.setWithoutProcessing(above);
-    result &= element.getWithoutProcessing() == high;
-
-    element.update([&](UnderlyingType& value) { value = below; });
-    result &= element.getWithoutProcessing() == low;
-
-    // What's copied in from another copy is brought within these limits too,
-    // while the default that comes with it isn't.
     ConfigurationDataElement<UnderlyingType> source("/Test/Source", middle);
     source = above;
+
+    // One callback for both update() calls, so that this instantiation takes
+    // both sides of the limit check rather than adding a second copy of
+    // itself that only takes one.
+    auto setToBelow = [&](UnderlyingType& value) { value = below; };
+
+    ConfigurationDataElement<UnderlyingType> element("/Test/Value", middle);
+    bool result = element.getWithoutProcessing() == middle;
+
+    // With no limits, each way of setting the value takes it exactly as given.
+    element = above;
+    result &= element.getWithoutProcessing() == above;
+    element.setWithoutProcessing(below);
+    result &= element.getWithoutProcessing() == below;
+    element.update(setToBelow);
+    result &= element.getWithoutProcessing() == below;
+    element.copyValueFrom(source);
+    result &= element.getWithoutProcessing() == above;
+
+    // Setting the limits brings the value that's already there inside them...
+    element.setLimits(low, high);
+    result &= element.getWithoutProcessing() == high;
+
+    // ...and every way of setting it after that.
+    element = below;
+    result &= element.getWithoutProcessing() == low;
+    element.setWithoutProcessing(above);
+    result &= element.getWithoutProcessing() == high;
+    element.update(setToBelow);
+    result &= element.getWithoutProcessing() == low;
     element.copyValueFrom(source);
     result &= element.getWithoutProcessing() == high;
+
+    // What comes across with a copied value is its default, which the limits
+    // of the element it lands in don't touch.
     result &= element.getDefaultVal() == middle;
     return result;
 }
@@ -519,6 +544,14 @@ bool limitsHoldForEveryKind()
         { { wxString::FromUTF8("a"), 1 } }, { { wxString::FromUTF8("m"), 1 } }, { { wxString::FromUTF8("z"), 1 } },
         { { wxString::FromUTF8("a"), 0 } }, { { wxString::FromUTF8("z"), 2 } });
     result &= limitsHoldForKind<std::vector<int>>({ 1 }, { 5 }, { 10 }, { 0 }, { 11 });
+    // bool has nothing outside [false,true], so only the above value gets
+    // brought back; the lists clamp the way they compare.
+    result &= limitsHoldForKind<bool>(false, false, false, false, true);
+    result &= limitsHoldForKind<std::vector<bool>>(
+        { false, false }, { false, true }, { true, true }, { false }, { true, true, true });
+    result &= limitsHoldForKind<std::vector<wxString>>(
+        { wxString::FromUTF8("b") }, { wxString::FromUTF8("m") }, { wxString::FromUTF8("y") },
+        { wxString::FromUTF8("a") }, { wxString::FromUTF8("z") });
     return result;
 }
 

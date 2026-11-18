@@ -150,11 +150,15 @@ def check_audible(device, what):
     check(measured > AUDIBLE, "%s (level %d)" % (what, measured))
 
 
+def check_no_errors(log):
+    errors = [line for line in log.splitlines() if " ERROR " in line or " FATAL " in line]
+    check_equal(errors, [], "Errors logged by FreeDV")
+
+
 def quit_and_check_log(app):
     check_equal(app.message_boxes(), [], "Errors displayed")
     check_equal(app.quit(), 0, "FreeDV's exit code")
-    errors = [line for line in app.log().splitlines() if " ERROR " in line or " FATAL " in line]
-    check_equal(errors, [], "Errors logged by FreeDV")
+    check_no_errors(app.log())
 
 
 # ---------------------------------------------------------------------------
@@ -2895,7 +2899,8 @@ def test_exit_during_on_off():
     """Closing the window, or choosing File > Exit, while Start or Stop Modem
     is still being carried out: FreeDV refuses, so that the window isn't
     destroyed from under the worker doing it. (The test agent holds each
-    worker until the close has been tried, so it can't finish first.)"""
+    worker until the close has been tried, so it can't finish first.) A close
+    that can't be refused waits for the worker instead of refusing."""
     with audio_devices():
         with freedvtest.start(settings=settings()) as app:
             app.wait_for_window("main")
@@ -2925,6 +2930,20 @@ def test_exit_during_on_off():
             check_equal(app.state()["running"], False, "Running once the stop that was waited for is done")
 
             quit_and_check_log(app)
+
+        # A close that can't be refused -- a log out, or the window manager
+        # forcing the window away -- can't be turned down, so FreeDV waits for
+        # the Start that's still being carried out and closes once it's done.
+        with freedvtest.start(settings=settings()) as app:
+            app.wait_for_window("main")
+
+            app.command("hold_on_off", hold=True)
+            app.click("main.btnOnOff")
+            check_equal(app.get("main.btnOnOff")["enabled"], False, "Start Modem while starting")
+            app.close("main", force=True)
+            app.command("hold_on_off", hold=False)
+            check_equal(app.wait_for_exit(), 0, "FreeDV's exit code (close waited for the start)")
+            check_no_errors(app.log())
 
 
 def test_udp_reporting_while_running():

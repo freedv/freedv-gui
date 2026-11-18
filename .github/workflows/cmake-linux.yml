@@ -604,6 +604,16 @@ jobs:
         audio-backend: pipewire
         screen-geometry: 1280x1024x24
 
+    # Settings and the Setup Wizard also list /dev/serial/by-id and
+    # /dev/rfcomm*, which the runners don't have; without one of each, the
+    # code that reads them is never taken.
+    - name: Create serial device entries
+      shell: bash
+      run: |
+          sudo mkdir -p /dev/serial/by-id
+          sudo ln -sf /dev/null /dev/serial/by-id/freedvtest-serial
+          sudo touch /dev/rfcomm9
+
     # Failures are for the test jobs to report; this one is only after what
     # the tests execute.
     - name: Execute unit and GUI tests

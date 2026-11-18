@@ -725,10 +725,12 @@ def test_radio_control():
         finish_wizard(app)
         check_config(app, "rigControl", {"hamlibSerialRate": 0, "hamlibPTTType": PTT_VIA_CAT})
 
-        # Now serial port PTT instead.
+        # Now serial port PTT instead, with a serial rate typed in that isn't
+        # one: it's saved as Hamlib's own rather than as some other number.
         reopen_wizard(app)
         go_to_page(app, 2)
         check_values(app, {"cbSerialRate": "default", "cbPttMethod": "CAT"})
+        app.set_value("wizard.cbSerialRate", "fast")
         app.set_value("wizard.ckSerialPTT", True)
         app.set_value("wizard.cbCtlDevicePath", "/dev/ttyFreeDVTest2")
         app.click("wizard.rbUseDTR")
@@ -747,6 +749,7 @@ def test_radio_control():
         finish_wizard(app)
         check_config(app, "rigControl", {
             "hamlibUseForPTT": False,
+            "hamlibSerialRate": 0,
             "useSerialPTT": True,
             "serialPTTPort": "/dev/ttyFreeDVTest2",
             "serialPTTUseRTS": False,
@@ -1146,6 +1149,24 @@ def test_import_more():
             app.click("wizard.btnCancel")
             app.wait_for_window_closed("wizard")
             quit_and_check_log(app)
+
+    # With XDG_CONFIG_HOME set to nothing, other programs' settings are
+    # looked for where they've always gone: the home folder's .config.
+    home = tempfile.mkdtemp(prefix="freedvtest-home-")
+    try:
+        with freedvtest.start(home=home, env={"XDG_CONFIG_HOME": ""},
+                              user_config_files={"WSJT-X.ini": wsjtx_settings(MyCall="ZZ0ZZZ")}) as app:
+            app.wait_for_window("wizard")
+            check_equal([item["label"] for item in app.get("wizard.chImportSource")["items"]],
+                        ["WSJT-X"], "Programs to import from")
+            app.click("wizard.btnImport")
+            check_equal(import_status(app),
+                        "Imported: callsign. Review each page before clicking Finish.", "Import result")
+            app.click("wizard.btnCancel")
+            app.wait_for_window_closed("wizard")
+            quit_and_check_log(app)
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
 
 
 SCENARIOS = {

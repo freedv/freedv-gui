@@ -1518,6 +1518,46 @@ def test_sort_every_column():
             quit_and_check_log(app)
 
 
+def test_tied_and_missing_times():
+    """Sorting by the time columns when the server gives every station the
+    same timestamp, and when one of them gets none at all: the list still ends
+    up in an order -- by connect time, and then by the rows themselves."""
+    os.environ["FREEDVTEST_REPORTER_FIXED_TIME"] = "2026-01-01T00:00:00+00:00"
+    os.environ["FREEDVTEST_REPORTER_BAD_TIME_CALLSIGN"] = "W6XYZ"
+    try:
+        with ReporterServer() as server:
+            k1abc = server.station("K1ABC", "FN42")
+            k1abc.set_frequency(14236000)
+            vk5dgr = server.station("VK5DGR", "PF95")              # never transmits
+            vk5dgr.set_frequency(7177000)
+            w6xyz = server.station("W6XYZ", "DM13")                # no last update sent
+            w6xyz.set_frequency(28330000)
+
+            with freedvtest.start(settings=reporter_settings(server.hostname)) as app:
+                open_reporter(app)
+                app.wait_until(lambda: sorted(callsigns(app)) == ["K1ABC", "VK5DGR", "W6XYZ"],
+                               timeout=15, description="the three stations to be listed")
+                k1abc.transmit("RADEV1", True)
+                wait_for_cell(app, "K1ABC", STATUS, "TX")
+                k1abc.transmit("RADEV1", False)
+                wait_for_cell(app, "K1ABC", STATUS, "RX")
+
+                for column in (LAST_TX, LAST_UPDATE):
+                    app.click_column(LIST, column)
+                    check_equal(sort_order(app), (column, True), "Sorted ascending by column %d" % column)
+                    check_equal(sorted(callsigns(app)), ["K1ABC", "VK5DGR", "W6XYZ"],
+                                "Rows listed ascending")
+                    app.click_column(LIST, column)
+                    check_equal(sort_order(app), (column, False), "Sorted descending by column %d" % column)
+                    check_equal(sorted(callsigns(app)), ["K1ABC", "VK5DGR", "W6XYZ"],
+                                "Rows listed descending")
+
+                check_equal(app.quit(), 0, "FreeDV's exit code")
+    finally:
+        del os.environ["FREEDVTEST_REPORTER_FIXED_TIME"]
+        del os.environ["FREEDVTEST_REPORTER_BAD_TIME_CALLSIGN"]
+
+
 def test_display_options():
     """Distances in miles, directions as compass points and times in UTC,
     and what's shown when where someone is can't be worked out."""
@@ -2958,6 +2998,7 @@ SCENARIOS = {
     "qsy_with_radio": test_qsy_with_radio,
     "new_callsign": test_new_callsign,
     "sort_every_column": test_sort_every_column,
+    "tied_and_missing_times": test_tied_and_missing_times,
     "numeric_filters": test_numeric_filters,
     "dark_appearance": test_dark_appearance,
     "status_message_flags": test_status_message_flags,

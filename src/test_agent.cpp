@@ -1435,7 +1435,9 @@ void TestAgent::commandClose_(yyjson_val* id, yyjson_val* request)
     }
 
     replyOk_(id, yyjson_mut_doc_new(nullptr));
-    window->Close();
+    // {"force": true} closes as a close that can't be refused does -- what a
+    // log out or the window manager forcing the window away looks like.
+    window->Close(yyjson_get_bool(yyjson_obj_get(request, "force")));
 }
 
 // Brings a window to the front, as clicking on it would.

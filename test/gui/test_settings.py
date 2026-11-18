@@ -443,6 +443,15 @@ def test_audio_tests():
                 check_saved(app, {"/Audio/soundCard2OutDeviceName": SPEAKER,
                                   "/Audio/soundCard2OutSampleRate": 48000})
 
+                # Saving what was chosen for a device that's gone leaves
+                # nothing chosen at all, so there's nothing for the test to
+                # play through.
+                check_values(app, {"tcSoundCard1OutDevice": ""})
+                app.click(name("btnSoundCard1OutTest"))
+                check_equal([box["message"] for box in app.message_boxes(clear=True)],
+                            ["Please select an audio output device first."],
+                            "Message displayed when no output device is chosen")
+
             # FreeDV exiting while an audio test is still running waits for
             # it rather than leaving it going as the window goes with it.
             set_value(app, "lcSoundCard1OutDevice", RADIO_TX)
@@ -574,6 +583,11 @@ def test_radio():
         set_value(app, "cbSerialRate", "fast")
         press_apply(app)
         check_saved(app, {"/Hamlib/SerialRate": 19200})
+
+        # Zero is a number, but not a rate.
+        set_value(app, "cbSerialRate", "0")
+        press_apply(app)
+        check_saved(app, {"/Hamlib/SerialRate": 19200})
         set_value(app, "cbSerialRate", "default")
         set_value(app, "cbRigName", rig)
         check_values(app, {"cbSerialRate": "default"})
@@ -658,13 +672,16 @@ def test_ptt_test():
         set_value(app, "cbPttMethod", "CAT")
 
         # Keying by nothing at all: there's nothing for Hamlib to key, but
-        # the test still runs to the end. A serial rate that isn't one is
-        # left for Hamlib to choose.
-        set_value(app, "cbSerialRate", "notarate")
+        # the test still runs to the end. A serial rate that isn't one -- no
+        # digits, zero, or more than Hamlib can use -- is left for Hamlib to
+        # choose.
         set_value(app, "cbPttMethod", "None")
-        app.click(name("buttonTestPTT"))
-        wait_for_test_to_finish(app)
-        check_equal(app.message_boxes(), [], "Messages displayed when there's nothing to key")
+        for rate in ["notarate", "0", "9999999"]:
+            set_value(app, "cbSerialRate", rate)
+            app.click(name("buttonTestPTT"))
+            wait_for_test_to_finish(app)
+            check_equal(app.message_boxes(), [],
+                        "Messages displayed when there's nothing to key at %s baud" % rate)
         set_value(app, "cbSerialRate", "default")
         set_value(app, "cbPttMethod", "CAT")
 
@@ -677,8 +694,11 @@ def test_ptt_test():
                     "Messages displayed")
         set_value(app, "ckLeftChannelVoxTone", False)
 
-        # A radio that isn't there.
-        set_value(app, "cbRigName", find_rig(app, "Yaesu FT-991"))
+        # A radio that isn't there -- an Icom, so that the address field is
+        # used too: what isn't a hex number is left as Hamlib's own rather
+        # than guessed at.
+        set_value(app, "cbRigName", find_rig(app, "Icom IC-7300"))
+        set_value(app, "tcIcomCIVHex", "zz")
         set_value(app, "cbSerialPort", "/dev/ttyFreeDVTestMissing")
         app.click(name("buttonTestPTT"))
         wait_for_test_to_finish(app)
@@ -907,6 +927,20 @@ def test_frequency_list():
         # ...including at the end.
         set_value(app, "txtCtrlNewFrequency", "28.33")
         app.click(name("freqListAdd"))
+        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "14.2360", "28.3300"],
+                    "Frequencies listed")
+
+        # The same frequency spelled differently is worth adding again: the
+        # check for what's already in the list is by the text shown.
+        set_value(app, "txtCtrlNewFrequency", "10.136")
+        check_buttons(app, True, False)
+        app.click(name("freqListAdd"))
+        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "10.1360", "14.2360", "28.3300"],
+                    "Frequencies listed with the duplicate")
+        # Remove takes the first of them out again.
+        set_value(app, "txtCtrlNewFrequency", "10.1360")
+        check_buttons(app, False, True)
+        app.click(name("freqListRemove"))
         check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "14.2360", "28.3300"],
                     "Frequencies listed")
 

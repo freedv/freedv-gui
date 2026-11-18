@@ -418,10 +418,12 @@ class FreeDV:
             except FreeDVError:
                 pass
 
-    def close(self, name):
+    def close(self, name, force=False):
         """Closes a top-level window as its title bar's close button would,
-        or something that's popped up as clicking elsewhere would."""
-        self.command("close", name=name)
+        or something that's popped up as clicking elsewhere would. force=True
+        is a close the window can't refuse, as a log out or the window manager
+        forcing it away is."""
+        self.command("close", name=name, force=force or None)
 
     def menu(self, path, window=None):
         """Selects a menu item, e.g. "Settings/Setup Wizard...", from the
