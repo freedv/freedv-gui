@@ -1791,6 +1791,23 @@ def test_tune_level_per_band():
             saved = freedvtest.read_config(app.config_path)
             check_equal(saved.get("/Audio/tuneLevelByBand/20m"), "-10", "Saved tune attenuation for 20m")
 
+        # A saved level that's beyond the limits comes back at the limit.
+        beyond = settings(Reporting__Frequency=7177000)
+        beyond["/Audio/tuneLevelByBand/20m"] = -400
+        with freedvtest.start(settings=beyond) as app:
+            app.wait_for_window("main")
+            start_modem(app)
+            app.set_value("main.cboReportFrequency", "14.2360")
+            app.click("main.btnTune")
+            try:
+                app.wait_until(lambda: tx_level(app) == "-30.0dB", timeout=5)
+            except freedvtest.FreeDVError:
+                pass
+            check_equal(tx_level(app), "-30.0dB", "Tune attenuation saved beyond the limit")
+            app.click("main.btnTune")
+            stop_modem(app)
+            quit_and_check_log(app)
+
 
 def test_reporting_without_callsign():
     """Reporting turned on without saying who's reporting."""
@@ -2231,6 +2248,25 @@ def test_time_out_timer():
             stop_modem(app)
             quit_and_check_log(app)
 
+        # A time-out no longer than the warning's own 15 seconds: the warning
+        # is up as soon as transmitting starts, and putting it off sets the
+        # beep going again while the first one is still being played.
+        with freedvtest.start(settings=settings(Rig__TotTimerSecs=15)) as app:
+            app.wait_for_window("main")
+            start_modem(app)
+            app.click("main.btnPTT")
+            wait_for_transmit(app)
+            app.wait_for_window("totWarning", timeout=5)
+            app.click("totWarning.btnExtend")
+            app.wait_for_window_closed("totWarning")
+            app.wait_for_window("totWarning", timeout=5)
+            check(app.log().count("Playing TOT beep") >= 2, "The beep wasn't started again after putting it off")
+            app.click("main.btnPTT")
+            wait_for_transmit(app, False)
+            check(not app.window_exists("totWarning"), "The time-out warning is still there")
+            stop_modem(app)
+            quit_and_check_log(app)
+
 
 def test_voice_keyer_time_out():
     """The time-out timer stops the voice keyer too, when what it's sending
@@ -2352,6 +2388,13 @@ def test_menus():
             app.wait_for_window("main")
             title = app.get("main")["label"]
             check(title.startswith("FreeDV ") and "(freedv.conf)" in title, "Window title is %r" % title)
+
+            # File > Keep On Top, which is only offered where it works.
+            if sys.platform != "linux":
+                app.menu("File/Keep On Top")
+                check_equal(app.menu_checked("File/Keep On Top"), True, "Keep On Top checked")
+                app.menu("File/Keep On Top")
+                check_equal(app.menu_checked("File/Keep On Top"), False, "Keep On Top unchecked again")
 
             def callsign():
                 return app.state()["config"]["reporting"]["reportingCallsign"]
@@ -2851,6 +2894,63 @@ def test_exit_while_tuning():
         check_silent(RADIO_TX_MONITOR, "Something is still being sent to the radio")
 
 
+def test_exit_during_on_off():
+    """Closing the window, or choosing File > Exit, while Start or Stop Modem
+    is still being carried out: FreeDV refuses, so that the window isn't
+    destroyed from under the worker doing it."""
+    with audio_devices():
+        with freedvtest.start(settings=settings()) as app:
+            app.wait_for_window("main")
+
+            # Closing while the modem is starting.
+            app.click("main.btnOnOff")
+            app.wait_until(lambda: not app.get("main.btnOnOff")["enabled"], description="the start to begin")
+            app.close("main")
+            check(app.window_exists("main"), "FreeDV closed while the modem was still starting")
+            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], timeout=20,
+                           description="the modem to start")
+            check(app.state()["running"], "FreeDV isn't running after a close refused while starting")
+
+            # File > Exit while the modem is stopping.
+            app.click("main.btnOnOff")
+            app.wait_until(lambda: not app.get("main.btnOnOff")["enabled"], description="the stop to begin")
+            app.menu(EXIT_MENU_ITEM)
+            time.sleep(2)
+            check(app.window_exists("main"), "FreeDV exited while the modem was still stopping")
+            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], timeout=20,
+                           description="the modem to stop")
+            check_equal(app.state()["running"], False, "Running once the stop that was waited for is done")
+
+            quit_and_check_log(app)
+
+
+def test_udp_reporting_while_running():
+    """UDP reporting turned on and off while the modem is running: reporting
+    restarts with it, which is what makes the Log QSO button usable."""
+    extra = dict(Reporting__Enable=True, Reporting__Callsign=CALLSIGN, Reporting__GridSquare="DM12",
+                 Reporting__Frequency=14236000)
+    with audio_devices():
+        with freedvtest.start(settings=settings(**extra)) as app:
+            app.wait_for_window("main")
+            start_modem(app)
+            check_equal(app.get("main.btnLogQSO")["enabled"], False, "Log QSO before UDP reporting is turned on")
+
+            change_settings(app, "Reporting", ckboxUDPReportingEnable=True)
+            app.wait_until(lambda: app.get("main.btnLogQSO")["enabled"], timeout=20,
+                           description="the Log QSO button to come up with UDP reporting on")
+            check_equal(freedvtest.read_config(app.config_path).get("/Reporting/UDP/Enable"), "1",
+                        "Saved UDP reporting")
+            check_equal(app.message_boxes(), [], "Errors displayed turning UDP reporting on")
+
+            # Back off again: with nothing to send contacts to, there's no
+            # logging program to log one with.
+            change_settings(app, "Reporting", ckboxUDPReportingEnable=False)
+            app.wait_until(lambda: not app.get("main.btnLogQSO")["enabled"], timeout=20,
+                           description="the Log QSO button to go with UDP reporting off")
+            stop_modem(app)
+            quit_and_check_log(app)
+
+
 def first_icon_resource(binary):
     """The name of the first icon in a Windows program's resources: the one
     Explorer and the taskbar show for the program itself."""
@@ -3247,6 +3347,8 @@ SCENARIOS = {
     "voice_keyer_recording_stop": test_voice_keyer_recording_stop,
     "voice_keyer_recording_while_running": test_voice_keyer_recording_while_running,
     "exit_while_tuning": test_exit_while_tuning,
+    "exit_during_on_off": test_exit_during_on_off,
+    "udp_reporting_while_running": test_udp_reporting_while_running,
     "old_settings": test_old_settings,
     "bad_command_line": test_bad_command_line,
     "window_icon": test_window_icon,

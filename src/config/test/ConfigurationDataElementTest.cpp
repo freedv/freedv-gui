@@ -412,6 +412,127 @@ bool everyTypeConvertsImplicitly()
         tunedBands == std::map<wxString, int> { { wxString::FromUTF8("40m"), 8 } };
 }
 
+// What a change to each kind of element needs done for it to take effect,
+// as mergeChangesFrom() reports it.
+bool changeEffectsComeBackForEveryKind()
+{
+    ConfigurationDataElement<int> frequency("/Test/Frequency", 8000, ConfigChange::UPDATES_RUNNING_AUDIO);
+    ConfigurationDataElement<long> volume("/Test/Volume", 1, ConfigChange::RESTARTS_AUDIO);
+    ConfigurationDataElement<unsigned long> timeout("/Test/Timeout", 5, ConfigChange::RECONNECTS_RADIO);
+    ConfigurationDataElement<float> gamma("/Test/Gamma", 1.0f, ConfigChange::RESTARTS_AUDIO | ConfigChange::UPDATES_RUNNING_AUDIO);
+    ConfigurationDataElement<wxString> callsign("/Test/Callsign", wxString(), ConfigChange::RECONNECTS_FREEDV_REPORTER);
+    ConfigurationDataElement<std::map<wxString, int>> bands("/Test/Bands", std::map<wxString, int>(), ConfigChange::NONE);
+    ConfigurationDataElement<std::vector<int>> filters("/Test/Filters", std::vector<int>(), ConfigChange::REOPENS_PTT_INPUT);
+
+    bool result = true;
+    result &= frequency.getChangeEffects() == (uint32_t)ConfigChange::UPDATES_RUNNING_AUDIO;
+    result &= volume.getChangeEffects() == (uint32_t)ConfigChange::RESTARTS_AUDIO;
+    result &= timeout.getChangeEffects() == (uint32_t)ConfigChange::RECONNECTS_RADIO;
+    result &= gamma.getChangeEffects() == (uint32_t)(ConfigChange::RESTARTS_AUDIO | ConfigChange::UPDATES_RUNNING_AUDIO);
+    result &= callsign.getChangeEffects() == (uint32_t)ConfigChange::RECONNECTS_FREEDV_REPORTER;
+    result &= bands.getChangeEffects() == (uint32_t)ConfigChange::NONE;
+    result &= filters.getChangeEffects() == (uint32_t)ConfigChange::REOPENS_PTT_INPUT;
+    return result;
+}
+
+// Settings' copy of a setting is copied back into the live one, taking its
+// value and its default with it (a migration may have changed the default
+// of the copy, and Settings' "restore default" works from that).
+template<typename UnderlyingType>
+bool copyCarriesValueAndDefault(
+    UnderlyingType const& sourceDefault, UnderlyingType const& sourceValue, UnderlyingType const& targetValue)
+{
+    ConfigurationDataElement<UnderlyingType> source("/Test/Source", sourceDefault);
+    source = sourceValue;
+
+    ConfigurationDataElement<UnderlyingType> target("/Test/Target", sourceDefault);
+    target = targetValue;
+
+    target.copyValueFrom(source);
+
+    return target.getWithoutProcessing() == sourceValue &&
+        target.getDefaultVal() == sourceDefault &&
+        source.getWithoutProcessing() == sourceValue &&
+        source.getDefaultVal() == sourceDefault;
+}
+
+bool copyCarriesValueAndDefaultForEveryKind()
+{
+    bool result = true;
+    result &= copyCarriesValueAndDefault<int>(1, 2, 3);
+    result &= copyCarriesValueAndDefault<long>(1L, 2L, 3L);
+    result &= copyCarriesValueAndDefault<unsigned long>(1UL, 2UL, 3UL);
+    result &= copyCarriesValueAndDefault<float>(1.0f, 2.0f, 3.0f);
+    result &= copyCarriesValueAndDefault<wxString>(
+        wxString::FromUTF8("a"), wxString::FromUTF8("b"), wxString::FromUTF8("c"));
+    result &= copyCarriesValueAndDefault<std::map<wxString, int>>(
+        { { wxString::FromUTF8("a"), 1 } }, { { wxString::FromUTF8("b"), 2 } }, { { wxString::FromUTF8("c"), 3 } });
+    result &= copyCarriesValueAndDefault<std::vector<int>>({ 1 }, { 2 }, { 3 });
+    return result;
+}
+
+// A setting's limits hold for every kind of value it can hold, however it's
+// set: assigned from Settings, read from the configuration file, updated in
+// place, or copied from another copy of the configuration.
+template<typename UnderlyingType>
+bool limitsHoldForKind(
+    UnderlyingType const& low, UnderlyingType const& middle, UnderlyingType const& high,
+    UnderlyingType const& below, UnderlyingType const& above)
+{
+    ConfigurationDataElement<UnderlyingType> element("/Test/Value", middle);
+    element.setLimits(low, high);
+
+    bool result = element.getWithoutProcessing() == middle;
+
+    element = above;
+    result &= element.getWithoutProcessing() == high;
+    element = below;
+    result &= element.getWithoutProcessing() == low;
+
+    element.setWithoutProcessing(above);
+    result &= element.getWithoutProcessing() == high;
+
+    element.update([&](UnderlyingType& value) { value = below; });
+    result &= element.getWithoutProcessing() == low;
+
+    // What's copied in from another copy is brought within these limits too,
+    // while the default that comes with it isn't.
+    ConfigurationDataElement<UnderlyingType> source("/Test/Source", middle);
+    source = above;
+    element.copyValueFrom(source);
+    result &= element.getWithoutProcessing() == high;
+    result &= element.getDefaultVal() == middle;
+    return result;
+}
+
+bool limitsHoldForEveryKind()
+{
+    bool result = true;
+    result &= limitsHoldForKind<int>(10, 50, 100, 5, 1000);
+    result &= limitsHoldForKind<long>(10L, 50L, 100L, 5L, 1000L);
+    result &= limitsHoldForKind<unsigned long>(10UL, 50UL, 100UL, 0UL, 1000UL);
+    result &= limitsHoldForKind<float>(10.0f, 50.0f, 100.0f, 0.0f, 1000.0f);
+    result &= limitsHoldForKind<wxString>(
+        wxString::FromUTF8("b"), wxString::FromUTF8("m"), wxString::FromUTF8("y"),
+        wxString::FromUTF8("a"), wxString::FromUTF8("z"));
+    result &= limitsHoldForKind<std::map<wxString, int>>(
+        { { wxString::FromUTF8("a"), 1 } }, { { wxString::FromUTF8("m"), 1 } }, { { wxString::FromUTF8("z"), 1 } },
+        { { wxString::FromUTF8("a"), 0 } }, { { wxString::FromUTF8("z"), 2 } });
+    result &= limitsHoldForKind<std::vector<int>>({ 1 }, { 5 }, { 10 }, { 0 }, { 11 });
+    return result;
+}
+
+bool unsignedLongProcessorRoundTrip()
+{
+    ConfigurationDataElement<unsigned long> element("/Test/Value", 0);
+    element.setSaveProcessor([](unsigned long val) { return val * 1000UL; });
+    element.setLoadProcessor([](unsigned long val) { return val / 1000UL; });
+
+    element = 42UL;
+    unsigned long converted = element;
+    return element.getWithoutProcessing() == 42000UL && element.get() == 42UL && converted == 42UL;
+}
+
 }
 
 int main()
@@ -439,5 +560,9 @@ int main()
     executeTestCase("stringListProcessorRoundTrip", stringListProcessorRoundTrip);
     executeTestCase("intMapProcessorRoundTrip", intMapProcessorRoundTrip);
     executeTestCase("everyTypeConvertsImplicitly", everyTypeConvertsImplicitly);
+    executeTestCase("changeEffectsComeBackForEveryKind", changeEffectsComeBackForEveryKind);
+    executeTestCase("copyCarriesValueAndDefaultForEveryKind", copyCarriesValueAndDefaultForEveryKind);
+    executeTestCase("limitsHoldForEveryKind", limitsHoldForEveryKind);
+    executeTestCase("unsignedLongProcessorRoundTrip", unsignedLongProcessorRoundTrip);
     return testResult();
 }

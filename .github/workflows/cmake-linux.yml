@@ -627,7 +627,10 @@ jobs:
           # touches a wxString has some), for cleaning up if a constructor
           # throws ("new Something(...)"), and for an assert failing.
           BRANCH_EXCLUSIONS='.*(\bnew\s+[A-Za-z_:<>]+\s*[\(\[\{;]|\bassert\s*\(|\bwxASSERT|\bwxCHECK|GCOVR?_EXCL_BR_LINE).*'
-          gcovr -j "$(nproc)" --root . --object-directory build_linux --filter 'src/' --exclude '.*/test/.*' --exclude 'build_linux/.*' --gcov-ignore-errors=all --gcov-ignore-parse-errors=all --merge-mode-functions=merge-use-line-min --exclude-throw-branches --exclude-branches-by-pattern "$BRANCH_EXCLUSIONS" --json coverage-measured.json
+          # topFrame.h holds wxFormBuilder's default handlers; MainFrame
+          # overrides the ones it uses, so the base versions of those can
+          # never run.
+          gcovr -j "$(nproc)" --root . --object-directory build_linux --filter 'src/' --exclude '.*/test/.*' --exclude 'build_linux/.*' --exclude 'src/topFrame\.h' --gcov-ignore-errors=all --gcov-ignore-parse-errors=all --merge-mode-functions=merge-use-line-min --exclude-throw-branches --exclude-branches-by-pattern "$BRANCH_EXCLUSIONS" --json coverage-measured.json
           # ...and those that take more than the line itself to recognise.
           python3 .github/scripts/coverage_exclusions.py coverage-measured.json coverage.json
           gcovr --root . --add-tracefile coverage.json --json-summary coverage-summary.json --html-details coverage-html/index.html

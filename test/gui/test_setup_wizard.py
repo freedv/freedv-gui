@@ -543,13 +543,16 @@ def test_auto_select():
     dax_iq = "FreeDVGuiTest_Dax_Iq"
     dax_rx2 = "FreeDVGuiTest_Dax_Second"
     dax_rx1 = "FreeDVGuiTest_Dax_First"
-    # A receive channel without a number, and a device that isn't a receiver.
+    # A receive channel without a number, a device that isn't a receiver,
+    # and a monitor of a channel, which isn't receive audio either.
     dax_left = "FreeDVGuiTest_Dax_Left"
     dax_side = "FreeDVGuiTest_Dax_Side"
+    dax_mon = "FreeDVGuiTest_Dax_Monitor"
     dax_tx = "FreeDVGuiTest_Dax_Transmit"
     with VirtualAudioDevices(
             inputs={dax_iq: "DAX IQ RX 1", dax_rx2: "DAX Audio RX 2", dax_rx1: "DAX Audio RX 1",
-                    dax_left: "DAX Audio RX Left", dax_side: "DAX Side"},
+                    dax_left: "DAX Audio RX Left", dax_side: "DAX Side",
+                    dax_mon: "Monitor of DAX Audio RX 1"},
             outputs={dax_tx: "DAX Audio TX (FlexRadio Systems DAX TX)"}):
         with freedvtest.start() as app:
             app.wait_for_window("wizard")
@@ -566,6 +569,27 @@ def test_auto_select():
         with freedvtest.start() as app:
             app.wait_for_window("wizard")
             check_equal(app.get("wizard.cbRadioIn")["data"], "none", "Radio input")
+            app.click("wizard.btnCancel")
+            app.wait_for_window_closed("wizard")
+            quit_and_check_log(app)
+
+    # A receive-only setup with no radio input at all: the radio that's there
+    # is found, and the wizard stops treating it as receive only.
+    with VirtualAudioDevices(SPEAKER,
+                             inputs={codec_in: "USB Audio CODEC"},
+                             outputs={codec_out: "USB Audio CODEC"}):
+        with freedvtest.start(settings={
+                "/Audio/soundCard1InDeviceName": "none",
+                "/Audio/soundCard1OutDeviceName": SPEAKER,
+                "/Audio/soundCard2InDeviceName": "none",
+                "/Audio/soundCard2OutDeviceName": "none"}) as app:
+            app.wait_for_window("main")
+            reopen_wizard(app)
+            check_equal(app.get("wizard.cbRadioIn")["data"], codec_in,
+                        "Radio input found for a setup with none")
+            check_equal(app.get("wizard.cbRadioOut")["data"], codec_out, "Radio output found with it")
+            go_to_page(app, 1)
+            check_values(app, {"ckReceiveOnly": False})
             app.click("wizard.btnCancel")
             app.wait_for_window_closed("wizard")
             quit_and_check_log(app)
@@ -634,6 +658,16 @@ def test_radio_control():
         check("38400" in low_rates, "38400 not offered for %s" % low_rig)
         check("115200" not in low_rates, "Too fast rate offered for %s" % low_rig)
         check("2400" not in low_rates, "Too slow rate offered for %s" % low_rig)
+        app.set_value("wizard.cbRigName", rig)
+        check_values(app, {"cbSerialRate": "19200"})
+
+        # A rig that says nothing about its rates has all of them on offer.
+        unlimited = find_rig(app, "Hamlib NET rigctl")
+        app.set_value("wizard.cbRigName", unlimited)
+        unlimited_rates = rates()
+        check("300" in unlimited_rates and "2000000" in unlimited_rates,
+              "Serial rates offered for %s are %r" % (unlimited, unlimited_rates))
+        check_equal(len(unlimited_rates), len(all_rates), "Serial rates offered for %s" % unlimited)
         app.set_value("wizard.cbRigName", rig)
         check_values(app, {"cbSerialRate": "19200"})
 
@@ -981,7 +1015,12 @@ def test_import():
 
 def test_import_more():
     """The less usual things that WSJT-X's settings can say."""
-    with VirtualAudioDevices(RADIO_RX, RADIO_TX, SPEAKER):
+    # An output whose description isn't its name, for matching a device by
+    # what it's shown as. (Only where devices with descriptions of their own
+    # can be created, as they can't on macOS and Windows.)
+    dax = "FreeDVGuiTest_Import_Dax_Out"
+    extra = {} if freedvtest.audio.FIXED_DEVICES else {dax: "FlexRadio DAX Audio TX"}
+    with VirtualAudioDevices(RADIO_RX, RADIO_TX, SPEAKER, outputs=extra):
         with freedvtest.start(user_config_files={"WSJT-X.ini": ""}) as app:
             def import_wsjtx(**settings):
                 with open(app.user_config_path("WSJT-X.ini"), "w") as f:
@@ -1089,6 +1128,20 @@ def test_import_more():
                         "Imported: radio audio devices. Review each page before clicking Finish.",
                         "Import result")
             check_equal(app.get("wizard.cbRadioOut")["data"], RADIO_TX, "Radio output")
+
+            # A device found from part of the description it's shown as.
+            if not freedvtest.audio.FIXED_DEVICES:
+                dax_shown = [item["label"] for item in app.get("wizard.cbRadioOut")["items"]
+                             if item.get("data") == dax][0]
+                check_equal(import_wsjtx(SoundOutName=dax_shown[:-4]),
+                            "Imported: radio audio devices. Review each page before clicking Finish.",
+                            "Import result")
+                check_equal(app.get("wizard.cbRadioOut")["data"], dax, "Radio output")
+
+            # A value that's nothing but a quote isn't taken as a quoted one.
+            check_equal(import_wsjtx(SoundInName='"'),
+                        "No usable settings were found in WSJT-X. Not imported: radio audio devices (not "
+                        "currently connected). Review each page before clicking Finish.", "Import result")
 
             app.click("wizard.btnCancel")
             app.wait_for_window_closed("wizard")

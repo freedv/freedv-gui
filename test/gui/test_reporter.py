@@ -645,17 +645,19 @@ def test_idle_filter():
     with ReporterServer() as server:
         k1abc = server.station("K1ABC", "FN42")
         k1abc.set_frequency(14236000)
+        vk5dgr = server.station("VK5DGR", "PF95")
+        vk5dgr.set_frequency(14236000)
         t0 = time.monotonic()  # from when K1ABC last said anything
 
         with freedvtest.start(settings=reporter_settings(server.hostname)) as app:
             open_reporter(app)
-            wait_for_callsigns(app, ["K1ABC"])
+            wait_for_callsigns(app, ["K1ABC", "VK5DGR"])
             check_idle_setting(app, "Disabled", "Idle Off")
 
             # Nobody here has been on for half an hour, so nobody's hidden.
             app.menu(idle_menu + "30", window="reporter")
             check_idle_setting(app, "30", "Idle 30")
-            wait_for_callsigns(app, ["K1ABC"])
+            wait_for_callsigns(app, ["K1ABC", "VK5DGR"])
 
             app.menu(idle_menu + "90", window="reporter")
             check_idle_setting(app, "90", "Idle 90")
@@ -695,7 +697,7 @@ def test_idle_filter():
 
             app.menu(idle_menu + "Disabled", window="reporter")
             check_idle_setting(app, "Disabled", "Idle Off")
-            wait_for_callsigns(app, ["K1ABC"])
+            wait_for_callsigns(app, ["K1ABC", "VK5DGR"])
 
             # Nor does cancelling while it's disabled.
             app.menu(idle_menu + "Custom...", window="reporter")
@@ -711,6 +713,13 @@ def test_idle_filter():
             remaining = 52 - (time.monotonic() - t0)
             if remaining > 0:
                 time.sleep(remaining)
+            # VK5DGR has been on just as long, but it has transmitted, so
+            # it isn't idle: the idle time counts from the last transmission
+            # or, for a station that hasn't transmitted yet, from joining.
+            vk5dgr.transmit("RADEV1", True)
+            wait_for_cell(app, "VK5DGR", STATUS, "TX")
+            vk5dgr.transmit("RADEV1", False)
+            wait_for_cell(app, "VK5DGR", STATUS, "RX")
             app.activate("reporter")
             app.select_row(LIST, (CALLSIGN, "K1ABC"))
             check_equal([row[CALLSIGN] for row in app.rows(LIST) if row["selected"]], ["K1ABC"], "Selected station")
@@ -720,7 +729,8 @@ def test_idle_filter():
             app.click("@Max Idle Time/OK")
             app.wait_for_window_closed("@Max Idle Time")
             check_idle_setting(app, "Custom...", "Idle 1")
-            app.wait_until(lambda: callsigns(app) == [], timeout=25, description="K1ABC to be hidden as idle")
+            app.wait_until(lambda: callsigns(app) == ["VK5DGR"], timeout=25,
+                           description="K1ABC to be hidden as idle")
             check_equal([row[CALLSIGN] for row in app.rows(LIST) if row["selected"]], [],
                         "Selected station after its row was hidden")
             # A station that left while hidden by the idle filter stays
@@ -730,7 +740,7 @@ def test_idle_filter():
             app.menu(idle_menu + "Disabled", window="reporter")
             check_idle_setting(app, "Disabled", "Idle Off")
             time.sleep(5)  # long enough for a refresh to have run
-            check_equal(callsigns(app), [], "Stations listed after leaving while hidden")
+            check_equal(callsigns(app), ["VK5DGR"], "Stations listed after leaving while hidden")
 
             quit_and_check_log(app)
 
@@ -1105,6 +1115,12 @@ def test_row_actions():
                         "Selected stations after hovering messages")
             check_equal(app.message_boxes(), [], "Messages displayed by hovering")
 
+            # The tip window that hovering a message creates can't be reached
+            # from here: the harness reports it as not shown on screen, so the
+            # mouse handlers wired to it (OnRightClickSpotsList,
+            # SkipMouseEvent, OnMouseWheelTooltip, OnLeftClickTooltip) stay
+            # uncovered.
+
             # Nor does the list gaining the focus while the pointer happens to
             # be over a row, as when the window is brought to the front or a
             # tip window closes, without anything being clicked.
@@ -1468,6 +1484,11 @@ def test_sort_every_column():
                 FREQUENCY: ["VK5DGR", "K1ABC", "W6XYZ"],
                 MESSAGE: ["VK5DGR", "W6XYZ", "K1ABC"],        # First, Second, Third
                 LAST_TX: ["VK5DGR", "K1ABC", "W6XYZ"],        # never, then the order they did
+                SNR: ["K1ABC", "W6XYZ", "VK5DGR"],             # not heard, 3, 12
+                STATUS: ["K1ABC", "W6XYZ", "VK5DGR"],          # two RX, in the order
+                                                               # they joined, then RX Only
+                TX_MODE: ["VK5DGR", "K1ABC", "W6XYZ"],         # none, then two the same
+                RX_CALLSIGN: ["K1ABC", "W6XYZ", "VK5DGR"],     # none, AB1CD, K1ABC
             }
             for column in app.columns(LIST):
                 if column["title"].strip() == "":
@@ -1479,6 +1500,12 @@ def test_sort_every_column():
                 check_equal(sorted(ascending), ["K1ABC", "VK5DGR", "W6XYZ"], "Callsigns listed")
                 if column_id in expected:
                     wait_for_callsigns(app, expected[column_id])
+
+                # The numeric columns really are sorted by the number rather
+                # than by the text shown.
+                if column_id in (DISTANCE, HEADING):
+                    shown = [number(row[column_id]) for row in app.rows(LIST)]
+                    check_equal(shown, sorted(shown), "%s listed ascending" % column["title"])
 
                 app.click_column(LIST, column_id)
                 check_equal(sort_order(app), (column_id, False), "Sort order after clicking %r again"
@@ -1827,6 +1854,22 @@ def test_updates_while_sorted():
             app.wait_until(lambda: sorted(callsigns(app)) == sorted(everyone), timeout=15,
                            description="all the stations back after the filter")
 
+            # A station moving out of the band being filtered for while it's
+            # the selected row: the selection goes with the row, even though
+            # the filter itself never changes.
+            app.set_value("reporter.cbBandFilter", "20 m")
+            app.wait_until(lambda: sorted(callsigns(app)) == ["K1ABC", "T1E", "T2E"], timeout=15,
+                           description="only the 20 m stations to be listed")
+            app.select_row(LIST, (CALLSIGN, "K1ABC"))
+            check_equal(selected(), ["K1ABC"], "Selected station before it moved band")
+            k1abc.set_frequency(3625000)
+            app.wait_until(lambda: "K1ABC" not in callsigns(app), timeout=15,
+                           description="K1ABC to leave the band being filtered for")
+            check("K1ABC" not in selected(), "K1ABC still selected after its row went: %r" % selected())
+            app.set_value("reporter.cbBandFilter", "All")
+            app.wait_until(lambda: sorted(callsigns(app)) == sorted(everyone), timeout=15,
+                           description="all the stations back after the filter")
+
             # Updates to a hidden station appear when the filter lets it back.
             k1abc.set_frequency(21074000)
             k1abc.set_message("While hidden")
@@ -1927,6 +1970,26 @@ def test_numeric_filters():
             app.column_context_menu(LIST, column, choose="Clear Column Filter")
             wait_for_callsigns(app, everyone)
 
+        def compare_all(app, column, threshold, values):
+            """Every comparison against one threshold."""
+            for operator, keeps in [(">= (Greater or equal to)", lambda value: value >= threshold),
+                                    (">  (Greater than)", lambda value: value > threshold),
+                                    ("=  (Equal to)", lambda value: value == threshold),
+                                    ("!= (Not equal to)", lambda value: value != threshold),
+                                    ("<  (Less than)", lambda value: value < threshold),
+                                    ("<= (Less or equal to)", lambda value: value <= threshold)]:
+                set_filter(app, column, operator, str(threshold))
+                wait_for_callsigns(app, [callsign for callsign in everyone if keeps(values[callsign])])
+            clear_filter(app, column)
+
+        def between(app, column):
+            """A threshold halfway between the two closest values shown, so
+            that no row's rounded one is right on it."""
+            shown = sorted(number(row[column]) for row in app.rows(LIST))
+            gap, index = min((shown[i + 1] - shown[i], i) for i in range(len(shown) - 1))
+            check(gap > 2, "Column %d values are %r" % (column, shown))
+            return int(shown[index] + gap // 2)
+
         for as_khz in [False, True]:
             settings = reporter_settings(server.hostname, **{"/Reporting/FrequencyAsKHz": as_khz})
             with freedvtest.start(settings=settings) as app:
@@ -1950,24 +2013,16 @@ def test_numeric_filters():
                     wait_for_callsigns(app, listed)
                 clear_filter(app, FREQUENCY)
 
-                # Signal report
-                set_filter(app, SNR, ">  (Greater than)", "4")
-                wait_for_callsigns(app, ["K1ABC", "W6XYZ"])
-                set_filter(app, SNR, "<  (Less than)", "0")
-                wait_for_callsigns(app, ["VK5DGR"])
-                clear_filter(app, SNR)
-
-                # Heading, split between the two that are furthest round the
-                # compass. (What's displayed is rounded, so not right on one.)
-                headings = {row[CALLSIGN]: int(row[HEADING]) for row in app.rows(LIST)}
-                lowest, middle, highest = sorted(headings.values())
-                check(highest - middle > 2, "Headings are %r" % headings)
-                threshold = (middle + highest) // 2
-                set_filter(app, HEADING, ">= (Greater or equal to)", str(threshold))
-                wait_for_callsigns(app, [callsign for callsign in everyone if headings[callsign] > threshold])
-                set_filter(app, HEADING, "<  (Less than)", str(threshold))
-                wait_for_callsigns(app, [callsign for callsign in everyone if headings[callsign] < threshold])
-                clear_filter(app, HEADING)
+                if not as_khz:
+                    # The other numeric columns as well, with every
+                    # comparison. SNRs are exact, so one threshold lands on a
+                    # station; distances and headings are only shown rounded,
+                    # so their thresholds sit clear of every row.
+                    compare_all(app, SNR, 5, {row[CALLSIGN]: number(row[SNR]) for row in app.rows(LIST)})
+                    compare_all(app, HEADING, between(app, HEADING),
+                                {row[CALLSIGN]: number(row[HEADING]) for row in app.rows(LIST)})
+                    compare_all(app, DISTANCE, between(app, DISTANCE),
+                                {row[CALLSIGN]: number(row[DISTANCE]) for row in app.rows(LIST)})
 
                 # A filter that isn't a number is ignored.
                 set_filter(app, DISTANCE, ">  (Greater than)", "far")
@@ -1983,8 +2038,6 @@ def test_numeric_filters():
                             "Selected station")
                 set_filter(app, CALLSIGN, "!= (Not equal to)", "K1ABC")
                 wait_for_callsigns(app, ["VK5DGR", "W6XYZ"])
-                print("Selected once K1ABC is filtered out: %r"
-                      % [row[CALLSIGN] for row in app.rows(LIST) if row["selected"]], flush=True)
                 clear_filter(app, CALLSIGN)
                 check("K1ABC" not in [row[CALLSIGN] for row in app.rows(LIST) if row["selected"]],
                       "K1ABC is selected again on being listed again")
@@ -2097,6 +2150,35 @@ def test_text_filters():
             wait_for_callsigns(app, ["VK5DGR", "W6XYZ"])
             app.column_context_menu(LIST, LAST_TX, choose="Clear Column Filter")
             wait_for_callsigns(app, everyone)
+
+            quit_and_check_log(app)
+
+
+def test_dark_appearance():
+    """A dark desktop theme reaching the window: the rows go dark, and the
+    idle filter's label takes the colour meant for dark backgrounds."""
+    with ReporterServer() as server:
+        server.station("K1ABC", "FN42").set_frequency(14236000)
+
+        with freedvtest.start(settings=reporter_settings(server.hostname),
+                              env={"GTK_THEME": "Adwaita:dark"}) as app:
+            open_reporter(app)
+            wait_for_callsigns(app, ["K1ABC"])
+
+            # The rows are dark, which is how wxWidgets tells that this is a
+            # dark appearance.
+            colour = app.wait_until(lambda: (row_for(app, "K1ABC")["background"] or "").lstrip("#"),
+                                    timeout=15, description="K1ABC's row colour")
+            red, green, blue = (int(colour[i:i + 2], 16) for i in (0, 2, 4))
+            if max(red, green, blue) >= 128:
+                print("Skipping: this desktop didn't go dark (K1ABC's row is %s)" % colour,
+                      flush=True)
+                quit_and_check_log(app)
+                sys.exit(SKIPPED)
+
+            app.menu("Filter/Idle more than (minutes).../30", window="reporter")
+            check_equal(label(app, "reporter.stFilterStatus"), "Idle 30", "Idle filter status")
+            wait_for_callsigns(app, ["K1ABC"])
 
             quit_and_check_log(app)
 
@@ -2877,6 +2959,7 @@ SCENARIOS = {
     "new_callsign": test_new_callsign,
     "sort_every_column": test_sort_every_column,
     "numeric_filters": test_numeric_filters,
+    "dark_appearance": test_dark_appearance,
     "status_message_flags": test_status_message_flags,
     "text_filters": test_text_filters,
     "saved_filters": test_saved_filters,

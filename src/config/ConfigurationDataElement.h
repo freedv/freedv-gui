@@ -161,7 +161,7 @@ bool ConfigurationDataElement<UnderlyingDataType>::hasSameValueAs(IConfiguration
 {
     auto* same = dynamic_cast<ConfigurationDataElement<UnderlyingDataType>*>(&other);
     assert(same != nullptr && same != this);
-    if (same == nullptr)
+    if (same == nullptr) // GCOVR_EXCL_BR_LINE: only taken with the assert above compiled out
     {
         return false;
     }
@@ -176,7 +176,7 @@ void ConfigurationDataElement<UnderlyingDataType>::copyValueFrom(IConfigurationD
 {
     auto* same = dynamic_cast<ConfigurationDataElement<UnderlyingDataType>*>(&other);
     assert(same != nullptr && same != this);
-    if (same == nullptr)
+    if (same == nullptr) // GCOVR_EXCL_BR_LINE: only taken with the assert above compiled out
     {
         return;
     }
