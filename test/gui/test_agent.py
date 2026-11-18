@@ -17,7 +17,6 @@ Run from the build folder (or set FREEDV_BINARY), on Linux or macOS: see
 freedvtest/audio.py for the audio devices it needs.
 """
 
-import json
 import os
 import sys
 
@@ -25,55 +24,20 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import freedvtest
 import freedvtest.audio
-from freedvtest.audio import VirtualAudioDevices, device
+from test_main_window import CALLSIGN, audio_devices, check, check_equal, settings as main_window_settings
 
-RADIO_RX = device("FreeDVGuiTest_Radio_To_Computer")
-RADIO_TX = device("FreeDVGuiTest_Computer_To_Radio")
-MICROPHONE = device("FreeDVGuiTest_Microphone_To_Computer")
-SPEAKER = device("FreeDVGuiTest_Computer_To_Speaker")
-
-RADIO_RX_IN = VirtualAudioDevices.input_name(RADIO_RX)
-MICROPHONE_IN = VirtualAudioDevices.input_name(MICROPHONE)
-
-TABS = ["RX Audio", "TX Audio", "Radio", "Rig Control", "Reporting", "Voice Keyer", "Display", "Modem", "Debugging"]
-
-# Somewhere for FreeDV to report to that isn't the public FreeDV Reporter
-# server (nothing's listening there).
-NOWHERE = "127.0.0.1:9"
+SETTINGS_TABS = ["RX Audio", "TX Audio", "Radio", "Rig Control", "Reporting", "Voice Keyer", "Display", "Modem",
+                 "Debugging"]
 
 # The FreeDV Reporter window's list of spots, which stays empty here.
 SPOTS = "reporter.listSpots"
 
 
-def check(condition, message):
-    if not condition:
-        raise AssertionError(message)
-
-
-def check_equal(actual, expected, what):
-    check(actual == expected, "%s is %r, expected %r" % (what, actual, expected))
-
-
-def audio_devices():
-    return VirtualAudioDevices(RADIO_RX, RADIO_TX, MICROPHONE, SPEAKER)
-
-
 def settings():
-    """Returns settings for FreeDV to use the devices from audio_devices(),
-    with FreeDV Reporter turned on (so that its window can be opened) but
-    pointed at an address nothing answers on."""
-    result = {}
-    for card, device in [("soundCard1In", RADIO_RX_IN), ("soundCard1Out", RADIO_TX),
-                         ("soundCard2In", MICROPHONE_IN), ("soundCard2Out", SPEAKER)]:
-        result["/Audio/%sDeviceName" % card] = device
-        result["/Audio/%sSampleRate" % card] = 48000
-    result["/Reporting/Enable"] = True
-    result["/Reporting/Callsign"] = "AA1ZZZ"
-    result["/Reporting/GridSquare"] = "DM12"
-    result["/Reporting/FreeDV/Hostname"] = NOWHERE
-    result["/Reporting/FreeDV/UseTls"] = False
-    result["/Reporting/PSKReporter/Enable"] = False
-    return result
+    """The main window tests' settings (which point FreeDV Reporter at an
+    address nothing answers on), with reporting turned on so that the
+    FreeDV Reporter window can be opened."""
+    return main_window_settings(Reporting__Enable=True, Reporting__Callsign=CALLSIGN, Reporting__GridSquare="DM12")
 
 
 def expect_error(app, expected, cmd, **params):
@@ -88,24 +52,9 @@ def expect_error(app, expected, cmd, **params):
     raise AssertionError("'%s' was accepted (%r), expected %r" % (cmd, result, expected))
 
 
-def send_raw(app, request):
-    """Writes one line straight to FreeDV and returns its reply. A reply to
-    something that isn't a JSON object has no id of its own, so it can't be
-    read with FreeDV.command(); the buffer that reads replies from is left as
-    it would have been, so later commands still line up."""
-    app._connection.sendall(request.encode("utf-8") + b"\n")
-    while b"\n" not in app._received:
-        data = app._connection.recv(65536)
-        if not data:
-            raise AssertionError("FreeDV closed the connection after %r" % request)
-        app._received += data
-    reply, app._received = app._received.split(b"\n", 1)
-    return json.loads(reply.decode("utf-8"))
-
-
 def go_to_tab(app, tab):
     app.set_value("settings.notebook", tab)
-    check_equal(app.get("settings.notebook")["value"], TABS.index(tab), "Tab displayed")
+    check_equal(app.get("settings.notebook")["value"], SETTINGS_TABS.index(tab), "Tab displayed")
 
 
 def test_errors():
@@ -121,8 +70,10 @@ def test_errors():
             # object. Neither has an id to reply to.
             check_equal(app.command("ping"), None, "ping's result")
             expect_error(app, "unknown command 'not_a_real_command'", "not_a_real_command")
+            expect_error(app, "'hold_on_off' needs a boolean 'hold'", "hold_on_off")
+            expect_error(app, "'hold_on_off' needs a boolean 'hold'", "hold_on_off", hold="yes")
             for request in ['{"id": 1, "cmd": "ping"', '["ping"]']:
-                reply = send_raw(app, request)
+                reply = app.raw_request(request)
                 check_equal(reply["ok"], False, "%r was accepted" % request)
                 check_equal(reply["error"], "request is not a JSON object", "%r error" % request)
                 check_equal(reply["id"], None, "%r reply's id" % request)

@@ -51,6 +51,21 @@
 #include "freedv_interface.h"
 #if defined(ENABLE_TEST_AGENT)
 #include "test_agent.h"
+
+// Set by the test agent's hold_on_off, so that a GUI test can act while
+// Start or Stop Modem is still being carried out: the worker waits here
+// while it's set (for 30 seconds at most, so that a test that forgets to
+// let go doesn't hang FreeDV).
+std::atomic<bool> g_testAgentHoldOnOff(false);
+
+static void waitWhileTestAgentHoldsOnOff_()
+{
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (g_testAgentHoldOnOff.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+}
 #endif // defined(ENABLE_TEST_AGENT)
 #include "audio/AudioEngineFactory.h"
 #include "pipeline/TxRxThread.h"
@@ -3543,6 +3558,9 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
         std::thread onOffExec([this]() 
         {
             SetThreadName("TurningOn");
+#if defined(ENABLE_TEST_AGENT)
+            waitWhileTestAgentHoldsOnOff_();
+#endif // defined(ENABLE_TEST_AGENT)
 
             // Anything a start that threw left running comes down with it, as
             // it would on any other failed start, whatever it threw.
@@ -3619,6 +3637,9 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
         std::thread onOffExec([this]() 
         {
             SetThreadName("TurningOff");
+#if defined(ENABLE_TEST_AGENT)
+            waitWhileTestAgentHoldsOnOff_();
+#endif // defined(ENABLE_TEST_AGENT)
 
             try
             {

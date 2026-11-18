@@ -1799,11 +1799,8 @@ def test_tune_level_per_band():
             start_modem(app)
             app.set_value("main.cboReportFrequency", "14.2360")
             app.click("main.btnTune")
-            try:
-                app.wait_until(lambda: tx_level(app) == "-30.0dB", timeout=5)
-            except freedvtest.FreeDVError:
-                pass
-            check_equal(tx_level(app), "-30.0dB", "Tune attenuation saved beyond the limit")
+            app.wait_until(lambda: tx_level(app) == "-30.0dB", timeout=5,
+                           description="the tune attenuation saved beyond the limit to come back at -30.0dB")
             app.click("main.btnTune")
             stop_modem(app)
             quit_and_check_log(app)
@@ -2897,26 +2894,32 @@ def test_exit_while_tuning():
 def test_exit_during_on_off():
     """Closing the window, or choosing File > Exit, while Start or Stop Modem
     is still being carried out: FreeDV refuses, so that the window isn't
-    destroyed from under the worker doing it."""
+    destroyed from under the worker doing it. (The test agent holds each
+    worker until the close has been tried, so it can't finish first.)"""
     with audio_devices():
         with freedvtest.start(settings=settings()) as app:
             app.wait_for_window("main")
 
-            # Closing while the modem is starting.
-            app.click("main.btnOnOff")
-            app.wait_until(lambda: not app.get("main.btnOnOff")["enabled"], description="the start to begin")
-            app.close("main")
-            check(app.window_exists("main"), "FreeDV closed while the modem was still starting")
-            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], timeout=20,
-                           description="the modem to start")
-            check(app.state()["running"], "FreeDV isn't running after a close refused while starting")
+            try:
+                # Closing while the modem is starting.
+                app.command("hold_on_off", hold=True)
+                app.click("main.btnOnOff")
+                check_equal(app.get("main.btnOnOff")["enabled"], False, "Start Modem while starting")
+                app.close("main")
+                check(app.window_exists("main"), "FreeDV closed while the modem was still starting")
+                app.command("hold_on_off", hold=False)
+                app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], timeout=20,
+                               description="the modem to start")
+                check(app.state()["running"], "FreeDV isn't running after a close refused while starting")
 
-            # File > Exit while the modem is stopping.
-            app.click("main.btnOnOff")
-            app.wait_until(lambda: not app.get("main.btnOnOff")["enabled"], description="the stop to begin")
-            app.menu(EXIT_MENU_ITEM)
-            time.sleep(2)
-            check(app.window_exists("main"), "FreeDV exited while the modem was still stopping")
+                # File > Exit while the modem is stopping.
+                app.command("hold_on_off", hold=True)
+                app.click("main.btnOnOff")
+                check_equal(app.get("main.btnOnOff")["enabled"], False, "Stop Modem while stopping")
+                app.menu(EXIT_MENU_ITEM)
+                check(app.window_exists("main"), "FreeDV exited while the modem was still stopping")
+            finally:
+                app.command("hold_on_off", hold=False)
             app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], timeout=20,
                            description="the modem to stop")
             check_equal(app.state()["running"], False, "Running once the stop that was waited for is done")
