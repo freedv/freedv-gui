@@ -1563,14 +1563,16 @@ public:
         FifoGuard fifos;
         seedSine(g_rxUserdata->infifo2, TEST_SAMPLE_RATE); // 1s of speech
 
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(true, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr, makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+
+        // (Only now: the frame size depends on the transmit step this
+        // thread's pipeline has just made.)
         const int oneFrame = (freedvInterface.getTxNNomModemSamples() * TEST_SAMPLE_RATE)
                              / freedvInterface.getTxModemSampleRate();
         std::vector<short> waiting(g_rxUserdata->outfifo1->capacity() - oneFrame, MARKER);
         g_rxUserdata->outfifo1->write(waiting.data(), (int)waiting.size());
-
-        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
-        TxRxThread thread(true, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr, makeHooks(micInDone, recRadioDone, playRadioDone));
-        thread.initializePipeline_();
 
         FakeRealtimeHelper helper;
         thread.txProcessing_(&helper);
