@@ -1456,6 +1456,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
         auto curDate = wxDateTime::Now().ToUTC();
 
         wxDataViewItem currentSelection = parent_->m_listSpots->GetSelection();
+        bool selectionRemoved = false;
 
         // Looked up once per pass rather than for every row.
         const wxColour windowColor = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
@@ -1484,6 +1485,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
                     {
                         // Selection is no longer valid.
                         currentSelection = wxDataViewItem(nullptr);
+                        selectionRemoved = true;
                     }
                 }
                 continue;
@@ -1565,6 +1567,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
                     {
                         // Selection no longer valid
                         currentSelection = wxDataViewItem(nullptr);
+                        selectionRemoved = true;
                     }
                 }
                 sortOnNextTimerInterval = true;
@@ -1593,6 +1596,15 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
         {
             setColumnAutosize_(false);
             ItemsChanged(itemsChanged);
+        }
+
+        if (selectionRemoved)
+        {
+            // The selected row has gone. macOS moves the list's selection
+            // on to the row that took its place, which the user never
+            // chose; leave nothing selected instead, as the other
+            // platforms do.
+            parent_->CallAfter([this]() { parent_->DeselectItem(); });
         }
         
         if (contentChanged || columnsNeedWidthCheck_ || columnsNeedAutosize_)
@@ -3372,6 +3384,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::refreshAllRows()
     wxDataViewItemArray itemsAdded;
     wxDataViewItemArray itemsDeleted;
     wxDataViewItem currentSelection = parent_->m_listSpots->GetSelection();
+    bool selectionRemoved = false;
     
     for (auto& kvp : allReporterData_)
     {
@@ -3430,6 +3443,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::refreshAllRows()
                 {
                     // Selection no longer valid
                     currentSelection = wxDataViewItem(nullptr);
+                    selectionRemoved = true;
                 }
             }
             sortOnNextTimerInterval = true;
@@ -3450,6 +3464,12 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::refreshAllRows()
             parent_->CallAfter([&, currentSelection]() {
                 parent_->m_listSpots->Select(currentSelection);
             });
+        }
+        else if (selectionRemoved)
+        {
+            // As in updateHighlights(): don't let macOS move the selection
+            // on to a row the user never chose.
+            parent_->CallAfter([this]() { parent_->DeselectItem(); });
         }
     }
     

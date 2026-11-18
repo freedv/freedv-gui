@@ -1215,7 +1215,9 @@ void TestAgent::commandSetValue_(yyjson_val* id, yyjson_val* request)
             selection = container->FindString(wanted, true);
             if (selection == wxNOT_FOUND)
             {
-                if (comboBox == nullptr || !comboBox->IsEditable())
+                // (A read-only combo box can still say it's editable: on
+                // macOS, IsEditable() doesn't reflect wxCB_READONLY.)
+                if (comboBox == nullptr || comboBox->HasFlag(wxCB_READONLY) || !comboBox->IsEditable())
                 {
                     replyError_(id, wxString::Format("'%s' has no item labeled '%s'", window->GetName(), wanted));
                     return;
