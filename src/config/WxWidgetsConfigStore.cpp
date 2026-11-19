@@ -76,21 +76,21 @@ void WxWidgetsConfigStore::load_<int>(wxConfigBase* config, ConfigurationDataEle
 template<>
 void WxWidgetsConfigStore::load_<unsigned int>(wxConfigBase* config, ConfigurationDataElement<unsigned int>& configElement)
 {
-    // Read as text and then as a 64 bit number, as a long isn't one on
-    // every platform. Where it's 32 bits (Windows), one above INT_MAX is
-    // written as the negative number with the same bits, so that's read
-    // back as what it stands for; anything else outside an unsigned int
-    // is taken as the default.
-    wxString text;
-    long long val = 0;
-    if (!config->Read(configElement.getElementName(), &text) ||
-        !text.Strip(wxString::both).ToLongLong(&val) ||
-        val < INT_MIN || val > (long long)UINT_MAX)
+    // As a number, not as text: on Windows a config value is a registry
+    // REG_DWORD, and reading one as a string fails (wxRegKey::QueryValue logs
+    // "is not text"), which would put every unsigned setting back to its
+    // default.
+    long val;
+    config->Read(configElement.getElementName(), &val, (long)configElement.getDefaultVal());
+    // Where a long is 64 bits (Linux/macOS), one outside an unsigned int is
+    // taken as the default rather than whatever it would wrap into. Where it's
+    // 32 bits (Windows), one above INT_MAX comes back as the negative number
+    // with the same bits, which the cast below restores.
+    if ((long long)val < INT_MIN || (long long)val > (long long)UINT_MAX)
     {
-        configElement.setWithoutProcessing(configElement.getDefaultVal());
-        return;
+        val = configElement.getDefaultVal();
     }
-    configElement.setWithoutProcessing((unsigned int)(val < 0 ? (unsigned int)(int)val : val));
+    configElement.setWithoutProcessing((unsigned int)val);
 }
 
 template<>
