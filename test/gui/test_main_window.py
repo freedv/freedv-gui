@@ -2959,9 +2959,17 @@ def test_exit_during_on_off():
             app.click("main.btnOnOff")
             check_equal(app.get("main.btnOnOff")["enabled"], False, "Start Modem while starting")
             app.close("main", force=True)
+            # The close is now waiting for the Start, pumping the event loop
+            # as it does so; that's what lets this release through, while
+            # the close itself is still being carried out.
             app.command("hold_on_off", hold=False)
             check_equal(app.wait_for_exit(), 0, "FreeDV's exit code (close waited for the start)")
-            check_no_errors(app.log())
+            log = app.log()
+            check_no_errors(log)
+            # Had it given up waiting, it would only have warned and gone on
+            # regardless -- the close this is here to see not happening.
+            check("On/Off still running" not in log,
+                  "The close gave up waiting for the Start to finish")
 
 
 def test_udp_reporting_while_running():

@@ -2386,6 +2386,12 @@ void OptionsDlg::DisplayFifoPACounters() {
     }
 }
 
+// A frequency written as the frequency list shows it.
+static wxString ShownFrequency(uint64_t hz, bool asKhz)
+{
+    return asKhz ? wxNumberFormatter::ToString(hz / 1000.0, 1) : wxNumberFormatter::ToString(hz / 1000000.0, 4);
+}
+
 void OptionsDlg::OnReportingFreqSelectionChange(wxCommandEvent&)
 {
     auto sel = m_freqList->GetSelection();
@@ -2406,7 +2412,7 @@ void OptionsDlg::OnReportingFreqTextChange(wxCommandEvent&)
     bool validFrequency = ReportingConfiguration::DisplayedFrequencyToHz(
         m_txtCtrlNewFrequency->GetValue(), wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz) > 0;
 
-    auto idx = m_freqList->FindString(m_txtCtrlNewFrequency->GetValue());
+    auto idx = findFrequency_(m_txtCtrlNewFrequency->GetValue());
     if (idx != wxNOT_FOUND)
     {
         m_freqListAdd->Enable(false);
@@ -2437,7 +2443,7 @@ void OptionsDlg::OnReportingFreqAdd(wxCommandEvent&)
     }
 
     double dVal = asKhz ? hz / 1000.0 : hz / 1000000.0;
-    val = wxNumberFormatter::ToString(dVal, asKhz ? 1 : 4);
+    val = ShownFrequency(hz, asKhz);
     // Keep the list in ascending order: a new entry goes straight into its
     // place rather than at the end.
     auto strings = m_freqList->GetStrings();
@@ -2446,9 +2452,24 @@ void OptionsDlg::OnReportingFreqAdd(wxCommandEvent&)
     m_txtCtrlNewFrequency->SetValue("");
 }
 
+int OptionsDlg::findFrequency_(wxString const& text) const
+{
+    // By its value, written as Add would list it: everything in the list is
+    // written that way (by Add, or by the configuration as it loads the
+    // list), so "10.136" finds the "10.1360" there -- as does "10.13604",
+    // which would be listed as that too.
+    bool asKhz = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz;
+    uint64_t hz = ReportingConfiguration::DisplayedFrequencyToHz(text, asKhz);
+    if (hz == 0)
+    {
+        return wxNOT_FOUND;
+    }
+    return m_freqList->FindString(ShownFrequency(hz, asKhz));
+}
+
 void OptionsDlg::OnReportingFreqRemove(wxCommandEvent&)
 {
-    auto idx = m_freqList->FindString(m_txtCtrlNewFrequency->GetValue());
+    auto idx = findFrequency_(m_txtCtrlNewFrequency->GetValue());
     if (idx >= 0)
     {
         m_freqList->Delete(idx);

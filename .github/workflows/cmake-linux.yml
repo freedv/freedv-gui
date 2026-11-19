@@ -552,6 +552,12 @@ jobs:
           . ./rade-venv/bin/activate
           # For running FreeDV Reporter's server locally.
           pip install aiohttp python-socketio aiosqlite
+          # Settings and the Setup Wizard also list /dev/serial/by-id and
+          # /dev/rfcomm*, which the runners don't have; the tests check that
+          # one of each is offered (see test_settings.py's test_radio).
+          sudo mkdir -p /dev/serial/by-id
+          sudo ln -sf /dev/null /dev/serial/by-id/freedvtest-serial
+          sudo touch /dev/rfcomm9
 
     - name: Execute GUI tests
       shell: bash
@@ -606,7 +612,8 @@ jobs:
 
     # Settings and the Setup Wizard also list /dev/serial/by-id and
     # /dev/rfcomm*, which the runners don't have; without one of each, the
-    # code that reads them is never taken.
+    # code that reads them is never taken. (As in test-application, where
+    # what the tests check about them is reported.)
     - name: Create serial device entries
       shell: bash
       run: |

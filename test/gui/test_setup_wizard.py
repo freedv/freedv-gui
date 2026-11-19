@@ -10,6 +10,7 @@ Run from the build folder (or set FREEDV_BINARY), on Linux or macOS: see
 freedvtest/audio.py for the audio devices it needs.
 """
 
+import glob
 import os
 import shutil
 import sys
@@ -595,6 +596,15 @@ def test_auto_select():
             quit_and_check_log(app)
 
 
+def other_serial_ports():
+    """The serial ports FreeDV finds on Linux by name rather than through
+    /sys/class/tty (USB adapters by their ID, and Bluetooth ones): what a
+    port list should offer besides those."""
+    if not sys.platform.startswith("linux"):
+        return []
+    return sorted(glob.glob("/dev/serial/by-id/*") + glob.glob("/dev/rfcomm*"))
+
+
 def test_radio_control():
     """The Radio Control page: CAT control via Hamlib and serial port PTT."""
     with freedvtest.start() as app:
@@ -602,6 +612,12 @@ def test_radio_control():
         go_to_page(app, 2)
         rig = find_rig(app, "Icom IC-7300")
         other_rig = find_rig(app, "Yaesu FT-991")
+
+        # Every list of serial ports offers the ones found by name too.
+        for control in ["cbSerialPort", "cbPttSerialPort", "cbCtlDevicePath"]:
+            listed = [item["label"] for item in app.get("wizard." + control)["items"]]
+            check_equal([port for port in other_serial_ports() if port not in listed], [],
+                        "Serial ports missing from %s" % control)
 
         # Nothing's usable until the way of keying the radio is chosen.
         check_values(app, {"ckHamlib": False, "ckSerialPTT": False})

@@ -11,6 +11,7 @@ freedvtest/audio.py for the audio devices it needs.
 """
 
 import contextlib
+import glob
 import os
 import shutil
 import sys
@@ -143,6 +144,15 @@ def audio_settings():
 
 def device_labels(app, control):
     return [item["label"] for item in app.get(name(control))["items"]]
+
+
+def other_serial_ports():
+    """The serial ports FreeDV finds on Linux by name rather than through
+    /sys/class/tty (USB adapters by their ID, and Bluetooth ones): what a
+    port list should offer besides those."""
+    if not sys.platform.startswith("linux"):
+        return []
+    return sorted(glob.glob("/dev/serial/by-id/*") + glob.glob("/dev/rfcomm*"))
 
 
 def start_modem(app):
@@ -504,6 +514,12 @@ def test_radio():
         open_settings(app, "Radio")
         rig = find_rig(app, "Yaesu FT-991")
         icom = find_rig(app, "Icom IC-7300")
+
+        # Every list of serial ports offers the ones found by name too.
+        for control in ["cbSerialPort", "cbPttSerialPort", "cbCtlDevicePath", "cbCtlDevicePathPttIn"]:
+            listed = device_labels(app, control)
+            check_equal([port for port in other_serial_ports() if port not in listed], [],
+                        "Serial ports missing from %s" % control)
 
         # Nothing's usable until the way of keying the radio is chosen.
         check_values(app, {"ckUseHamlibPTT": False, "ckUseSerialPTT": False, "ckUsePTTInput": False})
@@ -930,17 +946,22 @@ def test_frequency_list():
         check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "14.2360", "28.3300"],
                     "Frequencies listed")
 
-        # The same frequency spelled differently is worth adding again: the
-        # check for what's already in the list is by the text shown.
-        set_value(app, "txtCtrlNewFrequency", "10.136")
-        check_buttons(app, True, False)
-        app.click(name("freqListAdd"))
-        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "10.1360", "14.2360", "28.3300"],
-                    "Frequencies listed with the duplicate")
-        # Remove takes the first of them out again.
-        set_value(app, "txtCtrlNewFrequency", "10.1360")
-        check_buttons(app, False, True)
+        # What's already listed is found by its value, not by the text shown:
+        # the same frequency written differently (or one that would be
+        # listed as it, at the tenth of a kHz the list shows) can't be added
+        # a second time, but it can be removed.
+        for text in ["10.136", "10.13600", "010.136", "10.13604"]:
+            set_value(app, "txtCtrlNewFrequency", text)
+            check_buttons(app, False, True)
         app.click(name("freqListRemove"))
+        check_equal(frequencies(app), ["3.6250", "7.1770", "14.2360", "28.3300"],
+                    "Frequencies listed with 10.1360 removed")
+        check_values(app, {"txtCtrlNewFrequency": ""})
+        # One that only comes close is a different frequency.
+        set_value(app, "txtCtrlNewFrequency", "14.2361")
+        check_buttons(app, True, False)
+        set_value(app, "txtCtrlNewFrequency", "10.136")
+        app.click(name("freqListAdd"))
         check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "14.2360", "28.3300"],
                     "Frequencies listed")
 

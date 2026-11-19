@@ -1520,8 +1520,9 @@ def test_sort_every_column():
 
 def test_tied_and_missing_times():
     """Sorting by the time columns when the server gives every station the
-    same timestamp, and when one of them gets none at all: the list still ends
-    up in an order -- by connect time, and then by the rows themselves."""
+    same timestamp, and when one of them gets none at all. A station without
+    a time sorts before those with one; those with the same time (and, here,
+    the same connect time) are kept in an order by the rows themselves."""
     os.environ["FREEDVTEST_REPORTER_FIXED_TIME"] = "2026-01-01T00:00:00+00:00"
     os.environ["FREEDVTEST_REPORTER_BAD_TIME_CALLSIGN"] = "W6XYZ"
     try:
@@ -1542,15 +1543,28 @@ def test_tied_and_missing_times():
                 k1abc.transmit("RADEV1", False)
                 wait_for_cell(app, "K1ABC", STATUS, "RX")
 
-                for column in (LAST_TX, LAST_UPDATE):
+                # Only K1ABC has transmitted, so it's the only one with a last
+                # TX time; only W6XYZ has no last update. Each of them is at
+                # the end it belongs at, and the two that tie are between in
+                # either order.
+                def check_at_end(column, ascending, callsign, at_top):
+                    description = "%s %s when sorted %s by column %d" % (
+                        callsign, "first" if at_top else "last",
+                        "ascending" if ascending else "descending", column)
+                    check_equal(sort_order(app), (column, ascending), "Sort order")
+                    try:
+                        app.wait_until(lambda: callsigns(app)[0 if at_top else -1] == callsign,
+                                       timeout=5, description=description)
+                    except freedvtest.FreeDVError:
+                        check(False, "%s (listed: %s)" % (description, ", ".join(callsigns(app))))
+                    check_equal(sorted(callsigns(app)), ["K1ABC", "VK5DGR", "W6XYZ"], "Rows listed")
+
+                for column, callsign, first_ascending in ((LAST_TX, "K1ABC", False),
+                                                          (LAST_UPDATE, "W6XYZ", True)):
                     app.click_column(LIST, column)
-                    check_equal(sort_order(app), (column, True), "Sorted ascending by column %d" % column)
-                    check_equal(sorted(callsigns(app)), ["K1ABC", "VK5DGR", "W6XYZ"],
-                                "Rows listed ascending")
+                    check_at_end(column, True, callsign, first_ascending)
                     app.click_column(LIST, column)
-                    check_equal(sort_order(app), (column, False), "Sorted descending by column %d" % column)
-                    check_equal(sorted(callsigns(app)), ["K1ABC", "VK5DGR", "W6XYZ"],
-                                "Rows listed descending")
+                    check_at_end(column, False, callsign, not first_ascending)
 
                 check_equal(app.quit(), 0, "FreeDV's exit code")
     finally:
