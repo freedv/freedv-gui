@@ -642,8 +642,11 @@ jobs:
           # aren't counted, as no test could take them: those for an exception
           # being thrown part way through a line (nearly every line that
           # touches a wxString has some), for cleaning up if a constructor
-          # throws ("new Something(...)"), and for an assert failing.
-          BRANCH_EXCLUSIONS='.*(\bnew\s+[A-Za-z_:<>]+\s*[\(\[\{;]|\bassert\s*\(|\bwxASSERT|\bwxCHECK|GCOVR?_EXCL_BR_LINE).*'
+          # throws ("new Something(...)"), and for an assert failing.  The
+          # wxString::Format entries are that first kind: building a label
+          # leaves a cleanup edge for each temporary, which is what most of
+          # the untaken branches in the menus and dialogs are.
+          BRANCH_EXCLUSIONS='.*(\bnew\s+[A-Za-z_:<>]+\s*[\(\[\{;]|\bassert\s*\(|\bwxASSERT|\bwxCHECK|wxString::Format\s*\(|GCOVR?_EXCL_BR_LINE).*'
           # topFrame.h holds wxFormBuilder's default handlers; MainFrame
           # overrides the ones it uses, so the base versions of those can
           # never run.

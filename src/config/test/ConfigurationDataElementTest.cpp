@@ -1,5 +1,6 @@
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <string>
 #include <thread>
@@ -147,10 +148,18 @@ bool limitsApplyHoweverValueIsSet()
     result &= element.get() == 100;
     element.setWithoutProcessing(-7);
     result &= element.get() == 10;
-    element.update([](int& value) { value = 500; });
+    // One callback for both update() calls, so that this instantiation of
+    // update() sees the limit both in force and absent.
+    auto setTo500 = [](int& value) { value = 500; };
+
+    element.update(setTo500);
     result &= element.get() == 100;
     element = 42;
     result &= element.get() == 42;
+
+    ConfigurationDataElement<int> unbounded("/Test/Other", 5);
+    unbounded.update(setTo500);
+    result &= unbounded.get() == 500;
     return result;
 }
 
@@ -482,6 +491,7 @@ bool copyCarriesValueAndDefaultForEveryKind()
         std::vector<std::string>(), { "a", "abcdefghijklmnop" }, { "c" });
     result &= copyCarriesValueAndDefault<std::map<int, int>>(
         std::map<int, int>(), { { 1, 1 }, { 2, 2 } }, { { 3, 3 } });
+    result &= copyCarriesValueAndDefault<unsigned int>(1u, 2u, 3u);
     result &= copyCarriesValueAndDefault<std::vector<int>>({ 1 }, { 2 }, { 3 });
     return result;
 }
@@ -563,6 +573,7 @@ bool limitsHoldForEveryKind()
         { "b" }, { "m" }, { "y" }, { "a" }, { "zabcdefghijklmnop" });
     result &= limitsHoldForKind<std::map<int, int>>(
         { { 1, 1 } }, { { 5, 5 } }, { { 10, 10 } }, { { 0, 0 } }, { { 11, 11 } });
+    result &= limitsHoldForKind<unsigned int>(10u, 50u, 100u, 0u, 1000u);
     return result;
 }
 
@@ -610,6 +621,7 @@ bool sameValueComparesForEveryKind()
         std::map<wxString, int>(), { { wxString::FromUTF8("a"), 1 }, { wxString::FromUTF8("b"), 2 } });
     result &= sameValueComparesForKind<std::map<int, int>>(
         std::map<int, int>(), { { 1, 1 }, { 2, 2 }, { 3, 3 } });
+    result &= sameValueComparesForKind<unsigned int>(1u, 2u);
     return result;
 }
 
@@ -622,6 +634,64 @@ bool unsignedLongProcessorRoundTrip()
     element = 42UL;
     unsigned long converted = element;
     return element.getWithoutProcessing() == 42000UL && element.get() == 42UL && converted == 42UL;
+}
+
+// The plain side of each read: before a load processor is attached, get()
+// and the implicit conversion both hand back what's stored; afterwards both
+// hand back what the processor makes of it.
+template<typename UnderlyingType>
+bool readsWithAndWithoutLoadProcessor(
+    UnderlyingType const& stored, UnderlyingType const& processed,
+    std::function<UnderlyingType(UnderlyingType)> processor)
+{
+    ConfigurationDataElement<UnderlyingType> element("/Test/Value", stored);
+
+    UnderlyingType converted = element;
+    bool result = converted == stored && element.get() == stored;
+
+    element.setLoadProcessor(processor);
+    UnderlyingType readBack = element;
+    return result && readBack == processed && element.get() == processed &&
+        element.getWithoutProcessing() == stored;
+}
+
+bool plainAndProcessedReadsForEveryKind()
+{
+    bool result = true;
+    result &= readsWithAndWithoutLoadProcessor<bool>(true, false, [](bool val) { return !val; });
+    result &= readsWithAndWithoutLoadProcessor<float>(1.0f, 2.0f, [](float val) { return val * 2.0f; });
+    result &= readsWithAndWithoutLoadProcessor<long>(2L, 4L, [](long val) { return val * 2L; });
+    result &= readsWithAndWithoutLoadProcessor<unsigned long>(5UL, 10UL, [](unsigned long val) { return val * 2UL; });
+    result &= readsWithAndWithoutLoadProcessor<unsigned int>(3u, 6u, [](unsigned int val) { return val * 2u; });
+    result &= readsWithAndWithoutLoadProcessor<wxString>(
+        wxString::FromUTF8("a"), wxString::FromUTF8("aa"), [](wxString val) { return val + val; });
+    result &= readsWithAndWithoutLoadProcessor<std::vector<bool>>(
+        { true }, { true, false }, [](std::vector<bool> val) { val.push_back(false); return val; });
+    result &= readsWithAndWithoutLoadProcessor<std::vector<wxString>>(
+        { wxString::FromUTF8("a") }, { wxString::FromUTF8("a"), wxString::FromUTF8("b") },
+        [](std::vector<wxString> val) { val.push_back(wxString::FromUTF8("b")); return val; });
+    result &= readsWithAndWithoutLoadProcessor<std::map<wxString, int>>(
+        { { wxString::FromUTF8("a"), 1 } }, { { wxString::FromUTF8("a"), 2 } },
+        [](std::map<wxString, int> val) { for (auto& item : val) item.second *= 2; return val; });
+    result &= readsWithAndWithoutLoadProcessor<std::map<int, int>>(
+        { { 1, 1 } }, { { 1, 2 } },
+        [](std::map<int, int> val) { for (auto& item : val) item.second *= 2; return val; });
+    return result;
+}
+
+// The int-keyed map the rig port lists use goes through its save processor
+// when assigned, like every other kind, and the default stays as it was.
+bool intKeyedMapSaveProcessorApplies()
+{
+    ConfigurationDataElement<std::map<int, int>> element("/Test/Ports", std::map<int, int>());
+    element.setSaveProcessor([](std::map<int, int> val) {
+        for (auto& item : val) item.second *= 100;
+        return val;
+    });
+
+    element = std::map<int, int> { { 1, 2 }, { 3, 4 } };
+    return element.getWithoutProcessing() == std::map<int, int> { { 1, 200 }, { 3, 400 } } &&
+        element.getDefaultVal() == std::map<int, int>();
 }
 
 }
@@ -656,5 +726,7 @@ int main()
     executeTestCase("sameValueComparesForEveryKind", sameValueComparesForEveryKind);
     executeTestCase("limitsHoldForEveryKind", limitsHoldForEveryKind);
     executeTestCase("unsignedLongProcessorRoundTrip", unsignedLongProcessorRoundTrip);
+    executeTestCase("plainAndProcessedReadsForEveryKind", plainAndProcessedReadsForEveryKind);
+    executeTestCase("intKeyedMapSaveProcessorApplies", intKeyedMapSaveProcessorApplies);
     return testResult();
 }
