@@ -1636,9 +1636,6 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, wxT("FreeDV 
     m_rxThread = nullptr;
     wxGetApp().linkStep = nullptr;
     
-#ifdef _USE_ONIDLE
-    Connect(wxEVT_IDLE, wxIdleEventHandler(MainFrame::OnIdle), NULL, this);
-#endif //_USE_ONIDLE
 
     g_sfPlayFile.store(NULL, std::memory_order_release);
     g_playFileToMicIn.store(false, std::memory_order_release);
@@ -1996,9 +1993,6 @@ MainFrame::~MainFrame()
     }
 #endif //_USE_TIMER
 
-#ifdef _USE_ONIDLE
-    Disconnect(wxEVT_IDLE, wxIdleEventHandler(MainFrame::OnIdle), NULL, this);
-#endif // _USE_ONIDLE
 
     if (optionsDlg != NULL) {
         delete optionsDlg;
@@ -2018,10 +2012,6 @@ MainFrame::~MainFrame()
 }
 
 
-#ifdef _USE_ONIDLE
-void MainFrame::OnIdle(wxIdleEvent &) {
-}
-#endif
 
 int MainFrame::getIdealStationsHeardColumnLength_(int col)
 {
