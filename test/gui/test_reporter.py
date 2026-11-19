@@ -1115,11 +1115,10 @@ def test_row_actions():
                         "Selected stations after hovering messages")
             check_equal(app.message_boxes(), [], "Messages displayed by hovering")
 
-            # The tip window that hovering a message creates can't be reached
-            # from here: the harness reports it as not shown on screen, so the
-            # mouse handlers wired to it (OnRightClickSpotsList,
-            # SkipMouseEvent, OnMouseWheelTooltip, OnLeftClickTooltip) stay
-            # uncovered.
+            # What the tip window does with the mouse (its wheel handler, and
+            # the click on it that selects the row behind it) isn't tested: the
+            # tip isn't a window the harness can name or find among the list's
+            # controls, so its own handlers can't be reached.
 
             # Nor does the list gaining the focus while the pointer happens to
             # be over a row, as when the window is brought to the front or a
@@ -1206,6 +1205,41 @@ def test_row_actions():
             time.sleep(1)
             check_equal(app.get("main.cboReportFrequency")["value"], before, "FreeDV's frequency")
             stop_modem(app)
+            quit_and_check_log(app)
+
+
+def test_selected_row_then_removed():
+    """A station that goes away while it's still the selected one leaves
+    nothing selected."""
+    with ReporterServer() as server:
+        k1abc = server.station("K1ABC", "FN42")
+        k1abc.set_frequency(14236000)
+        vk5dgr = server.station("VK5DGR", "PF95")
+        vk5dgr.set_frequency(7177000)
+
+        with freedvtest.start(settings=reporter_settings(server.hostname)) as app:
+            open_reporter(app)
+            wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
+
+            def selected():
+                return [row[CALLSIGN] for row in app.rows(LIST) if row["selected"]]
+
+            app.select_row(LIST, (CALLSIGN, "K1ABC"))
+            check_equal(selected(), ["K1ABC"], "Selected station before leaving")
+            k1abc.disconnect()
+            app.wait_until(lambda: "K1ABC" not in callsigns(app), timeout=15, description="K1ABC to go")
+            check("K1ABC" not in selected(), "K1ABC is still selected after leaving")
+
+            # The selected station moving out of the band being shown goes the
+            # same way, without the server ever saying it left.
+            app.set_value("reporter.cbBandFilter", "40 m")
+            wait_for_callsigns(app, ["VK5DGR"])
+            app.select_row(LIST, (CALLSIGN, "VK5DGR"))
+            check_equal(selected(), ["VK5DGR"], "Selected station before moving bands")
+            vk5dgr.set_frequency(14236000)
+            app.wait_until(lambda: "VK5DGR" not in callsigns(app), timeout=15, description="VK5DGR to go")
+            check_equal(selected(), [], "Selected stations after the selected one moved bands")
+
             quit_and_check_log(app)
 
 
@@ -3006,6 +3040,7 @@ SCENARIOS = {
     "status_message": test_status_message,
     "qsy": test_qsy,
     "row_actions": test_row_actions,
+    "selected_row_then_removed": test_selected_row_then_removed,
     "turn_off": test_turn_off,
     "off_at_start": test_off_at_start,
     "settings_while_running": test_settings_while_running,

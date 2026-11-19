@@ -477,6 +477,11 @@ bool copyCarriesValueAndDefaultForEveryKind()
         wxString::FromUTF8("a"), wxString::FromUTF8("b"), wxString::FromUTF8("c"));
     result &= copyCarriesValueAndDefault<std::map<wxString, int>>(
         { { wxString::FromUTF8("a"), 1 } }, { { wxString::FromUTF8("b"), 2 } }, { { wxString::FromUTF8("c"), 3 } });
+    result &= copyCarriesValueAndDefault<std::string>("a", "abcdefghijklmnop", "c");
+    result &= copyCarriesValueAndDefault<std::vector<std::string>>(
+        std::vector<std::string>(), { "a", "abcdefghijklmnop" }, { "c" });
+    result &= copyCarriesValueAndDefault<std::map<int, int>>(
+        std::map<int, int>(), { { 1, 1 }, { 2, 2 } }, { { 3, 3 } });
     result &= copyCarriesValueAndDefault<std::vector<int>>({ 1 }, { 2 }, { 3 });
     return result;
 }
@@ -552,6 +557,59 @@ bool limitsHoldForEveryKind()
     result &= limitsHoldForKind<std::vector<wxString>>(
         { wxString::FromUTF8("b") }, { wxString::FromUTF8("m") }, { wxString::FromUTF8("y") },
         { wxString::FromUTF8("a") }, { wxString::FromUTF8("z") });
+    result &= limitsHoldForKind<std::string>(
+        "b", "m", "y", "a", "zabcdefghijklmnop");
+    result &= limitsHoldForKind<std::vector<std::string>>(
+        { "b" }, { "m" }, { "y" }, { "a" }, { "zabcdefghijklmnop" });
+    result &= limitsHoldForKind<std::map<int, int>>(
+        { { 1, 1 } }, { { 5, 5 } }, { { 10, 10 } }, { { 0, 0 } }, { { 11, 11 } });
+    return result;
+}
+
+// Whether Settings' copy of a setting is the same as the live one, for each
+// kind of value the configuration holds.
+template<typename UnderlyingType>
+bool sameValueComparesForKind(UnderlyingType const& first, UnderlyingType const& second)
+{
+    ConfigurationDataElement<UnderlyingType> a("/Test/A", first);
+    ConfigurationDataElement<UnderlyingType> b("/Test/B", first);
+    ConfigurationDataElement<UnderlyingType> c("/Test/C", second);
+
+    bool result = a.hasSameValueAs(b) && !a.hasSameValueAs(c);
+
+    // Assigned from Settings, back to what it was and then to something else.
+    a = first;
+    result &= a.hasSameValueAs(b);
+    a = second;
+    result &= !a.hasSameValueAs(b);
+    return result;
+}
+
+bool sameValueComparesForEveryKind()
+{
+    bool result = true;
+    result &= sameValueComparesForKind<int>(1, 2);
+    result &= sameValueComparesForKind<long>(1L, 2L);
+    result &= sameValueComparesForKind<unsigned long>(1UL, 2UL);
+    result &= sameValueComparesForKind<float>(1.0f, 2.0f);
+    result &= sameValueComparesForKind<bool>(false, true);
+    result &= sameValueComparesForKind<wxString>(
+        wxString::FromUTF8("a"), wxString::FromUTF8("abcdefghijklmnop"));
+    // Strings long enough to leave the small-string buffer, and containers
+    // empty as well as filled, so that both ways of copying them are taken.
+    result &= sameValueComparesForKind<std::string>("a", "abcdefghijklmnop");
+    result &= sameValueComparesForKind<std::vector<bool>>(
+        std::vector<bool>(), std::vector<bool> { true, false });
+    result &= sameValueComparesForKind<std::vector<int>>(
+        std::vector<int>(), std::vector<int> { 1, 2, 3 });
+    result &= sameValueComparesForKind<std::vector<wxString>>(
+        std::vector<wxString>(), std::vector<wxString> { wxString::FromUTF8("abcdefghijklmnop") });
+    result &= sameValueComparesForKind<std::vector<std::string>>(
+        std::vector<std::string>(), std::vector<std::string> { "a", "abcdefghijklmnop" });
+    result &= sameValueComparesForKind<std::map<wxString, int>>(
+        std::map<wxString, int>(), { { wxString::FromUTF8("a"), 1 }, { wxString::FromUTF8("b"), 2 } });
+    result &= sameValueComparesForKind<std::map<int, int>>(
+        std::map<int, int>(), { { 1, 1 }, { 2, 2 }, { 3, 3 } });
     return result;
 }
 
@@ -595,6 +653,7 @@ int main()
     executeTestCase("everyTypeConvertsImplicitly", everyTypeConvertsImplicitly);
     executeTestCase("changeEffectsComeBackForEveryKind", changeEffectsComeBackForEveryKind);
     executeTestCase("copyCarriesValueAndDefaultForEveryKind", copyCarriesValueAndDefaultForEveryKind);
+    executeTestCase("sameValueComparesForEveryKind", sameValueComparesForEveryKind);
     executeTestCase("limitsHoldForEveryKind", limitsHoldForEveryKind);
     executeTestCase("unsignedLongProcessorRoundTrip", unsignedLongProcessorRoundTrip);
     return testResult();

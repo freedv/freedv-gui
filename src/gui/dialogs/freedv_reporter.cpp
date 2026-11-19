@@ -1470,6 +1470,9 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
         {
             if (item.second->isPendingDelete)
             {
+                // GCOVR_EXCL_START: every place that sets isPendingDelete
+                // clears isVisible in the same handler, so no row is ever
+                // both; the removal below has already happened by then.
                 if (item.second->isVisible)
                 {
                     setColumnAutosize_(false);
@@ -1488,6 +1491,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
                         selectionRemoved = true;
                     }
                 }
+                // GCOVR_EXCL_STOP
                 continue;
             }
             auto reportData = item.second;

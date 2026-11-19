@@ -81,8 +81,10 @@ std::string PulseAudioEngine::CreateConnection(pa_threaded_mainloop** mainloopOu
                 DBusConnection* bus = nullptr;
                 int result = 0;
 
+                // The GCOVR_EXCL_BR_LINE below: the runners always have a
+                // working system bus, so rtkit's failure arms go untaken.
                 dbus_error_init(&error);
-                if (!(bus = dbus_bus_get(DBUS_BUS_SYSTEM, &error)))
+                if (!(bus = dbus_bus_get(DBUS_BUS_SYSTEM, &error))) // GCOVR_EXCL_BR_LINE
                 {
                     log_warn("Could not connect to system bus: %s", error.message);
                 }
@@ -91,7 +93,7 @@ std::string PulseAudioEngine::CreateConnection(pa_threaded_mainloop** mainloopOu
                     int minNiceLevel = 0;
                     constexpr int ERROR_BUFFER_SIZE = 1024;
                     char tmpBuf[ERROR_BUFFER_SIZE];
-                    if ((result = rtkit_get_min_nice_level(bus, &minNiceLevel)) < 0)
+                    if ((result = rtkit_get_min_nice_level(bus, &minNiceLevel)) < 0) // GCOVR_EXCL_BR_LINE
                     {
 #if (_POSIX_C_SOURCE >= 200112L) && !_GNU_SOURCE
                         auto rv = strerror_r(-result, tmpBuf, ERROR_BUFFER_SIZE);
@@ -102,7 +104,7 @@ std::string PulseAudioEngine::CreateConnection(pa_threaded_mainloop** mainloopOu
                         log_warn("rtkit could not get minimum nice level: %s", tmpBuf);
 #else
                         auto ptr = strerror_r(-result, tmpBuf, ERROR_BUFFER_SIZE);
-                        if (ptr == nullptr)
+                        if (ptr == nullptr) // GCOVR_EXCL_BR_LINE
                         {
                             strncpy(tmpBuf, "(null)", 7);
                         }
@@ -113,7 +115,7 @@ std::string PulseAudioEngine::CreateConnection(pa_threaded_mainloop** mainloopOu
                         log_warn("rtkit could not get minimum nice level: %s", tmpBuf);
 #endif // (_POSIX_C_SOURCE >= 200112L) && !_GNU_SOURCE
                     }
-                    else if ((result = rtkit_make_high_priority(bus, 0, minNiceLevel)) < 0)
+                    else if ((result = rtkit_make_high_priority(bus, 0, minNiceLevel)) < 0) // GCOVR_EXCL_BR_LINE
                     {
 #if (_POSIX_C_SOURCE >= 200112L) && !_GNU_SOURCE
                         auto rv = strerror_r(-result, tmpBuf, ERROR_BUFFER_SIZE);
@@ -124,7 +126,7 @@ std::string PulseAudioEngine::CreateConnection(pa_threaded_mainloop** mainloopOu
                         log_warn("rtkit could not make high priority: %s", tmpBuf);
 #else
                         auto ptr = strerror_r(-result, tmpBuf, ERROR_BUFFER_SIZE);
-    		    if (ptr == nullptr)
+                        if (ptr == nullptr) // GCOVR_EXCL_BR_LINE
     		    {
                             strncpy(tmpBuf, "(null)", 7);
                         }
@@ -137,7 +139,7 @@ std::string PulseAudioEngine::CreateConnection(pa_threaded_mainloop** mainloopOu
                     }
                 }
     
-                if (bus != nullptr)
+                if (bus != nullptr) // GCOVR_EXCL_BR_LINE: null only if the bus call above failed
                 {
                     dbus_connection_unref(bus);
                 }

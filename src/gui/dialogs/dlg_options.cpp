@@ -2563,23 +2563,25 @@ void OptionsDlg::populatePortList()
     }
 #else
     glob_t gl;
-    if (glob("/sys/class/tty/*/device/driver", GLOB_MARK, NULL, &gl) == 0) // NOLINT
+    // The GCOVR_EXCL_BR_LINE below: whether these entries exist is a property
+    // of the machine, and the coverage job makes sure two of them do.
+    if (glob("/sys/class/tty/*/device/driver", GLOB_MARK, NULL, &gl) == 0) // NOLINT GCOVR_EXCL_BR_LINE
     {
         wxRegEx pathRegex("/sys/class/tty/([^/]+)");
         for (unsigned int i = 0; i < gl.gl_pathc; i++) {
             wxString path = gl.gl_pathv[i];
-            if (pathRegex.Matches(path))
+            if (pathRegex.Matches(path)) // GCOVR_EXCL_BR_LINE: see the globs above
                 portList.push_back("/dev/" + pathRegex.GetMatch(path, 1));
         }
         globfree(&gl);
     }
-    if (glob("/dev/serial/by-id/*", GLOB_MARK, NULL, &gl) == 0) // NOLINT
+    if (glob("/dev/serial/by-id/*", GLOB_MARK, NULL, &gl) == 0) // NOLINT GCOVR_EXCL_BR_LINE
     {
         for (unsigned int i = 0; i < gl.gl_pathc; i++)
             portList.push_back(gl.gl_pathv[i]);
         globfree(&gl);
     }
-    if (glob("/dev/rfcomm*", GLOB_MARK, NULL, &gl) == 0) // NOLINT
+    if (glob("/dev/rfcomm*", GLOB_MARK, NULL, &gl) == 0) // NOLINT GCOVR_EXCL_BR_LINE
     {
         for (unsigned int i = 0; i < gl.gl_pathc; i++)
             portList.push_back(gl.gl_pathv[i]);
