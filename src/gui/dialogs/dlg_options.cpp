@@ -2246,23 +2246,31 @@ void OptionsDlg::setSessionActive(bool active)
     updateReportingState();
     updateRigControlState();
 
-    for (auto& [note, text] : runningNotes_)
+    for (auto& entry : runningNotes_)
     {
         if (active)
         {
-            // Wrapped to the page it's on, so that it stays on one line
-            // wherever it fits, and wraps rather than being cut off where it
-            // doesn't (e.g. in a longer translation).
-            note->SetLabel(text);
-            int width = note->GetParent()->GetClientSize().GetWidth() - 2 * RUNNING_NOTE_BORDER;
-            if (width > 0)
-            {
-                note->Wrap(width);
-            }
+            wrapRunningNote_(entry);
         }
-        note->Show(active);
-        note->GetParent()->Layout();
+        entry.note->Show(active);
+        entry.note->GetParent()->Layout();
     }
+}
+
+// Wrapped to the page it's on, so that it stays on one line wherever it fits,
+// and wraps rather than being cut off where it doesn't (e.g. in a longer
+// translation).
+void OptionsDlg::wrapRunningNote_(RunningNote& entry)
+{
+    int width = entry.note->GetParent()->GetClientSize().GetWidth() - 2 * RUNNING_NOTE_BORDER;
+    if (width <= 0 || width == entry.wrappedWidth)
+    {
+        return;
+    }
+
+    entry.wrappedWidth = width;
+    entry.note->SetLabel(entry.text);
+    entry.note->Wrap(width);
 }
 
 wxStaticText* OptionsDlg::addRunningNote_(wxWindow* page, wxString const& text, const char* name)
@@ -2270,7 +2278,22 @@ wxStaticText* OptionsDlg::addRunningNote_(wxWindow* page, wxString const& text, 
     auto note = new wxStaticText(page, wxID_ANY, text);
     note->SetName(wxString("settings.") + name);
     note->Hide();
-    runningNotes_.emplace_back(note, text);
+    runningNotes_.push_back({ note, text, -1 });
+
+    // GTK only gives the pages their sizes once the window is shown, and a
+    // page that's never been looked at not even then; until it does, a page
+    // is a few dozen pixels wide, which a note wrapped then would be held
+    // to, a word per line. So each note is wrapped again whenever its page
+    // is resized. (By index: runningNotes_ moves as it grows.)
+    size_t index = runningNotes_.size() - 1;
+    page->Bind(wxEVT_SIZE, [this, index](wxSizeEvent& event) {
+        event.Skip(); // the page still lays itself out afterwards
+        auto& entry = runningNotes_[index];
+        if (entry.note->IsShown())
+        {
+            wrapRunningNote_(entry);
+        }
+    });
     return note;
 }
     
