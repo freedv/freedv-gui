@@ -127,7 +127,7 @@ std::string PulseAudioEngine::CreateConnection(pa_threaded_mainloop** mainloopOu
 #else
                         auto ptr = strerror_r(-result, tmpBuf, ERROR_BUFFER_SIZE);
                         if (ptr == nullptr) // GCOVR_EXCL_BR_LINE
-    		    {
+                        {
                             strncpy(tmpBuf, "(null)", 7);
                         }
                         else

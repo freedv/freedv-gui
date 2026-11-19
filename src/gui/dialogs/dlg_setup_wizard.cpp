@@ -753,7 +753,14 @@ void SetupWizard::importSettings(const ImportSource& source)
         m_cbRigName->SetSelection(rigIndex);
         populateBaudRates(rigIndex);
         m_cbSerialPort->SetValue(catPort);
-        m_cbSerialRate->SetValue((catRate > 0) ? wxString::Format("%ld", catRate) : wxString("default"));
+        // Not a ?: with the Format in it: the coverage job doesn't count the
+        // branches on a Format line.
+        wxString rate("default");
+        if (catRate > 0)
+        {
+            rate = wxString::Format("%ld", catRate);
+        }
+        m_cbSerialRate->SetValue(rate);
 
         HamlibRigController::PttType pttType = HamlibRigController::PTT_VIA_NONE;
         // Rear/Data TX audio source means PTT has to key the data port so
