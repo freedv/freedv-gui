@@ -1210,25 +1210,40 @@ def test_row_actions():
 
 def test_selected_row_then_removed():
     """A station that goes away while it's still the selected one leaves
-    nothing selected."""
-    with ReporterServer() as server:
+    nothing selected, and Request QSY off with it, rather than moving the
+    selection on to another station."""
+    with audio_devices(), ReporterServer() as server:
         k1abc = server.station("K1ABC", "FN42")
-        k1abc.set_frequency(14236000)
+        k1abc.set_frequency(14240000)
         vk5dgr = server.station("VK5DGR", "PF95")
         vk5dgr.set_frequency(7177000)
 
-        with freedvtest.start(settings=reporter_settings(server.hostname)) as app:
+        settings = reporter_settings(server.hostname)
+        settings.update(audio_settings())
+        with freedvtest.start(settings=settings) as app:
             open_reporter(app)
             wait_for_callsigns(app, ["VK5DGR", "K1ABC"])
+
+            # Request QSY is only on while FreeDV is running.
+            start_modem(app)
+            app.wait_until(lambda: CALLSIGN_OF_FREEDV in callsigns(app), description="FreeDV to be listed")
 
             def selected():
                 return [row[CALLSIGN] for row in app.rows(LIST) if row["selected"]]
 
+            def qsy_enabled():
+                return app.get("reporter.btnSendQSY")["enabled"]
+
+            # On another frequency from FreeDV's, so that Request QSY is on
+            # while it's selected.
             app.select_row(LIST, (CALLSIGN, "K1ABC"))
             check_equal(selected(), ["K1ABC"], "Selected station before leaving")
+            check_equal(qsy_enabled(), True, "Request QSY enabled before K1ABC left")
             k1abc.disconnect()
             app.wait_until(lambda: "K1ABC" not in callsigns(app), timeout=15, description="K1ABC to go")
-            check("K1ABC" not in selected(), "K1ABC is still selected after leaving")
+            app.wait_until(lambda: not qsy_enabled(), timeout=5,
+                           description="Request QSY to turn off after K1ABC left")
+            check_equal(selected(), [], "Selected stations after the selected one left")
 
             # The selected station moving out of the band being shown goes the
             # same way, without the server ever saying it left.
@@ -1236,10 +1251,14 @@ def test_selected_row_then_removed():
             wait_for_callsigns(app, ["VK5DGR"])
             app.select_row(LIST, (CALLSIGN, "VK5DGR"))
             check_equal(selected(), ["VK5DGR"], "Selected station before moving bands")
+            check_equal(qsy_enabled(), True, "Request QSY enabled before VK5DGR moved bands")
             vk5dgr.set_frequency(14236000)
             app.wait_until(lambda: "VK5DGR" not in callsigns(app), timeout=15, description="VK5DGR to go")
+            app.wait_until(lambda: not qsy_enabled(), timeout=5,
+                           description="Request QSY to turn off after VK5DGR moved bands")
             check_equal(selected(), [], "Selected stations after the selected one moved bands")
 
+            stop_modem(app)
             quit_and_check_log(app)
 
 
