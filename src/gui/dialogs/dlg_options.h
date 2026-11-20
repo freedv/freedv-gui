@@ -331,8 +331,15 @@ class OptionsDlg : public wxDialog
 
          // Notes shown while FreeDV is running, on the pages whose settings
          // restart or reconnect something when they're applied.
-         std::vector<std::pair<wxStaticText*, wxString>> runningNotes_;
+         struct RunningNote
+         {
+             wxStaticText* note;
+             wxString text;
+             int wrappedWidth; // what the label is wrapped to now, or -1
+         };
+         std::vector<RunningNote> runningNotes_;
          wxStaticText* addRunningNote_(wxWindow* page, wxString const& text, const char* name);
+         void wrapRunningNote_(RunningNote& entry);
          bool isTesting_;
          std::thread* m_audioPlotThread;
 

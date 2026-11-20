@@ -906,7 +906,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Hamlib/OmniRig: add option to disable saving and restoring the radio's frequency on start and stop. (PR #1600)
     * RADE: fill in the missing high frequencies when transmitting with an 8 kHz mic (e.g. a Bluetooth headset). (PR #1614)
     * Settings: apply half duplex and the VOX tone immediately while running, allow changing the PTT key and TX/RX delay, and note which settings take effect the next time FreeDV starts. (PR #1631)
-    * Settings: apply every setting while running, restarting the audio or reconnecting to the radio and reporting services as needed, once back on receive. (PR #1632)
+    * Settings: apply every setting while running, restarting the audio or reconnecting to the radio and reporting services as needed, once back on receive. (PR #1632, #1649)
     * FreeDV Reporter: report which sideband (USB or LSB) the radio is on, and show other stations' after their frequencies. (PR #1644)
 2. Bugfixes:
     * Fix silence being mixed into the first half second of each transmission, and holes in the signal at its start. (PR #1562)
@@ -951,7 +951,9 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Hamlib: fix rigctld sometimes dropping FreeDV's connection when Test PTT is clicked again, Start follows Stop quickly, or another program disconnects from rigctld, just as FreeDV connects. (PR #1634)
     * Fix Test PTT becoming usable again before the radio was unkeyed and the serial port closed, when using serial port or OmniRig PTT. (PR #1636)
     * Stop the play file and any recording when the modem stops. (PR #1642)
-    * Refuse what isn't a number instead of saving stack garbage. (PR #1643)
+    * Refuse what isn't a number instead of saving stack garbage. (PR #1643, #1648)
+    * FreeDV Reporter (macOS): leave no station selected when the selected one's row is hidden by a filter or removed, rather than selecting the station below it. (PR #1647)
+    * FreeDV Reporter: fix a crash when the server reports a station that's already connected. (PR #1645)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
 3. Build system:

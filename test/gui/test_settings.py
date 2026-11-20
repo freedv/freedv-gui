@@ -1740,6 +1740,22 @@ def test_auto_start():
         shutil.rmtree(config_dir, ignore_errors=True)
 
 
+RUNNING_NOTES = [("RX Audio", "runningNoteRxAudio"), ("TX Audio", "runningNoteTxAudio"),
+                 ("Radio", "runningNoteRadio"), ("Rig Control", "runningNoteRigControl"),
+                 ("Debugging", "runningNoteDebug")]
+
+
+def check_running_notes(app, shown):
+    """Whether each page's note about FreeDV running is shown and, when it
+    is, that it's all on one line: there's room for it on every page."""
+    for tab, note in RUNNING_NOTES:
+        go_to_tab(app, tab)
+        info = app.get(name(note))
+        check_equal(info["shown"], shown, "Note on the %s page shown" % tab)
+        check("\n" not in info["label"], "Note on the %s page wraps at %d pixels: %r"
+              % (tab, info["clientSize"][0], info["label"]))
+
+
 def test_while_running():
     """Everything in Settings can be changed while FreeDV is running. The
     pages where applying a change restarts the audio or reconnects to the
@@ -1752,18 +1768,9 @@ def test_while_running():
     rig_control = ["ckboxEnableFreqModeChanges", "ckboxEnableFreqChangesOnly", "ckboxNoFreqModeChanges",
                    "ckboxUseAnalogModes", "ckboxSaveRestoreFrequency", "ckboxEnableSpacebarForPTT",
                    "txtTxRxDelayMilliseconds"]
-    running_notes = [("RX Audio", "runningNoteRxAudio"), ("TX Audio", "runningNoteTxAudio"),
-                     ("Radio", "runningNoteRadio"), ("Rig Control", "runningNoteRigControl"),
-                     ("Debugging", "runningNoteDebug")]
 
     def check_notes(shown):
-        for tab, note in running_notes:
-            go_to_tab(app, tab)
-            check_equal(app.get(name(note))["shown"], shown, "Note on the %s page shown" % tab)
-            # Each note fits on one line.
-            info = app.get(name(note))
-            check("\n" not in info["label"], "Note on the %s page wraps at %d pixels: %r"
-                  % (tab, info["clientSize"][0], info["label"]))
+        check_running_notes(app, shown)
 
     settings = audio_settings()
     settings.update({
@@ -1810,6 +1817,26 @@ def test_while_running():
             press_cancel(app)
 
 
+def test_opened_while_running():
+    """Settings opened for the first time once FreeDV is already running, so
+    that the notes are put up before the window has been shown, and the
+    pages given their sizes, at all."""
+    with audio_devices():
+        with freedvtest.start(settings=audio_settings()) as app:
+            start_modem(app)
+            open_settings(app, "RX Audio")
+            check_running_notes(app, True)
+            press_cancel(app)
+
+            # And once FreeDV stops and starts again with the window shut.
+            stop_modem(app)
+            start_modem(app)
+            open_settings(app, "RX Audio")
+            check_running_notes(app, True)
+            press_cancel(app)
+            stop_modem(app)
+
+
 SCENARIOS = {
     "buttons": test_buttons,
     "audio": test_audio,
@@ -1828,6 +1855,7 @@ SCENARIOS = {
     "ptt_key_names": test_ptt_key_names,
     "auto_start": test_auto_start,
     "while_running": test_while_running,
+    "opened_while_running": test_opened_while_running,
 }
 
 

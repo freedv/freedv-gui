@@ -1205,7 +1205,7 @@ running, allow changing the PTT key and TX/RX delay, and note which
 settings take effect the next time FreeDV starts. (PR #1631)</li>
 <li>Settings: apply every setting while running, restarting the audio or
 reconnecting to the radio and reporting services as needed, once back on
-receive. (PR #1632)</li>
+receive. (PR #1632, #1649)</li>
 <li>FreeDV Reporter: report which sideband (USB or LSB) the radio is on,
 and show other stations’ after their frequencies. (PR #1644)</li>
 </ul></li>
@@ -1297,7 +1297,12 @@ the serial port closed, when using serial port or OmniRig PTT. (PR
 <li>Stop the play file and any recording when the modem stops. (PR
 #1642)</li>
 <li>Refuse what isn’t a number instead of saving stack garbage. (PR
-#1643)</li>
+#1643, #1648)</li>
+<li>FreeDV Reporter (macOS): leave no station selected when the selected
+one’s row is hidden by a filter or removed, rather than selecting the
+station below it. (PR #1647)</li>
+<li>FreeDV Reporter: fix a crash when the server reports a station
+that’s already connected. (PR #1645)</li>
 </ul></li>
 <li>Documentation:
 <ul>

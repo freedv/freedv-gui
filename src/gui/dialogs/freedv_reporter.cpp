@@ -3667,18 +3667,30 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onUserConnectFn_(std::string
         temp->isVisible = false;
         temp->isPendingUpdate = false;
 
-        if (allReporterData_.find(sid) != allReporterData_.end() && !isConnected_)
-        {
-            log_warn("Received duplicate user during connection process");
-            return;
-        }
-        
         temp->isPendingDelete = false;
         
         auto existsIter = allReporterData_.find(sid);
         if (existsIter != allReporterData_.end())
         {
+            if (!existsIter->second->isPendingDelete)
+            {
+                // Duplicate of a user we already have (and may be showing).
+                // Keep the existing entry: freeing it here would leave the
+                // list control holding a dangling item.
+                if (!isConnected_)
+                {
+                    log_warn("Received duplicate user during connection process");
+                }
+                else
+                {
+                    log_warn("Received duplicate user %s with SID %s", callsign.c_str(), sid.c_str());
+                }
+                delete temp;
+                return;
+            }
+            
             // Pending deletion prior to reconnect, so go ahead and delete now.
+            // (Pending-delete entries have already been removed from the list.)
             delete existsIter->second;
         }
         allReporterData_[sid] = temp;
