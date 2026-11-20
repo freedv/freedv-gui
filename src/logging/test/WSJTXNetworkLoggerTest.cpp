@@ -578,32 +578,41 @@ bool sendsLogTimeAsQtDateTime()
 
 bool logTimeRoundsUpIntoTheNextJulianDay()
 {
-    Fixture f;
-    if (!f.skipHeartbeat()) return false;
+    // Times just short of midnight on 2025-12-12: rounded to the nearest
+    // millisecond each belongs to the next day, and has to be sent that way
+    // rather than cut off at the old one. A microsecond short is already the
+    // next day by the time the date is held as a number of days; 100
+    // microseconds short is still the day before, and only reaches the next
+    // one when the part of a day that rounds up to a whole one is carried
+    // over into the day number.
+    auto roundsUp = [&](int64_t microsecondsBeforeMidnight) {
+        Fixture f;
+        if (!f.skipHeartbeat()) return false;
 
-    // One microsecond short of midnight (2025-12-12 23:59:59.999999):
-    // rounded to the nearest millisecond it belongs to the next day, and
-    // has to be sent that way rather than cut off at the old one.
-    Contact contact;
-    contact.logTime = std::chrono::time_point<std::chrono::system_clock>(
-        std::chrono::duration_cast<std::chrono::system_clock::duration>(
-            std::chrono::milliseconds(1765583999999LL) + std::chrono::microseconds(999)));
-    contact.logTo(f.logger);
+        Contact contact;
+        contact.logTime = std::chrono::time_point<std::chrono::system_clock>(
+            std::chrono::duration_cast<std::chrono::system_clock::duration>(
+                std::chrono::milliseconds(1765583999999LL) +
+                std::chrono::microseconds(1000 - microsecondsBeforeMidnight)));
+        contact.logTo(f.logger);
 
-    uint32_t decodeTime = 0;
-    WireDateTime timeOff;
-    if (!checkStatus(f.receiver, contact) ||
-        !checkDecode(f.receiver, contact, &decodeTime) ||
-        !checkQsoLogged(f.receiver, contact, &timeOff))
-    {
-        return false;
-    }
+        uint32_t decodeTime = 0;
+        WireDateTime timeOff;
+        if (!checkStatus(f.receiver, contact) ||
+            !checkDecode(f.receiver, contact, &decodeTime) ||
+            !checkQsoLogged(f.receiver, contact, &timeOff))
+        {
+            return false;
+        }
 
-    bool result = true;
-    result &= check("Julian day rounded up", timeOff.julianDay, (int64_t)2461023);
-    result &= check("milliseconds since midnight", timeOff.msSinceMidnight, (uint32_t)0);
-    result &= check("decode time", decodeTime, timeOff.msSinceMidnight);
-    return result;
+        bool result = true;
+        result &= check("Julian day rounded up", timeOff.julianDay, (int64_t)2461023);
+        result &= check("milliseconds since midnight", timeOff.msSinceMidnight, (uint32_t)0);
+        result &= check("decode time", decodeTime, timeOff.msSinceMidnight);
+        return result;
+    };
+
+    return roundsUp(1) && roundsUp(100);
 }
 
 bool eachContactIsSentSeparately()
@@ -774,6 +783,47 @@ bool nothingListeningIsHarmless()
     return true;
 }
 
+// A logger that lets the test hand it what UdpHandler would hand it if
+// anything ever arrived on its own socket. (The logger opens that socket
+// without binding it, so nothing does arrive from the network; the callback
+// is what has to be shown to do nothing.)
+class ListeningLogger : public WSJTXNetworkLogger
+{
+public:
+    ListeningLogger(std::string hostname, int port)
+        : WSJTXNetworkLogger(hostname, port)
+    {
+        // empty
+    }
+
+    void deliverInbound(char* packet, int length) { onReceive_("127.0.0.1", 0, packet, length); }
+};
+
+bool inboundPacketsAreIgnored()
+{
+    Receiver receiver;
+    NeverReused<ListeningLogger> loggerStorage(std::string("127.0.0.1"), receiver.port());
+    ListeningLogger& logger = *loggerStorage;
+
+    // The heartbeat it sends as soon as it's created.
+    if (!checkTrue("no heartbeat received", receiver.receive().has_value())) return false;
+
+    // Whatever a logging program sends to the port it logs to, the logger
+    // has no use for it: it must not answer, and must not stop logging.
+    char packet[] = "not a WSJT-X message";
+    loggerStorage->deliverInbound(packet, sizeof(packet) - 1);
+
+    bool result = nothingMoreReceived(receiver);
+
+    Contact contact;
+    contact.snr = ILogger::UNKNOWN_SNR;
+    contact.logTo(logger);
+    result &= checkStatus(receiver, contact);
+    result &= checkQsoLogged(receiver, contact);
+    result &= checkLoggedAdif(receiver, contact);
+    return result;
+}
+
 }
 
 int main()
@@ -801,5 +851,6 @@ int main()
     executeTestCase("stopsSendingHeartbeatsWhenDestroyed", stopsSendingHeartbeatsWhenDestroyed);
     executeTestCase("destroysCleanly", destroysCleanly);
     executeTestCase("nothingListeningIsHarmless", nothingListeningIsHarmless);
+    executeTestCase("inboundPacketsAreIgnored", inboundPacketsAreIgnored);
     return testResult();
 }

@@ -115,6 +115,8 @@ static const int DOT_DASH_PATTERN[] = { 3, 1, 1, 1 };
 // GDI+ draws both end points of a 1 px line, so a run of n pixels is a line n - 1 long;
 // it draws nothing for a line with no length, though, so single pixels go into dots
 // as 1x1 squares to fill instead.
+// GCOVR_EXCL_START: only called when CACHE_GRID_PATHS, which is true only on
+// Windows; the coverage job runs the tests on Linux.
 static void addDashedLine_(wxGraphicsPath& path, wxGraphicsPath& dots,
                            wxDouble x1, wxDouble y1, wxDouble x2, wxDouble y2,
                            const int* pattern, int patternLength)
@@ -144,6 +146,7 @@ static void addDashedLine_(wxGraphicsPath& path, wxGraphicsPath& dots,
         pos = end;
     }
 }
+// GCOVR_EXCL_STOP
 
 #if defined(_WIN32)
 // Everything drawn directly is opaque and unantialiased, so copying pixels gives the same
@@ -165,11 +168,9 @@ PlotScalar::PlotScalar(wxWindow* parent,
                        float  graticule_t_step,   // time step of x (time) axis graticule in seconds
                        float  graticule_a_step,   // step of amplitude axis graticule
                        const char a_fmt[],        // printf format string for amplitude axis labels
-                       int    mini,               // true for mini-plot - don't draw graticule
                        const char* plotName,
                        bool halfPlot,
-                       float defaultVal,
-                       bool disableFirstLastLabels)
+                       float defaultVal)
     : PlotPanel(parent, plotName)
 {
     WXWIDGETS_SET_LAYOUT_DIRECTION;
@@ -180,7 +181,6 @@ PlotScalar::PlotScalar(wxWindow* parent,
     addedPoints_ = 0;
     halfPlot_ = halfPlot;
     lineWidth_ = 1;
-    disableFirstLastLabels_ = disableFirstLastLabels;
 
     int i;
 
@@ -196,7 +196,6 @@ PlotScalar::PlotScalar(wxWindow* parent,
     assert(strlen(a_fmt) < 15);
     memset(m_a_fmt, 0, sizeof(m_a_fmt));
     strncpy(m_a_fmt, a_fmt, sizeof(m_a_fmt) - 1);
-    m_mini = mini;
     leftOffset_ = 0;
     bottomOffset_ = 0;
 
@@ -277,8 +276,6 @@ void  PlotScalar::add_new_short_samples(short samples[], int length, float scale
 
 bool PlotScalar::repaintAll_(wxPaintEvent&)
 {
-    if (m_mini) return true;
-
     wxRect plotRegion(
         PLOT_BORDER + leftOffset_, 
         PLOT_BORDER,
@@ -299,19 +296,12 @@ bool PlotScalar::repaintAll_(wxPaintEvent&)
 
 void PlotScalar::refreshData()
 {
-    if (!m_mini)
-    {
-        wxRect plotRegion(
-            PLOT_BORDER + leftOffset_, 
-            PLOT_BORDER,
-            m_rGrid.GetWidth(),
-            m_rGrid.GetHeight());
-        RefreshRect(plotRegion);
-    }
-    else
-    {
-        Refresh();
-    }
+    wxRect plotRegion(
+        PLOT_BORDER + leftOffset_, 
+        PLOT_BORDER,
+        m_rGrid.GetWidth(),
+        m_rGrid.GetHeight());
+    RefreshRect(plotRegion);
 }
 
 //----------------------------------------------------------------
@@ -326,16 +316,10 @@ void PlotScalar::draw(wxGraphicsContext* ctx, bool repaintDataOnly)
 
     m_rCtrl = GetClientRect();
     m_rGrid = m_rCtrl;
-    if (!m_mini)
-        m_rGrid = m_rGrid.Deflate(PLOT_BORDER + (leftOffset_/2), (PLOT_BORDER + (bottomOffset_/2)));
+    m_rGrid = m_rGrid.Deflate(PLOT_BORDER + (leftOffset_/2), (PLOT_BORDER + (bottomOffset_/2)));
 
     // black background
-    int plotX = 0, plotY = 0, plotWidth = 0, plotHeight = 0;
-    if (!m_mini)
-    {
-        plotX = PLOT_BORDER + leftOffset_;
-        plotY = PLOT_BORDER;
-    }
+    int plotX = PLOT_BORDER + leftOffset_, plotY = PLOT_BORDER, plotWidth = 0, plotHeight = 0;
 
     plotWidth = m_rGrid.GetWidth();
     plotHeight = m_rGrid.GetHeight();
@@ -742,33 +726,23 @@ void PlotScalar::drawGraticuleFast(wxGraphicsContext* ctx, bool repaintDataOnly)
     for(t=0; t<=m_t_secs; t+=m_graticule_t_step)
     {
         x = t*sec_to_px;
-        if (m_mini && drawPlotLines) 
+        if (drawPlotLines) strokeGridLine(verticalLines, x, plotHeight, x, 0);
+        x += PLOT_BORDER + leftOffset_;
+        if (!repaintDataOnly) 
         {
-            strokeGridLine(verticalLines, x, plotHeight, x, 0);
-        }
-        else 
-        {
-            if (drawPlotLines) strokeGridLine(verticalLines, x, plotHeight, x, 0);
-            x += PLOT_BORDER + leftOffset_;
-            if (!repaintDataOnly) 
+            snprintf(buf, STR_LENGTH, "%2.0fs", (m_t_secs - t));
+            GetTextExtent(buf, &text_w, &text_h);
+            int left = x - text_w/2;
+            if (t == 0)
             {
-                snprintf(buf, STR_LENGTH, "%2.0fs", (m_t_secs - t));
-                GetTextExtent(buf, &text_w, &text_h);
-                int left = x - text_w/2;
-                if (t == 0)
-                {
-                    left += text_w/2;
-                }
-                else if (t == m_t_secs)
-                {
-                    left -= text_w/2;
-                }
-                
-                if (!disableFirstLastLabels_ || (t > 0 && t < m_t_secs))
-                {
-                    ctx->DrawText(buf, left, plotHeight + PLOT_BORDER + YBOTTOM_TEXT_OFFSET);
-                }
+                left += text_w/2;
             }
+            else if (t == m_t_secs)
+            {
+                left -= text_w/2;
+            }
+
+            ctx->DrawText(buf, left, plotHeight + PLOT_BORDER + YBOTTOM_TEXT_OFFSET);
         }
     }
 
@@ -778,35 +752,25 @@ void PlotScalar::drawGraticuleFast(wxGraphicsContext* ctx, bool repaintDataOnly)
     for(a=m_a_min; a<=m_a_max; ) 
     {
         y = plotHeight - a*a_to_py + m_a_min*a_to_py;
-        if (m_mini && drawPlotLines) 
+        if (drawPlotLines) strokeGridLine(horizontalLines, 0, y, plotWidth, y);
+        y += PLOT_BORDER;
+        if (!repaintDataOnly)
         {
-            strokeGridLine(horizontalLines, 0, y, plotWidth, y);
-        }
-        else 
-        {
-            if (drawPlotLines) strokeGridLine(horizontalLines, 0, y, plotWidth, y);
-            y += PLOT_BORDER;
-            if (!repaintDataOnly)
-            {
-                // Avoid "-0.0" from floating point drift when accumulating
-                // m_graticule_a_step from m_a_min (e.g. -1.0 + 0.2*5 != 0.0).
-                float labelValue = (fabsf(a) < m_graticule_a_step * 0.001f) ? 0.0f : a;
-                snprintf(buf, STR_LENGTH, m_a_fmt, labelValue);
-                GetTextExtent(buf, &text_w, &text_h);
-                auto top = y - text_h/2;
+            // Avoid "-0.0" from floating point drift when accumulating
+            // m_graticule_a_step from m_a_min (e.g. -1.0 + 0.2*5 != 0.0).
+            float labelValue = (fabsf(a) < m_graticule_a_step * 0.001f) ? 0.0f : a;
+            snprintf(buf, STR_LENGTH, m_a_fmt, labelValue);
+            GetTextExtent(buf, &text_w, &text_h);
+            auto top = y - text_h/2;
 
-                if (!disableFirstLastLabels_ || (a > m_a_min && a < m_a_max))
-                {
-                    ctx->DrawText(buf, PLOT_BORDER + leftOffset_ - text_w - XLEFT_TEXT_OFFSET, top);
-                }
-            }
+            ctx->DrawText(buf, PLOT_BORDER + leftOffset_ - text_w - XLEFT_TEXT_OFFSET, top);
         }
  
         a += m_graticule_a_step;
    }
 
-   int plotX = m_mini ? 0 : PLOT_BORDER + leftOffset_;
-   int plotY = m_mini ? 0 : PLOT_BORDER;
+   int plotX = PLOT_BORDER + leftOffset_;
+   int plotY = PLOT_BORDER;
 
    if (DRAW_DIRECTLY)
    {
@@ -898,8 +862,7 @@ void PlotScalar::OnSize(wxSizeEvent&)
 
     m_rCtrl = GetClientRect();
     m_rGrid = m_rCtrl;
-    if (!m_mini)
-        m_rGrid = m_rGrid.Deflate(PLOT_BORDER + (leftOffset_/2), (PLOT_BORDER + (bottomOffset_/2)));
+    m_rGrid = m_rGrid.Deflate(PLOT_BORDER + (leftOffset_/2), (PLOT_BORDER + (bottomOffset_/2)));
 
     if (plotArea_ != nullptr)
     {

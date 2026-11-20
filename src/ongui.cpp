@@ -2288,8 +2288,14 @@ void MainFrame::OnReportFrequencyContextMenu(wxContextMenuEvent&)
     wxString units = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz ? _("kHz") : _("MHz");
 
     wxMenu menu;
-    wxMenuItem* addItem = menu.Append(wxID_ANY,
-        freq.IsEmpty() ? _("&Add frequency to list") : wxString::Format(_("&Add %s%s to list"), freq, units));
+    // Built a step at a time rather than with ?:, so that the choice isn't on
+    // the Format line, whose branches the coverage job doesn't count.
+    wxString addLabel = _("&Add frequency to list");
+    if (!freq.IsEmpty())
+    {
+        addLabel = wxString::Format(_("&Add %s%s to list"), freq, units);
+    }
+    wxMenuItem* addItem = menu.Append(wxID_ANY, addLabel);
     addItem->Enable(!freq.IsEmpty() && !listed);
     menu.Bind(wxEVT_MENU, [this, freq](wxCommandEvent&) { addReportFrequencyToList_(freq); }, addItem->GetId());
 

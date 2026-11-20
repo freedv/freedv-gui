@@ -1,5 +1,6 @@
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <string>
 #include <thread>
@@ -47,7 +48,17 @@ bool getAndAssignReplaceUnderlyingValue()
     std::string value = element.get();
     value.append("def");
     element = value;
-    return element.get() == "abcdef";
+    if (element.get() != "abcdef") return false;
+
+    // The same round trip with both processors set: what's assigned goes
+    // through the save processor, what's read back through the load one.
+    element.setSaveProcessor([](std::string val) { return val + "|stored"; });
+    element.setLoadProcessor([](std::string val) { return val.substr(0, val.size() - 7); });
+
+    element = "ghi";
+    std::string converted = element;
+    return element.getWithoutProcessing() == "ghi|stored" &&
+        element.get() == "ghi" && converted == "ghi";
 }
 
 // A writer thread does get/modify/set read-modify-write cycles while a
@@ -137,10 +148,18 @@ bool limitsApplyHoweverValueIsSet()
     result &= element.get() == 100;
     element.setWithoutProcessing(-7);
     result &= element.get() == 10;
-    element.update([](int& value) { value = 500; });
+    // One callback for both update() calls, so that this instantiation of
+    // update() sees the limit both in force and absent.
+    auto setTo500 = [](int& value) { value = 500; };
+
+    element.update(setTo500);
     result &= element.get() == 100;
     element = 42;
     result &= element.get() == 42;
+
+    ConfigurationDataElement<int> unbounded("/Test/Other", 5);
+    unbounded.update(setTo500);
+    result &= unbounded.get() == 500;
     return result;
 }
 
@@ -412,6 +431,269 @@ bool everyTypeConvertsImplicitly()
         tunedBands == std::map<wxString, int> { { wxString::FromUTF8("40m"), 8 } };
 }
 
+// What a change to each kind of element needs done for it to take effect,
+// as mergeChangesFrom() reports it.
+bool changeEffectsComeBackForEveryKind()
+{
+    ConfigurationDataElement<int> frequency("/Test/Frequency", 8000, ConfigChange::UPDATES_RUNNING_AUDIO);
+    ConfigurationDataElement<long> volume("/Test/Volume", 1, ConfigChange::RESTARTS_AUDIO);
+    ConfigurationDataElement<unsigned long> timeout("/Test/Timeout", 5, ConfigChange::RECONNECTS_RADIO);
+    ConfigurationDataElement<float> gamma("/Test/Gamma", 1.0f, ConfigChange::RESTARTS_AUDIO | ConfigChange::UPDATES_RUNNING_AUDIO);
+    ConfigurationDataElement<wxString> callsign("/Test/Callsign", wxString(), ConfigChange::RECONNECTS_FREEDV_REPORTER);
+    ConfigurationDataElement<std::map<wxString, int>> bands("/Test/Bands", std::map<wxString, int>(), ConfigChange::NONE);
+    ConfigurationDataElement<std::vector<int>> filters("/Test/Filters", std::vector<int>(), ConfigChange::REOPENS_PTT_INPUT);
+
+    bool result = true;
+    result &= frequency.getChangeEffects() == (uint32_t)ConfigChange::UPDATES_RUNNING_AUDIO;
+    result &= volume.getChangeEffects() == (uint32_t)ConfigChange::RESTARTS_AUDIO;
+    result &= timeout.getChangeEffects() == (uint32_t)ConfigChange::RECONNECTS_RADIO;
+    result &= gamma.getChangeEffects() == (uint32_t)(ConfigChange::RESTARTS_AUDIO | ConfigChange::UPDATES_RUNNING_AUDIO);
+    result &= callsign.getChangeEffects() == (uint32_t)ConfigChange::RECONNECTS_FREEDV_REPORTER;
+    result &= bands.getChangeEffects() == (uint32_t)ConfigChange::NONE;
+    result &= filters.getChangeEffects() == (uint32_t)ConfigChange::REOPENS_PTT_INPUT;
+    return result;
+}
+
+// Settings' copy of a setting is copied back into the live one, taking its
+// value and its default with it (a migration may have changed the default
+// of the copy, and Settings' "restore default" works from that).
+template<typename UnderlyingType>
+bool copyCarriesValueAndDefault(
+    UnderlyingType const& sourceDefault, UnderlyingType const& sourceValue, UnderlyingType const& targetValue)
+{
+    ConfigurationDataElement<UnderlyingType> source("/Test/Source", sourceDefault);
+    source = sourceValue;
+
+    ConfigurationDataElement<UnderlyingType> target("/Test/Target", sourceDefault);
+    target = targetValue;
+
+    target.copyValueFrom(source);
+
+    return target.getWithoutProcessing() == sourceValue &&
+        target.getDefaultVal() == sourceDefault &&
+        source.getWithoutProcessing() == sourceValue &&
+        source.getDefaultVal() == sourceDefault;
+}
+
+bool copyCarriesValueAndDefaultForEveryKind()
+{
+    bool result = true;
+    result &= copyCarriesValueAndDefault<int>(1, 2, 3);
+    result &= copyCarriesValueAndDefault<long>(1L, 2L, 3L);
+    result &= copyCarriesValueAndDefault<unsigned long>(1UL, 2UL, 3UL);
+    result &= copyCarriesValueAndDefault<float>(1.0f, 2.0f, 3.0f);
+    result &= copyCarriesValueAndDefault<wxString>(
+        wxString::FromUTF8("a"), wxString::FromUTF8("b"), wxString::FromUTF8("c"));
+    result &= copyCarriesValueAndDefault<std::map<wxString, int>>(
+        { { wxString::FromUTF8("a"), 1 } }, { { wxString::FromUTF8("b"), 2 } }, { { wxString::FromUTF8("c"), 3 } });
+    result &= copyCarriesValueAndDefault<std::string>("a", "abcdefghijklmnop", "c");
+    result &= copyCarriesValueAndDefault<std::vector<std::string>>(
+        std::vector<std::string>(), { "a", "abcdefghijklmnop" }, { "c" });
+    result &= copyCarriesValueAndDefault<std::map<int, int>>(
+        std::map<int, int>(), { { 1, 1 }, { 2, 2 } }, { { 3, 3 } });
+    result &= copyCarriesValueAndDefault<unsigned int>(1u, 2u, 3u);
+    result &= copyCarriesValueAndDefault<std::vector<int>>({ 1 }, { 2 }, { 3 });
+    return result;
+}
+
+// A setting's limits hold for every kind of value it can hold, however it's
+// set: assigned from Settings, read from the configuration file, updated in
+// place, or copied from another copy of the configuration.
+template<typename UnderlyingType>
+bool limitsHoldForKind(
+    UnderlyingType const& low, UnderlyingType const& middle, UnderlyingType const& high,
+    UnderlyingType const& below, UnderlyingType const& above)
+{
+    ConfigurationDataElement<UnderlyingType> source("/Test/Source", middle);
+    source = above;
+
+    // One callback for both update() calls, so that this instantiation takes
+    // both sides of the limit check rather than adding a second copy of
+    // itself that only takes one.
+    auto setToBelow = [&](UnderlyingType& value) { value = below; };
+
+    ConfigurationDataElement<UnderlyingType> element("/Test/Value", middle);
+    bool result = element.getWithoutProcessing() == middle;
+
+    // With no limits, each way of setting the value takes it exactly as given.
+    element = above;
+    result &= element.getWithoutProcessing() == above;
+    element.setWithoutProcessing(below);
+    result &= element.getWithoutProcessing() == below;
+    element.update(setToBelow);
+    result &= element.getWithoutProcessing() == below;
+    element.copyValueFrom(source);
+    result &= element.getWithoutProcessing() == above;
+
+    // Setting the limits brings the value that's already there inside them...
+    element.setLimits(low, high);
+    result &= element.getWithoutProcessing() == high;
+
+    // ...and every way of setting it after that.
+    element = below;
+    result &= element.getWithoutProcessing() == low;
+    element.setWithoutProcessing(above);
+    result &= element.getWithoutProcessing() == high;
+    element.update(setToBelow);
+    result &= element.getWithoutProcessing() == low;
+    element.copyValueFrom(source);
+    result &= element.getWithoutProcessing() == high;
+
+    // What comes across with a copied value is its default, which the limits
+    // of the element it lands in don't touch.
+    result &= element.getDefaultVal() == middle;
+    return result;
+}
+
+bool limitsHoldForEveryKind()
+{
+    bool result = true;
+    result &= limitsHoldForKind<int>(10, 50, 100, 5, 1000);
+    result &= limitsHoldForKind<long>(10L, 50L, 100L, 5L, 1000L);
+    result &= limitsHoldForKind<unsigned long>(10UL, 50UL, 100UL, 0UL, 1000UL);
+    result &= limitsHoldForKind<float>(10.0f, 50.0f, 100.0f, 0.0f, 1000.0f);
+    result &= limitsHoldForKind<wxString>(
+        wxString::FromUTF8("b"), wxString::FromUTF8("m"), wxString::FromUTF8("y"),
+        wxString::FromUTF8("a"), wxString::FromUTF8("z"));
+    result &= limitsHoldForKind<std::map<wxString, int>>(
+        { { wxString::FromUTF8("a"), 1 } }, { { wxString::FromUTF8("m"), 1 } }, { { wxString::FromUTF8("z"), 1 } },
+        { { wxString::FromUTF8("a"), 0 } }, { { wxString::FromUTF8("z"), 2 } });
+    result &= limitsHoldForKind<std::vector<int>>({ 1 }, { 5 }, { 10 }, { 0 }, { 11 });
+    // bool has nothing outside [false,true], so only the above value gets
+    // brought back; the lists clamp the way they compare.
+    result &= limitsHoldForKind<bool>(false, false, false, false, true);
+    result &= limitsHoldForKind<std::vector<bool>>(
+        { false, false }, { false, true }, { true, true }, { false }, { true, true, true });
+    result &= limitsHoldForKind<std::vector<wxString>>(
+        { wxString::FromUTF8("b") }, { wxString::FromUTF8("m") }, { wxString::FromUTF8("y") },
+        { wxString::FromUTF8("a") }, { wxString::FromUTF8("z") });
+    result &= limitsHoldForKind<std::string>(
+        "b", "m", "y", "a", "zabcdefghijklmnop");
+    result &= limitsHoldForKind<std::vector<std::string>>(
+        { "b" }, { "m" }, { "y" }, { "a" }, { "zabcdefghijklmnop" });
+    result &= limitsHoldForKind<std::map<int, int>>(
+        { { 1, 1 } }, { { 5, 5 } }, { { 10, 10 } }, { { 0, 0 } }, { { 11, 11 } });
+    result &= limitsHoldForKind<unsigned int>(10u, 50u, 100u, 0u, 1000u);
+    return result;
+}
+
+// Whether Settings' copy of a setting is the same as the live one, for each
+// kind of value the configuration holds.
+template<typename UnderlyingType>
+bool sameValueComparesForKind(UnderlyingType const& first, UnderlyingType const& second)
+{
+    ConfigurationDataElement<UnderlyingType> a("/Test/A", first);
+    ConfigurationDataElement<UnderlyingType> b("/Test/B", first);
+    ConfigurationDataElement<UnderlyingType> c("/Test/C", second);
+
+    bool result = a.hasSameValueAs(b) && !a.hasSameValueAs(c);
+
+    // Assigned from Settings, back to what it was and then to something else.
+    a = first;
+    result &= a.hasSameValueAs(b);
+    a = second;
+    result &= !a.hasSameValueAs(b);
+    return result;
+}
+
+bool sameValueComparesForEveryKind()
+{
+    bool result = true;
+    result &= sameValueComparesForKind<int>(1, 2);
+    result &= sameValueComparesForKind<long>(1L, 2L);
+    result &= sameValueComparesForKind<unsigned long>(1UL, 2UL);
+    result &= sameValueComparesForKind<float>(1.0f, 2.0f);
+    result &= sameValueComparesForKind<bool>(false, true);
+    result &= sameValueComparesForKind<wxString>(
+        wxString::FromUTF8("a"), wxString::FromUTF8("abcdefghijklmnop"));
+    // Strings long enough to leave the small-string buffer, and containers
+    // empty as well as filled, so that both ways of copying them are taken.
+    result &= sameValueComparesForKind<std::string>("a", "abcdefghijklmnop");
+    result &= sameValueComparesForKind<std::vector<bool>>(
+        std::vector<bool>(), std::vector<bool> { true, false });
+    result &= sameValueComparesForKind<std::vector<int>>(
+        std::vector<int>(), std::vector<int> { 1, 2, 3 });
+    result &= sameValueComparesForKind<std::vector<wxString>>(
+        std::vector<wxString>(), std::vector<wxString> { wxString::FromUTF8("abcdefghijklmnop") });
+    result &= sameValueComparesForKind<std::vector<std::string>>(
+        std::vector<std::string>(), std::vector<std::string> { "a", "abcdefghijklmnop" });
+    result &= sameValueComparesForKind<std::map<wxString, int>>(
+        std::map<wxString, int>(), { { wxString::FromUTF8("a"), 1 }, { wxString::FromUTF8("b"), 2 } });
+    result &= sameValueComparesForKind<std::map<int, int>>(
+        std::map<int, int>(), { { 1, 1 }, { 2, 2 }, { 3, 3 } });
+    result &= sameValueComparesForKind<unsigned int>(1u, 2u);
+    return result;
+}
+
+bool unsignedLongProcessorRoundTrip()
+{
+    ConfigurationDataElement<unsigned long> element("/Test/Value", 0);
+    element.setSaveProcessor([](unsigned long val) { return val * 1000UL; });
+    element.setLoadProcessor([](unsigned long val) { return val / 1000UL; });
+
+    element = 42UL;
+    unsigned long converted = element;
+    return element.getWithoutProcessing() == 42000UL && element.get() == 42UL && converted == 42UL;
+}
+
+// The plain side of each read: before a load processor is attached, get()
+// and the implicit conversion both hand back what's stored; afterwards both
+// hand back what the processor makes of it.
+template<typename UnderlyingType>
+bool readsWithAndWithoutLoadProcessor(
+    UnderlyingType const& stored, UnderlyingType const& processed,
+    std::function<UnderlyingType(UnderlyingType)> processor)
+{
+    ConfigurationDataElement<UnderlyingType> element("/Test/Value", stored);
+
+    UnderlyingType converted = element;
+    bool result = converted == stored && element.get() == stored;
+
+    element.setLoadProcessor(processor);
+    UnderlyingType readBack = element;
+    return result && readBack == processed && element.get() == processed &&
+        element.getWithoutProcessing() == stored;
+}
+
+bool plainAndProcessedReadsForEveryKind()
+{
+    bool result = true;
+    result &= readsWithAndWithoutLoadProcessor<bool>(true, false, [](bool val) { return !val; });
+    result &= readsWithAndWithoutLoadProcessor<float>(1.0f, 2.0f, [](float val) { return val * 2.0f; });
+    result &= readsWithAndWithoutLoadProcessor<long>(2L, 4L, [](long val) { return val * 2L; });
+    result &= readsWithAndWithoutLoadProcessor<unsigned long>(5UL, 10UL, [](unsigned long val) { return val * 2UL; });
+    result &= readsWithAndWithoutLoadProcessor<unsigned int>(3u, 6u, [](unsigned int val) { return val * 2u; });
+    result &= readsWithAndWithoutLoadProcessor<wxString>(
+        wxString::FromUTF8("a"), wxString::FromUTF8("aa"), [](wxString val) { return val + val; });
+    result &= readsWithAndWithoutLoadProcessor<std::vector<bool>>(
+        { true }, { true, false }, [](std::vector<bool> val) { val.push_back(false); return val; });
+    result &= readsWithAndWithoutLoadProcessor<std::vector<wxString>>(
+        { wxString::FromUTF8("a") }, { wxString::FromUTF8("a"), wxString::FromUTF8("b") },
+        [](std::vector<wxString> val) { val.push_back(wxString::FromUTF8("b")); return val; });
+    result &= readsWithAndWithoutLoadProcessor<std::map<wxString, int>>(
+        { { wxString::FromUTF8("a"), 1 } }, { { wxString::FromUTF8("a"), 2 } },
+        [](std::map<wxString, int> val) { for (auto& item : val) item.second *= 2; return val; });
+    result &= readsWithAndWithoutLoadProcessor<std::map<int, int>>(
+        { { 1, 1 } }, { { 1, 2 } },
+        [](std::map<int, int> val) { for (auto& item : val) item.second *= 2; return val; });
+    return result;
+}
+
+// The int-keyed map the rig port lists use goes through its save processor
+// when assigned, like every other kind, and the default stays as it was.
+bool intKeyedMapSaveProcessorApplies()
+{
+    ConfigurationDataElement<std::map<int, int>> element("/Test/Ports", std::map<int, int>());
+    element.setSaveProcessor([](std::map<int, int> val) {
+        for (auto& item : val) item.second *= 100;
+        return val;
+    });
+
+    element = std::map<int, int> { { 1, 2 }, { 3, 4 } };
+    return element.getWithoutProcessing() == std::map<int, int> { { 1, 200 }, { 3, 400 } } &&
+        element.getDefaultVal() == std::map<int, int>();
+}
+
 }
 
 int main()
@@ -439,5 +721,12 @@ int main()
     executeTestCase("stringListProcessorRoundTrip", stringListProcessorRoundTrip);
     executeTestCase("intMapProcessorRoundTrip", intMapProcessorRoundTrip);
     executeTestCase("everyTypeConvertsImplicitly", everyTypeConvertsImplicitly);
+    executeTestCase("changeEffectsComeBackForEveryKind", changeEffectsComeBackForEveryKind);
+    executeTestCase("copyCarriesValueAndDefaultForEveryKind", copyCarriesValueAndDefaultForEveryKind);
+    executeTestCase("sameValueComparesForEveryKind", sameValueComparesForEveryKind);
+    executeTestCase("limitsHoldForEveryKind", limitsHoldForEveryKind);
+    executeTestCase("unsignedLongProcessorRoundTrip", unsignedLongProcessorRoundTrip);
+    executeTestCase("plainAndProcessedReadsForEveryKind", plainAndProcessedReadsForEveryKind);
+    executeTestCase("intKeyedMapSaveProcessorApplies", intKeyedMapSaveProcessorApplies);
     return testResult();
 }
