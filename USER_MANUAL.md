@@ -970,10 +970,9 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Hamlib: fix rigctld sometimes dropping FreeDV's connection when Test PTT is clicked again, Start follows Stop quickly, or another program disconnects from rigctld, just as FreeDV connects. (PR #1634)
     * Fix Test PTT becoming usable again before the radio was unkeyed and the serial port closed, when using serial port or OmniRig PTT. (PR #1636)
     * Stop the play file and any recording when the modem stops. (PR #1642)
-    * Refuse what isn't a number instead of saving stack garbage. (PR #1643)
+    * Refuse what isn't a number instead of saving stack garbage. (PR #1643, #1648)
     * FreeDV Reporter (macOS): leave no station selected when the selected one's row is hidden by a filter or removed, rather than selecting the station below it. (PR #1647)
     * FreeDV Reporter: fix a crash when the server reports a station that's already connected. (PR #1645)
-    * Windows: fix the Radio Address, serial rate, PTT type, stats reset time and OmniRig radio settings being put back to their defaults on every start since PR #1643. A build with that change will have saved the defaults over them, so they may need setting again. (PR #1648)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
 3. Build system:
