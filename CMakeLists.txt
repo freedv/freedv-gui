@@ -906,7 +906,7 @@ foreach(scenario live_view stations sorting sorted_updates updates_while_sorted 
     freedv_set_test_pass_criteria(gui_reporter_${scenario})
 endforeach(scenario)
 
-foreach(scenario buttons audio audio_tests radio ptt_test rig_control frequency_list frequency_list_from_main_window reporting voice_keyer display modem_and_debugging invalid_numbers out_of_range_config ptt_key_names auto_start while_running)
+foreach(scenario buttons audio audio_tests radio ptt_test rig_control frequency_list frequency_list_from_main_window reporting voice_keyer display modem_and_debugging invalid_numbers out_of_range_config ptt_key_names auto_start while_running opened_while_running)
     add_test(NAME gui_settings_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_settings.py ${scenario})
     set_tests_properties(gui_settings_${scenario} PROPERTIES LABELS gui SKIP_RETURN_CODE 77)
