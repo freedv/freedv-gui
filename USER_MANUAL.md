@@ -973,6 +973,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Refuse what isn't a number instead of saving stack garbage. (PR #1643)
     * FreeDV Reporter (macOS): leave no station selected when the selected one's row is hidden by a filter or removed, rather than selecting the station below it. (PR #1647)
     * FreeDV Reporter: fix a crash when the server reports a station that's already connected. (PR #1645)
+    * Windows: fix the Radio Address, serial rate, PTT type, stats reset time and OmniRig radio settings being put back to their defaults on every start since PR #1643. A build with that change will have saved the defaults over them, so they may need setting again. (PR #1648)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
 3. Build system:

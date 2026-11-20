@@ -7,6 +7,13 @@
 #include "../WxWidgetsConfigStore.h"
 #include "ConfigTestCommon.h"
 
+// After the above, which bring in the rest of wxWidgets these need.
+#if defined(_WIN32)
+#include <wx/msw/regconf.h>
+#include <wx/msw/registry.h>
+#include <wx/utils.h>
+#endif // defined(_WIN32)
+
 namespace {
 
 using StringList = std::vector<wxString>;
@@ -412,6 +419,48 @@ bool unsignedIntLoadsFromOlderFormats()
         check("non-numeric value", loadFrom<unsigned int>("abc", 7u), 7u);
 }
 
+#if defined(_WIN32)
+// On Windows the configuration is the registry rather than a file, and a
+// number is saved there as a REG_DWORD, which can't be read back as text:
+// unsigned settings (the CI-V address among them) have to be read as numbers
+// or they all come back as their defaults. Saved under a key of this test's
+// own in HKEY_CURRENT_USER, which is removed afterwards.
+bool unsignedIntsRoundTripThroughRegistry()
+{
+    const wxString keyName = wxString::Format("FreeDVConfigStoreTest-%lu", wxGetProcessId());
+    TestStore store;
+    bool result = true;
+
+    {
+        wxRegConfig config("FreeDVConfigStoreTest", wxEmptyString, keyName, wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
+        ConfigurationDataElement<unsigned int> address("/Hamlib/IcomCIVHex", 0u);
+        address.setWithoutProcessing(0x94u);
+        store.save_(&config, address);
+        ConfigurationDataElement<unsigned int> large("/Test/Large", 0u);
+        large.setWithoutProcessing(4000000000u);
+        store.save_(&config, large);
+        config.Flush();
+    }
+
+    wxRegKey key(wxRegKey::HKCU, "Software\\" + keyName + "\\Hamlib");
+    result &= checkTrue("saved as a REG_DWORD", key.GetValueType("IcomCIVHex") == wxRegKey::Type_Dword);
+
+    {
+        // As if FreeDV had been started again.
+        wxRegConfig config("FreeDVConfigStoreTest", wxEmptyString, keyName, wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
+        ConfigurationDataElement<unsigned int> address("/Hamlib/IcomCIVHex", 0u);
+        store.load_(&config, address);
+        result &= check("CI-V address", address.getWithoutProcessing(), 0x94u);
+        ConfigurationDataElement<unsigned int> large("/Test/Large", 0u);
+        store.load_(&config, large);
+        result &= check("large unsigned int", large.getWithoutProcessing(), 4000000000u);
+    }
+
+    wxRegKey(wxRegKey::HKCU, "Software\\" + keyName).DeleteSelf();
+    return result;
+}
+#endif // defined(_WIN32)
+
 }
 
 int main()
@@ -442,5 +491,8 @@ int main()
     executeTestCase("mapsDoNotDisturbNeighbours", mapsDoNotDisturbNeighbours);
     executeTestCase("mapSkipsNonNumericEntries", mapSkipsNonNumericEntries);
     executeTestCase("unsignedIntLoadsFromOlderFormats", unsignedIntLoadsFromOlderFormats);
+#if defined(_WIN32)
+    executeTestCase("unsignedIntsRoundTripThroughRegistry", unsignedIntsRoundTripThroughRegistry);
+#endif // defined(_WIN32)
     return testResult();
 }
