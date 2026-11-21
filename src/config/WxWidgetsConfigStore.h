@@ -35,6 +35,22 @@ public:
     
     virtual void load(wxConfigBase* config) = 0;
     virtual void save(wxConfigBase* config) = 0;
+
+    // Every setting that save() saves through save_(), in the order it saves
+    // them, which is the same for every instance of a class: so the settings
+    // of two copies can be gone through together. (So save() mustn't save
+    // any of them only sometimes. Anything it writes to the configuration
+    // itself isn't listed: see ReportingConfiguration::save().)
+    std::vector<IConfigurationDataElement*> elements();
+
+    // Whether two lists from elements() pair up, setting for setting. Says
+    // which don't (as an error) if they don't.
+    static bool elementsPairUp(
+        std::vector<IConfigurationDataElement*> const& first,
+        std::vector<IConfigurationDataElement*> const& second);
+
+    // Makes this a copy of other, an instance of the same class.
+    void copyFrom(WxWidgetsConfigStore& other);
     
 protected:
     template<typename UnderlyingDataType>
@@ -43,6 +59,9 @@ protected:
     template<typename UnderlyingDataType>
     void save_(wxConfigBase* config, ConfigurationDataElement<UnderlyingDataType>& configElement);
     
+    // Notes down an element being saved, while elements() is listing them.
+    static void noteSaved_(IConfigurationDataElement& configElement);
+
     wxString generateStringFromArray_(std::vector<wxString> const& vec);
     std::vector<wxString> generateStrArrayFromString_(wxString const& str);
 
@@ -64,8 +83,12 @@ void WxWidgetsConfigStore::load_(wxConfigBase* config, ConfigurationDataElement<
 template<typename UnderlyingDataType>
 void WxWidgetsConfigStore::save_(wxConfigBase* config, ConfigurationDataElement<UnderlyingDataType>& configElement)
 {
+    noteSaved_(configElement);
     config->Write(configElement.getElementName(), configElement.getWithoutProcessing());
 }
+
+template<>
+void WxWidgetsConfigStore::load_<int>(wxConfigBase* config, ConfigurationDataElement<int>& configElement);
 
 template<>
 void WxWidgetsConfigStore::load_<unsigned int>(wxConfigBase* config, ConfigurationDataElement<unsigned int>& configElement);

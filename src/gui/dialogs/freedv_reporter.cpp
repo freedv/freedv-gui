@@ -34,6 +34,7 @@
 #include <wx/textdlg.h>
 #include "../controls/MsgListPopup.h"
 #include "../util/FrequencyOps.h"
+#include "../util/AppIcon.h"
 #include "../util/GridSquare.h"
 #include "../util/WindowPositionRestore.h"
 
@@ -83,6 +84,35 @@ using namespace std::placeholders;
 static bool isSortingColumn_(const wxDataViewColumn* sortingColumn, unsigned int modelCol)
 {
     return sortingColumn != nullptr && sortingColumn->GetModelColumn() == modelCol;
+}
+
+// A station's frequency as the Frequency column shows it, in the units chosen
+// in Settings, followed by the sideband it's on if it's said ("14.2360 USB").
+// (The column's sorted and filtered by the frequency itself, not this.)
+static wxString frequencyDisplayString_(uint64_t frequencyHz, IReporter::Sideband sideband)
+{
+    wxString frequencyString;
+    if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
+    {
+        frequencyString = wxNumberFormatter::ToString(frequencyHz / 1000.0, 1);
+    }
+    else
+    {
+        frequencyString = wxNumberFormatter::ToString(frequencyHz / 1000.0 / 1000.0, 4);
+    }
+
+    switch (sideband)
+    {
+        case IReporter::Sideband::USB:
+            frequencyString += wxT(" USB");
+            break;
+        case IReporter::Sideband::LSB:
+            frequencyString += wxT(" LSB");
+            break;
+        default:
+            break;
+    }
+    return frequencyString;
 }
 
 void FreeDVReporterDialog::createColumn_(int col, bool visible)
@@ -242,41 +272,50 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
         // size() == NUM_COLS looks fine, but the content is still wrong, so
         // that column can never be created and any lookup for it later
         // asserts/crashes.
-        auto& order = wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnOrder;
-        std::set<int> presentIndices;
-        auto iter = order->begin();
-        while (iter != order->end())
-        {
-            // Strip anything out of range for this build's NUM_COLS, and any
-            // duplicate of an index already kept.
-            if (*iter >= RIGHTMOST_COL || !presentIndices.insert(*iter).second)
+        // The stored vector is shared with other threads: fix it up in one
+        // locked step.
+        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnOrder.update([&](std::vector<int>& order) {
+            std::set<int> presentIndices;
+            auto iter = order.begin();
+            while (iter != order.end())
             {
-                iter = order->erase(iter);
-            }
-            else
-            {
-                iter++;
-            }
-        }
-
-        if ((int)order->size() != NUM_COLS)
-        {
-            log_info("Generating missing column ordering");
-            for (auto index = 0; index < NUM_COLS; index++)
-            {
-                if (presentIndices.find(index) == presentIndices.end())
+                // Strip anything out of range for this build's NUM_COLS, and any
+                // duplicate of an index already kept.
+                if (*iter >= RIGHTMOST_COL || !presentIndices.insert(*iter).second)
                 {
-                    order->push_back(index);
+                    iter = order.erase(iter);
+                }
+                else
+                {
+                    iter++;
                 }
             }
-        }
+
+            if ((int)order.size() != NUM_COLS)
+            {
+                log_info("Generating missing column ordering");
+                for (auto index = 0; index < NUM_COLS; index++)
+                {
+                    if (presentIndices.find(index) == presentIndices.end())
+                    {
+                        order.push_back(index);
+                    }
+                }
+            }
+        });
     }
 
-    while (wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->size() < NUM_COLS)
-    {
-        // Generate default column visibility
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->push_back(true);
-    }
+    // Pad the stored visibility with defaults, keeping a copy for creating
+    // the columns and the Show menu below.
+    std::vector<bool> visibility;
+    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility.update([&](std::vector<bool>& stored) {
+        while ((int)stored.size() < NUM_COLS)
+        {
+            // Generate default column visibility
+            stored.push_back(true);
+        }
+        visibility = stored;
+    });
 
     // Windows seems to have the model column ID equal to the actual column ID regardless of the 
     // actual ordering, so we just use wxHeaderCtrl to save/restore the column ordering.
@@ -289,7 +328,7 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
         if (col < NUM_COLS)
         {
             log_info("Creating col %d", col);
-            auto visible = (bool)wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->at(col);
+            auto visible = (bool)visibility.at(col);
             createColumn_(col, visible);
         }
     }
@@ -405,6 +444,7 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
     sectionSizer->Add(reportingSettingsSizer, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND) | wxFIXED_MINSIZE, 2);
     
     this->SetMinSize(GetBestSize());
+    SetFreeDVIcons(this);
 
     // Menu bar
     menuBar_ = new wxMenuBar();
@@ -432,7 +472,7 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
     for (auto& item : menus)
     {
         auto menuItem = showMenu_->Append(wxID_HIGHEST + 100 + item.first, item.second, wxEmptyString, wxITEM_CHECK);
-        menuItem->Check(wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->at(item.first));
+        menuItem->Check(visibility.at(item.first));
         this->Connect(wxID_HIGHEST + 100 + item.first, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(FreeDVReporterDialog::OnShowColumn));
     }
 
@@ -886,11 +926,11 @@ void FreeDVReporterDialog::OnShowColumn(wxCommandEvent& event)
 {
     // Invert visibility value
     auto columnId = event.GetId() - wxID_HIGHEST - 100;
-    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->at(columnId) = 
-        !wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->at(columnId);
-
-    auto newColValue =
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility->at(columnId);
+    bool newColValue = false;
+    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterColumnVisibility.update([&](std::vector<bool>& visibility) {
+        visibility.at(columnId) = !visibility.at(columnId);
+        newColValue = visibility.at(columnId);
+    });
 
     // Note: the event's object is the menu, not the item that was chosen.
     wxMenuItem* menuItem = showMenu_->FindItem(event.GetId());
@@ -949,7 +989,7 @@ void FreeDVReporterDialog::OnIdleFilter(wxCommandEvent& event)
                 // No changes needed, other than putting the check marks back to
                 // reflect what's in effect (selecting "Custom..." changed them).
                 bool filterEnabled = wxGetApp().appConfiguration.reportingConfiguration.freedvReporterEnableMaxIdleFilter;
-                auto currentMinutes = wxGetApp().appConfiguration.reportingConfiguration.freedvReporterMaxIdleMinutes;
+                auto currentMinutes = wxGetApp().appConfiguration.reportingConfiguration.freedvReporterMaxIdleMinutes.get();
                 auto menuItems = idleLongerThanMenu_->GetMenuItems();
                 bool found = false;
                 for (auto& item : menuItems)
@@ -1143,7 +1183,8 @@ void FreeDVReporterDialog::OnSendQSY(wxCommandEvent&)
 
 void FreeDVReporterDialog::OnOpenWebsite(wxCommandEvent&)
 {
-    std::string url = std::string("https://") + (const char*)wxGetApp().appConfiguration.reportingConfiguration.freedvReporterHostname->utf8_str() + "/";
+    auto hostname = wxGetApp().appConfiguration.reportingConfiguration.freedvReporterHostname.get();
+    std::string url = std::string("https://") + (const char*)hostname.utf8_str() + "/";
     LaunchBrowser(url);
     DeselectItem();
 }
@@ -1415,6 +1456,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
         auto curDate = wxDateTime::Now().ToUTC();
 
         wxDataViewItem currentSelection = parent_->m_listSpots->GetSelection();
+        bool selectionRemoved = false;
 
         // Looked up once per pass rather than for every row.
         const wxColour windowColor = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
@@ -1443,6 +1485,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
                     {
                         // Selection is no longer valid.
                         currentSelection = wxDataViewItem(nullptr);
+                        selectionRemoved = true;
                     }
                 }
                 continue;
@@ -1524,6 +1567,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
                     {
                         // Selection no longer valid
                         currentSelection = wxDataViewItem(nullptr);
+                        selectionRemoved = true;
                     }
                 }
                 sortOnNextTimerInterval = true;
@@ -1552,6 +1596,15 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
         {
             setColumnAutosize_(false);
             ItemsChanged(itemsChanged);
+        }
+
+        if (selectionRemoved)
+        {
+            // The selected row has gone. macOS moves the list's selection
+            // on to the row that took its place, which the user never
+            // chose; leave nothing selected instead, as the other
+            // platforms do.
+            parent_->CallAfter([this]() { parent_->DeselectItem(); });
         }
         
         if (contentChanged || columnsNeedWidthCheck_ || columnsNeedAutosize_)
@@ -1671,25 +1724,33 @@ void FreeDVReporterDialog::OnItemDoubleClick(wxDataViewEvent& event)
     {
         FreeDVReporterDataModel* model = (FreeDVReporterDataModel*)spotsDataModel_.get();
         auto frequency = model->getFrequency(event.GetItem());
-        if (wxGetApp().rigFrequencyController &&
-            (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges ||
+        auto sideband = model->getSideband(event.GetItem());
+        auto rigController = snapshotRigFrequencyController();
+        if (rigController && 
+            (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges || 
             wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqChangesOnly))
         {
-            // The spot's frequency is the remote station's centre frequency;
-            // convert to dial frequency before commanding the rig. The
-            // offset depends only on g_analog (real analog voice mode), not
-            // on the hamlibUseAnalogModes label preference.
-            bool useAnalog = g_analog.load(std::memory_order_relaxed);
-            auto mode = GetModeForFrequency(
-                frequency,
-                wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes,
-                useAnalog);
-            wxGetApp().rigFrequencyController->setFrequency(DisplayToDialFreq(frequency, mode, useAnalog));
+            // On their sideband too, where they've said, while there (as the
+            // main window then picks the mode: see MainFrame::getCurrentMode_()).
+            wxGetApp().followSideband(frequency, sideband);
 
+            // The spot's frequency is the remote station's centre frequency;
+            // convert to dial frequency before commanding the rig, using the
+            // mode for their sideband. The offset depends only on g_analog
+            // (real analog voice mode), not on the hamlibUseAnalogModes label
+            // preference.
+            bool useAnalog = g_analog.load(std::memory_order_relaxed);
+            auto mode = GetModeForSideband(
+                frequency, 
+                sideband,
+                wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes, 
+                useAnalog);
+            // (Mode first: see MainFrame::OnChangeReportFrequency().)
             if (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
             {
-                wxGetApp().rigFrequencyController->setMode(mode);
+                rigController->setMode(mode);
             }
+            rigController->setFrequency(DisplayToDialFreq(frequency, wxGetApp().dialConversionMode(mode), useAnalog));
         }
         DeselectItem();
     }
@@ -1811,6 +1872,15 @@ void FreeDVReporterDialog::OnLeftClickTooltip(wxMouseEvent& event)
 
 void FreeDVReporterDialog::OnSetFocus(wxFocusEvent& event)
 {
+    // Only select the item under the mouse if the focus came from clicking
+    // on it, not from e.g. the window being brought to the front or a
+    // tooltip closing while the mouse happens to be over the list.
+    if (!wxGetMouseState().ButtonIsDown(wxMOUSE_BTN_ANY))
+    {
+        event.Skip();
+        return;
+    }
+
     CallAfter([this]() {
         const wxPoint pt = wxGetMousePosition();
         int mouseX = pt.x - m_listSpots->GetScreenPosition().x;
@@ -2240,11 +2310,7 @@ void FreeDVReporterDialog::OnStatusTextSend(wxCommandEvent&)
         popup->SetSelection(popup->FindString(statusMsg, true));
 
         // Preserve current state of the MRU list.
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
-        for (unsigned int index = 0; index < popup->GetCount(); index++)
-        {
-            wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->push_back(popup->GetString(index));
-        }
+        syncRecentStatusTexts_();
     }
 
     DeselectItem();
@@ -2285,11 +2351,7 @@ void FreeDVReporterDialog::OnStatusTextSaveMessage(wxCommandEvent&)
         popup->SetSelection(popup->FindString(statusMsg, true));
 
         // Preserve current state of the MRU list.
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
-        for (unsigned int index = 0; index < popup->GetCount(); index++)
-        {
-            wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->push_back(popup->GetString(index));
-        }
+        syncRecentStatusTexts_();
     }
 }
 
@@ -2321,24 +2383,35 @@ void FreeDVReporterDialog::OnStatusTextClearSelected(wxCommandEvent&)
             popup->Delete(location);
         }
 
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
-        for (unsigned int index = 0; index < popup->GetCount(); index++)
-        {
-            wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->push_back(popup->GetString(index));
-        }
+        syncRecentStatusTexts_();
     }
 }
 
 void FreeDVReporterDialog::OnStatusTextClearAll(wxCommandEvent&)
 {
     getMsgPopup()->Clear();
-    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
+    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts.setWithoutProcessing({});
 }
 
 wxListBox* FreeDVReporterDialog::getMsgPopup() const
 {
     auto ctrl = m_statusMessage->GetPopupControl();
     return ctrl ? static_cast<wxListBox*>(ctrl->GetControl()) : nullptr;
+}
+
+void FreeDVReporterDialog::syncRecentStatusTexts_()
+{
+    // Copies the popup list and hands it to the config element in one swap:
+    // the element is shared with other threads, so the stored vector must
+    // never be mutated in place.
+    auto popup = getMsgPopup();
+    std::vector<wxString> recent;
+    recent.reserve(popup->GetCount());
+    for (unsigned int index = 0; index < popup->GetCount(); index++)
+    {
+        recent.push_back(popup->GetString(index));
+    }
+    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts.setWithoutProcessing(recent);
 }
 
 void FreeDVReporterDialog::ShowMsgItemContextMenu(int itemIdx)
@@ -2379,11 +2452,7 @@ void FreeDVReporterDialog::OnStatusMessageContextMenuEdit(wxCommandEvent&)
     popup->Append(newText);
     contextMenuSelectedIndex_ = wxNOT_FOUND;
 
-    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
-    for (unsigned int index = 0; index < popup->GetCount(); index++)
-    {
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->push_back(popup->GetString(index));
-    }
+    syncRecentStatusTexts_();
     wxGetApp().appConfiguration.save(pConfig);
 }
 
@@ -2399,11 +2468,7 @@ void FreeDVReporterDialog::OnStatusMessageContextMenuDelete(wxCommandEvent&)
     popup->Delete(contextMenuSelectedIndex_);
     contextMenuSelectedIndex_ = wxNOT_FOUND;
 
-    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
-    for (unsigned int index = 0; index < popup->GetCount(); index++)
-    {
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->push_back(popup->GetString(index));
-    }
+    syncRecentStatusTexts_();
     wxGetApp().appConfiguration.save(pConfig);
 }
 
@@ -2427,11 +2492,7 @@ void FreeDVReporterDialog::OnStatusMessageContextMenuAdd(wxCommandEvent&)
 
     popup->Append(newText);
 
-    wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->clear();
-    for (unsigned int index = 0; index < popup->GetCount(); index++)
-    {
-        wxGetApp().appConfiguration.reportingConfiguration.freedvReporterRecentStatusTexts->push_back(popup->GetString(index));
-    }
+    syncRecentStatusTexts_();
     wxGetApp().appConfiguration.save(pConfig);
 }
 
@@ -2881,6 +2942,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::setReporter(std::shared_ptr<
         reporter_->setOnUserConnectFn(FreeDVReporter::ConnectionDataFn());
         reporter_->setOnUserDisconnectFn(FreeDVReporter::ConnectionDataFn());
         reporter_->setOnFrequencyChangeFn(FreeDVReporter::FrequencyChangeFn());
+        reporter_->setOnSidebandChangeFn(FreeDVReporter::SidebandChangeFn());
         reporter_->setOnTransmitUpdateFn(FreeDVReporter::TxUpdateFn());
         reporter_->setOnReceiveUpdateFn(FreeDVReporter::RxUpdateFn());
 
@@ -2904,6 +2966,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::setReporter(std::shared_ptr<
             reporter_->setOnUserConnectFn(std::bind(&FreeDVReporterDialog::FreeDVReporterDataModel::onUserConnectFn_, this, _1, _2, _3, _4, _5, _6, _7));
             reporter_->setOnUserDisconnectFn(std::bind(&FreeDVReporterDialog::FreeDVReporterDataModel::onUserDisconnectFn_, this, _1, _2, _3, _4, _5, _6, _7));
             reporter_->setOnFrequencyChangeFn(std::bind(&FreeDVReporterDialog::FreeDVReporterDataModel::onFrequencyChangeFn_, this, _1, _2, _3, _4, _5));
+            reporter_->setOnSidebandChangeFn(std::bind(&FreeDVReporterDialog::FreeDVReporterDataModel::onSidebandChangeFn_, this, _1, _2));
             reporter_->setOnTransmitUpdateFn(std::bind(&FreeDVReporterDialog::FreeDVReporterDataModel::onTransmitUpdateFn_, this, _1, _2, _3, _4, _5, _6, _7));
             reporter_->setOnReceiveUpdateFn(std::bind(&FreeDVReporterDialog::FreeDVReporterDataModel::onReceiveUpdateFn_, this, _1, _2, _3, _4, _5, _6, _7));
 
@@ -3326,6 +3389,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::refreshAllRows()
     wxDataViewItemArray itemsAdded;
     wxDataViewItemArray itemsDeleted;
     wxDataViewItem currentSelection = parent_->m_listSpots->GetSelection();
+    bool selectionRemoved = false;
     
     for (auto& kvp : allReporterData_)
     {
@@ -3335,18 +3399,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::refreshAllRows()
     	}
 
         bool updated = false;
-        double frequencyUserReadable = kvp.second->frequency / 1000.0;
-        wxString frequencyString;
-        
-        if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
-        {
-            frequencyString = wxNumberFormatter::ToString(frequencyUserReadable, 1);
-        }
-        else
-        {
-            frequencyUserReadable /= 1000.0;
-            frequencyString = wxNumberFormatter::ToString(frequencyUserReadable, 4);
-        }
+        wxString frequencyString = frequencyDisplayString_(kvp.second->frequency, kvp.second->sideband);
         
         updated |= kvp.second->freqString != frequencyString;
         kvp.second->freqString = frequencyString;
@@ -3395,6 +3448,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::refreshAllRows()
                 {
                     // Selection no longer valid
                     currentSelection = wxDataViewItem(nullptr);
+                    selectionRemoved = true;
                 }
             }
             sortOnNextTimerInterval = true;
@@ -3415,6 +3469,12 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::refreshAllRows()
             parent_->CallAfter([&, currentSelection]() {
                 parent_->m_listSpots->Select(currentSelection);
             });
+        }
+        else if (selectionRemoved)
+        {
+            // As in updateHighlights(): don't let macOS move the selection
+            // on to a row the user never chose.
+            parent_->CallAfter([this]() { parent_->DeselectItem(); });
         }
     }
     
@@ -3602,18 +3662,30 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onUserConnectFn_(std::string
         temp->isVisible = false;
         temp->isPendingUpdate = false;
 
-        if (allReporterData_.find(sid) != allReporterData_.end() && !isConnected_)
-        {
-            log_warn("Received duplicate user during connection process");
-            return;
-        }
-        
         temp->isPendingDelete = false;
         
         auto existsIter = allReporterData_.find(sid);
         if (existsIter != allReporterData_.end())
         {
+            if (!existsIter->second->isPendingDelete)
+            {
+                // Duplicate of a user we already have (and may be showing).
+                // Keep the existing entry: freeing it here would leave the
+                // list control holding a dangling item.
+                if (!isConnected_)
+                {
+                    log_warn("Received duplicate user during connection process");
+                }
+                else
+                {
+                    log_warn("Received duplicate user %s with SID %s", callsign.c_str(), sid.c_str());
+                }
+                delete temp;
+                return;
+            }
+            
             // Pending deletion prior to reconnect, so go ahead and delete now.
+            // (Pending-delete entries have already been removed from the list.)
             delete existsIter->second;
         }
         allReporterData_[sid] = temp;
@@ -3708,18 +3780,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onFrequencyChangeFn_(std::st
                 return;
             }
 
-            double frequencyUserReadable = frequencyHz / 1000.0;
-            wxString frequencyString;
-            
-            if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
-            {
-                frequencyString = wxNumberFormatter::ToString(frequencyUserReadable, 1);
-            }
-            else
-            {
-                frequencyUserReadable /= 1000.0;
-                frequencyString = wxNumberFormatter::ToString(frequencyUserReadable, 4);
-            }
+            wxString frequencyString = frequencyDisplayString_(frequencyHz, iter->second->sideband);
             auto lastUpdateTime = makeValidTime_(lastUpdate, iter->second->lastUpdateDate);
 
             auto sortingColumn = parent_->m_listSpots->GetSortingColumn();
@@ -3739,6 +3800,39 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onFrequencyChangeFn_(std::st
                 iter->second->isPendingUpdate = isDataChanged;
                 sortOnNextTimerInterval |= isChanged;
             }
+        }
+    };
+
+    fnQueue_.push_back(std::move(handler));
+}
+
+void FreeDVReporterDialog::FreeDVReporterDataModel::onSidebandChangeFn_(std::string sid, IReporter::Sideband sideband)
+{
+    std::unique_lock<std::mutex> lk(fnQueueMtx_);
+    CallbackHandler handler;
+    handler.sid = std::move(sid);
+    handler.sideband = sideband;
+    handler.fn = [this](CallbackHandler& handler) {
+        std::unique_lock<std::recursive_mutex> lk(const_cast<std::recursive_mutex&>(dataMtx_));
+
+        auto iter = allReporterData_.find(handler.sid);
+        if (iter == allReporterData_.end() || iter->second->isPendingDelete ||
+            iter->second->sideband == handler.sideband)
+        {
+            return;
+        }
+
+        // (Always comes after the frequency it's on; the server sends the
+        // two together.)
+        iter->second->sideband = handler.sideband;
+        if (iter->second->frequency > 0)
+        {
+            iter->second->freqString = frequencyDisplayString_(iter->second->frequency, handler.sideband);
+        }
+
+        if (iter->second->isVisible)
+        {
+            iter->second->isPendingUpdate = true;
         }
     };
 

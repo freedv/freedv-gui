@@ -32,24 +32,24 @@
 #include "ReportingConfiguration.h"
 
 ReportingConfiguration::ReportingConfiguration()
-    : reportingEnabled("/Reporting/Enable", false)
-    , reportingCallsign("/Reporting/Callsign", wxT(""))
-    , reportingGridSquare("/Reporting/GridSquare", wxT(""))
+    : reportingEnabled("/Reporting/Enable", false, ConfigChange::RESTARTS_AUDIO | ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER)
+    , reportingCallsign("/Reporting/Callsign", wxT(""), ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER)
+    , reportingGridSquare("/Reporting/GridSquare", wxT(""), ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER)
         
     , reportingFrequency("/Reporting/Frequency", 0)
         
     , manualFrequencyReporting("/Reporting/ManualFrequencyReporting", false)
         
-    , pskReporterEnabled("/Reporting/PSKReporter/Enable", true)
+    , pskReporterEnabled("/Reporting/PSKReporter/Enable", true, ConfigChange::RESTARTS_REPORTING)
         
-    , freedvReporterEnabled("/Reporting/FreeDV/Enable", true)
+    , freedvReporterEnabled("/Reporting/FreeDV/Enable", true, ConfigChange::RESTARTS_REPORTING)
     , freedvReporterForcedOff("/Reporting/FreeDV/ForcedOff", false)
-    , freedvReporterHostname("/Reporting/FreeDV/Hostname", wxT(FREEDV_REPORTER_DEFAULT_HOSTNAME))
-    , freedvReporterUseTls("/Reporting/FreeDV/UseTls", true)
+    , freedvReporterHostname("/Reporting/FreeDV/Hostname", wxT(FREEDV_REPORTER_DEFAULT_HOSTNAME), ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER)
+    , freedvReporterUseTls("/Reporting/FreeDV/UseTls", true, ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER)
     , freedvReporterBandFilter("/Reporting/FreeDV/CurrentBandFilter", 0)
     , useMetricDistances("/Reporting/FreeDV/UseMetricDistances", true)
     , freedvReporterBandFilterTracksFrequency("/Reporting/FreeDV/BandFilterTracksFrequency", false)
-    , freedvReporterForceReceiveOnly("/Reporting/FreeDV/ForceReceiveOnly", false)
+    , freedvReporterForceReceiveOnly("/Reporting/FreeDV/ForceReceiveOnly", false, ConfigChange::RESTARTS_REPORTING | ConfigChange::RECONNECTS_FREEDV_REPORTER)
     , freedvReporterBandFilterTracksFreqBand("/Reporting/FreeDV/BandFilterTracking/TracksFreqBand", true)
     , freedvReporterBandFilterTracksExactFreq("/Reporting/FreeDV/BandFilterTracking/TracksExactFreq", false)
     , freedvReporterStatusText("/Reporting/FreeDV/StatusText", wxT(""))
@@ -63,13 +63,13 @@ ReportingConfiguration::ReportingConfiguration()
     , freedvReporterColumnFilterOperators("/Reporting/FreeDV/ColumnFilterOperators", {})
     , freedvReporterColumnFilterValues("/Reporting/FreeDV/ColumnFilterValues", {})
 
-    , udpReportingEnabled("/Reporting/UDP/Enable", false)
-    , udpReportingHostname("/Reporting/UDP/Hostname", wxT("127.0.0.1"))
-    , udpReportingPort("/Reporting/UDP/Port", 2237)
+    , udpReportingEnabled("/Reporting/UDP/Enable", false, ConfigChange::RESTARTS_REPORTING)
+    , udpReportingHostname("/Reporting/UDP/Hostname", wxT("127.0.0.1"), ConfigChange::RESTARTS_REPORTING)
+    , udpReportingPort("/Reporting/UDP/Port", 2237, ConfigChange::RESTARTS_REPORTING)
 
-    , udpBroadcastEnabled("/Reporting/UDPBroadcast/Enable", false)
-    , udpBroadcastAddress("/Reporting/UDPBroadcast/Address", wxT("224.0.0.1"))
-    , udpBroadcastPort("/Reporting/UDPBroadcast/Port", 7177)
+    , udpBroadcastEnabled("/Reporting/UDPBroadcast/Enable", false, ConfigChange::RESTARTS_REPORTING)
+    , udpBroadcastAddress("/Reporting/UDPBroadcast/Address", wxT("224.0.0.1"), ConfigChange::RESTARTS_REPORTING)
+    , udpBroadcastPort("/Reporting/UDPBroadcast/Port", 7177, ConfigChange::RESTARTS_REPORTING)
 
     , useUTCForReporting("/CallsignList/UseUTCTime", false)
 
@@ -129,8 +129,12 @@ ReportingConfiguration::ReportingConfiguration()
         
     , reportingFrequencyAsKhz("/Reporting/FrequencyAsKHz", false)
     , reportingDirectionAsCardinal("/Reporting/DirectionAsCardinal", false)
-    , csvLogFilePath("/Reporting/CSV/LogFilePath", wxT(""))
+    , csvLogFilePath("/Reporting/CSV/LogFilePath", wxT(""), ConfigChange::RESTARTS_REPORTING)
 {
+    // Ports, whatever's typed into Settings or written into the config file.
+    udpReportingPort.setLimits(1, 65535);
+    udpBroadcastPort.setLimits(1, 65535);
+
     // Special handling for the frequency lists to properly handle locales.
     // Both the legacy and centred lists use the same on-disk convention, so
     // share the same processors (see convertFrequencyListFromStorage_/ToStorage_).
@@ -165,10 +169,20 @@ std::vector<wxString> ReportingConfiguration::convertFrequencyListFromStorage_(s
             fraction += wxString('0', 6 - fraction.Length());
         }
 
-        long long hz = 0;
-        long long mhz = 0;
-        wholeNumber.ToLongLong(&mhz);
-        fraction.ToLongLong(&hz);
+        // Only what FreeDV writes is taken: digits on each side. Anything
+        // else written into the file (a sign, a word, a number too big
+        // to be a frequency) is dropped rather than turned into one, and
+        // digits past the sixth after the point (below 1 Hz) are ignored.
+        unsigned long long mhz = 0;
+        unsigned long long hz = 0;
+        fraction.Truncate(6);
+        if (!wholeNumber.IsNumber() || !fraction.IsNumber() ||
+            wholeNumber.StartsWith("-") || fraction.StartsWith("-") ||
+            !wholeNumber.ToULongLong(&mhz) || !fraction.ToULongLong(&hz) ||
+            mhz > MAX_FREQUENCY_HZ / 1000000)
+        {
+            continue;
+        }
         freqs.push_back(mhz * 1000000 + hz);
     }
 
@@ -200,13 +214,9 @@ std::vector<wxString> ReportingConfiguration::convertFrequencyListToStorage_(std
     {
         // Frequencies are unfortunately saved in US format (legacy behavior). We need
         // to manually parse and convert to Hz, then output MHz values in US format.
-        double displayedFreq = 0.0;
-        wxNumberFormatter::FromString(val, &displayedFreq);
-
-        // Round to the nearest Hz; most decimal values can't be exactly represented
-        // in floating point, so truncating can leave us 1 Hz below what was entered.
-        double hzFloat = displayedFreq * (reportingFrequencyAsKhz ? 1000.0 : 1000000.0);
-        uint64_t hz = hzFloat > 0 ? std::llround(hzFloat) : 0;
+        // (An entry that isn't a frequency is saved as 0, rather than as
+        // one made up from it.)
+        uint64_t hz = DisplayedFrequencyToHz(val, reportingFrequencyAsKhz);
         uint64_t mhzInt = hz / 1000000;
         hz = hz % 1000000;
 
@@ -247,8 +257,14 @@ void ReportingConfiguration::migrateFrequencyListToCentred_(wxConfigBase* config
 
     for (auto& oldVal : reportingFrequencyList.getWithoutProcessing())
     {
+        // As the load processor does, anything that isn't a frequency is
+        // dropped rather than turned into one.
         double mhz = 0.0;
-        oldVal.ToCDouble(&mhz);
+        if (!oldVal.ToCDouble(&mhz) || !std::isfinite(mhz) ||
+            mhz * 1000000.0 < 1500.5 || mhz * 1000000.0 > MAX_FREQUENCY_HZ)
+        {
+            continue;
+        }
         uint64_t dialHz = (uint64_t)llround(mhz * 1000000.0);
         int64_t centredHz = (int64_t)dialHz + centreFreqOffsetHzForDialFreq(dialHz);
 
@@ -362,7 +378,7 @@ void ReportingConfiguration::load(wxConfigBase* config)
     load_(config, csvLogFilePath);
 
     // Set default CSV log file path to Documents/freedv_rx_log.csv if not configured.
-    if (csvLogFilePath->IsEmpty())
+    if (csvLogFilePath.get().IsEmpty())
     {
         wxString defaultPath;
         wxString logFileName = "freedv_rx_log.csv";
@@ -452,9 +468,30 @@ void ReportingConfiguration::save(wxConfigBase* config)
 
     save_(config, csvLogFilePath);
 
-    // Special save handling for reporting below.
+    // Special save handling for reporting below. (Not through save_(), so
+    // it isn't one of elements(): it's the frequency the radio's on, kept up
+    // to date by the main window rather than edited in Settings.)
     wxString tempFreqStr = wxString::Format(wxT("%" PRIu64), reportingFrequency.getWithoutProcessing());
     config->Write(reportingFrequency.getElementName(), tempFreqStr);
+}
+
+uint64_t ReportingConfiguration::DisplayedFrequencyToHz(wxString const& text, bool asKhz)
+{
+    double value = 0;
+    if (!wxNumberFormatter::FromString(text.Strip(wxString::both), &value) || !std::isfinite(value))
+    {
+        return 0;
+    }
+
+    // Rounded to the nearest Hz: most decimal values can't be represented
+    // exactly in floating point, so truncating can leave one 1 Hz below what
+    // was entered.
+    double hz = value * (asKhz ? 1000.0 : 1000000.0);
+    if (!(hz >= 0.5) || hz > MAX_FREQUENCY_HZ)
+    {
+        return 0;
+    }
+    return (uint64_t)std::llround(hz);
 }
 
 size_t ReportingConfiguration::SortedFrequencyIndex(std::vector<wxString> const& list, double freq)

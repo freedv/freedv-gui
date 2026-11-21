@@ -95,7 +95,10 @@ class PlotWaterfall : public PlotPanel
         int         m_colour;
         int         m_modem_stats_max_f_hz;
         unsigned char* dyImageData_;
+        // The row buffer is dy_ rows of baseRowWidthPx_ pixels, so a paint has
+        // to check both before reusing it.
         int dy_;
+        int baseRowWidthPx_;
         wxImage* tmpImage_;
 
         int m_imgHeight;

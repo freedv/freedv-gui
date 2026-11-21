@@ -61,7 +61,7 @@ OmniRigController::~OmniRigController()
     auto fut = prom->get_future();
 
     enqueue_([this, prom]() {
-        if (rig_ != nullptr)
+        if (rig_.load(std::memory_order_acquire) != nullptr)
         {
             disconnectImpl_();
         }
@@ -85,7 +85,7 @@ void OmniRigController::disconnect()
 
 bool OmniRigController::isConnected()
 {
-    return rig_ != nullptr;
+    return rig_.load(std::memory_order_acquire) != nullptr;
 }
 
 void OmniRigController::ptt(bool state)
@@ -128,18 +128,20 @@ void OmniRigController::connectImpl_()
         (LPVOID*)&omniRig_);
     if (rv == S_OK)
     {
+        IRigX* rig = nullptr;
         if (rigId_ == 0)
         {
-            omniRig_->get_Rig1(&rig_);
+            omniRig_->get_Rig1(&rig);
         } 
         else if (rigId_ == 1)
         {
-            omniRig_->get_Rig2(&rig_);
+            omniRig_->get_Rig2(&rig);
         }
         else
         {
             assert(0);
         }
+        rig_.store(rig, std::memory_order_release);
 
         onRigConnected(this);
 
@@ -154,10 +156,10 @@ void OmniRigController::connectImpl_()
         currMode_ = UNKNOWN;
 
         // Get list of writable parameters.
-        rig_->get_WriteableParams(&writableParams_);
+        rig->get_WriteableParams(&writableParams_);
 
         // Make sure radio starts in RX mode.
-        rig_->put_Tx(PM_RX);
+        rig->put_Tx(PM_RX);
 
         // Get current frequency and mode when we first connect so we can
         // revert on close.
@@ -186,6 +188,8 @@ void OmniRigController::disconnectImpl_()
 {
     if (omniRig_ != nullptr)
     {
+        IRigX* rig = rig_.load(std::memory_order_acquire);
+
         // If we're told to restore on disconnect, do so.
         if (restoreOnDisconnect_)
         {
@@ -193,14 +197,14 @@ void OmniRigController::disconnectImpl_()
             
             if (!freqOnly_)
             {
-                rig_->put_Mode(origMode_);
+                rig->put_Mode(origMode_);
             }
         }
         
-        rig_->Release();
+        rig_.store(nullptr, std::memory_order_release);
+        rig->Release();
         omniRig_->Release();
         omniRig_ = nullptr;
-        rig_ = nullptr;
 
         // Only requests made from here on should be pushed on the next connect.
         currFreq_ = 0;
@@ -215,10 +219,11 @@ void OmniRigController::disconnectImpl_()
 
 void OmniRigController::pttImpl_(bool state)
 {
-    if (rig_ != nullptr)
+    IRigX* rig = rig_.load(std::memory_order_acquire);
+    if (rig != nullptr)
     {
         auto oldTime = std::chrono::steady_clock::now();
-        rig_->put_Tx(state ? PM_TX : PM_RX);
+        rig->put_Tx(state ? PM_TX : PM_RX);
         auto newTime = std::chrono::steady_clock::now();
         auto totalTimeMicroseconds = (int)std::chrono::duration_cast<std::chrono::microseconds>(newTime - oldTime).count();
         rigResponseTime_ = std::max(rigResponseTime_, totalTimeMicroseconds);
@@ -241,7 +246,8 @@ void OmniRigController::pttImpl_(bool state)
 
 void OmniRigController::setFrequencyImpl_(uint64_t frequencyHz)
 {
-    if (rig_ != nullptr && frequencyHz != currFreq_)
+    IRigX* rig = rig_.load(std::memory_order_acquire);
+    if (rig != nullptr && frequencyHz != currFreq_)
     {
         log_info("Set frequency to %lld", frequencyHz);
         
@@ -250,7 +256,7 @@ void OmniRigController::setFrequencyImpl_(uint64_t frequencyHz)
         // Get current VFO first and try to explicitly set that VFO.
         RigParamX vfo;
         long tmpFreq = 0;
-        result = rig_->get_Vfo(&vfo);
+        result = rig->get_Vfo(&vfo);
         if (result == S_OK)
         {
             log_info("Got VFO = %d", (int)vfo);
@@ -258,19 +264,19 @@ void OmniRigController::setFrequencyImpl_(uint64_t frequencyHz)
             if (vfo == PM_UNKNOWN)
             {
                 log_warn("Forcing VFO to VFOA");
-                rig_->put_Vfo(PM_VFOA);
+                rig->put_Vfo(PM_VFOA);
                 vfo = PM_VFOA;
             }
 
             if (vfo == PM_VFOA || vfo == PM_VFOAA || vfo == PM_VFOAB)
             {
                 log_info("Setting frequency on VFOA");
-                result = rig_->put_FreqA(frequencyHz);
+                result = rig->put_FreqA(frequencyHz);
             }
             else if (vfo == PM_VFOB || vfo == PM_VFOBB || vfo == PM_VFOBA)
             {
                 log_info("Setting frequency on VFOB");
-                result = rig_->put_FreqB(frequencyHz);
+                result = rig->put_FreqB(frequencyHz);
             }
             else
             {
@@ -285,12 +291,12 @@ void OmniRigController::setFrequencyImpl_(uint64_t frequencyHz)
 
                 if (vfo == PM_VFOA || vfo == PM_VFOAA || vfo == PM_VFOAB)
                 {
-                    result = rig_->get_FreqA(&tmpFreq);
+                    result = rig->get_FreqA(&tmpFreq);
                     log_info("Got freq for VFOA: %lld", tmpFreq);
                 }
                 else if (vfo == PM_VFOB || vfo == PM_VFOBB || vfo == PM_VFOBA)
                 {
-                    result = rig_->get_FreqB(&tmpFreq);
+                    result = rig->get_FreqB(&tmpFreq);
                     log_info("Got freq for VFOB: %lld", tmpFreq);
                 }
             }
@@ -300,7 +306,7 @@ void OmniRigController::setFrequencyImpl_(uint64_t frequencyHz)
         {
             // Try VFO-less set in case the first one didn't work.
             log_info("Trying frequency set fallback");
-            result = rig_->put_Freq(frequencyHz);
+            result = rig->put_Freq(frequencyHz);
             std::this_thread::sleep_for(OMNI_RIG_WAIT_TIME);
         }
 
@@ -327,6 +333,7 @@ void OmniRigController::setFrequencyImpl_(uint64_t frequencyHz)
 
 void OmniRigController::setModeImpl_(IRigFrequencyController::Mode mode)
 {
+    IRigX* rig = rig_.load(std::memory_order_acquire);
     if (mode == currMode_)
     {
         return;
@@ -360,9 +367,9 @@ void OmniRigController::setModeImpl_(IRigFrequencyController::Mode mode)
             return;
     }
 
-    if (rig_ != nullptr)
+    if (rig != nullptr)
     {
-        auto result = rig_->put_Mode(omniRigMode);
+        auto result = rig->put_Mode(omniRigMode);
         if (result == S_OK)
         {
             currMode_ = mode;
@@ -390,6 +397,7 @@ void OmniRigController::setModeImpl_(IRigFrequencyController::Mode mode)
 
 void OmniRigController::requestCurrentFrequencyModeImpl_()
 {
+    IRigX* rig = rig_.load(std::memory_order_acquire);
     RigParamX omniRigMode;
     long freq;
 
@@ -398,10 +406,10 @@ void OmniRigController::requestCurrentFrequencyModeImpl_()
     //   a. Some radios do not respond to commands during TX (ex: FT-817)
     //   b. Some radios on their own accord will briefly stop TX to handle the command,
     //      causing distortion of the transmitted signal (ex: Red Pitaya with Thetis).
-    if (rig_ != nullptr && !pttSet_)
+    if (rig != nullptr && !pttSet_)
     {
         RigParamX vfo;
-        HRESULT result = rig_->get_Vfo(&vfo);
+        HRESULT result = rig->get_Vfo(&vfo);
         
         if (result == S_OK)
         {
@@ -410,19 +418,19 @@ void OmniRigController::requestCurrentFrequencyModeImpl_()
             if (vfo == PM_UNKNOWN)
             {
                 log_warn("Forcing VFO to VFOA");
-                rig_->put_Vfo(PM_VFOA);
+                rig->put_Vfo(PM_VFOA);
                 vfo = PM_VFOA;
             }
             
             if (vfo == PM_VFOA || vfo == PM_VFOAA || vfo == PM_VFOAB)
             {
                 log_debug("Getting frequency on VFOA");
-                result = rig_->get_FreqA(&freq);
+                result = rig->get_FreqA(&freq);
             }
             else if (vfo == PM_VFOB || vfo == PM_VFOBB || vfo == PM_VFOBA)
             {
                 log_debug("Getting frequency on VFOB");
-                result = rig_->get_FreqB(&freq);
+                result = rig->get_FreqB(&freq);
             }
             else
             {
@@ -434,13 +442,13 @@ void OmniRigController::requestCurrentFrequencyModeImpl_()
         if (result != S_OK || freq == 0)
         {
             // FREQA/FREQB aren't being set. Use FREQ instead.
-            rig_->get_Freq(&freq);
+            rig->get_Freq(&freq);
         }
         
         log_info("Got frequency as %ld", freq);
         
         // Mode isn't dependent on VFO in the current OmniRig API (!)        
-        rig_->get_Mode(&omniRigMode);
+        rig->get_Mode(&omniRigMode);
 
         // Convert OmniRig mode to our mode
         IRigFrequencyController::Mode mode;

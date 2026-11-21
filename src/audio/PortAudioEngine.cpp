@@ -60,10 +60,7 @@ void PortAudioEngine::start()
             errText += ss.str();
         }
 
-        if (onAudioErrorFunction)
-        {
-            onAudioErrorFunction(*this, errText, onAudioErrorState);
-        }
+        reportEngineError(errText);
     }
     else
     {

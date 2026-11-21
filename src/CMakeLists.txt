@@ -52,6 +52,12 @@ macro(DefineFreeDVUnitTest prefix utName)
     target_link_libraries(${utName} PRIVATE ${ARGN})
     target_compile_options(${utName} PRIVATE ${WARNINGS_AS_ERRORS_FLAGS})
 
+    # Statically built libraries (e.g. libsndfile on Windows) must be installed
+    # before tests that include their headers are compiled.
+    if(FREEDV_STATIC_DEPS)
+        add_dependencies(${utName} ${FREEDV_STATIC_DEPS})
+    endif(FREEDV_STATIC_DEPS)
+
     # Needed to find codec2/RADE when they're built as part of FreeDV.
     set_target_properties(
         ${utName}
@@ -98,8 +104,11 @@ endif(UNITTEST)
 # WIN32 is needed for Windows GUI apps and is ignored for UNIX like systems.
 # In addition, there are some required OSX-specific code files for platform specific handling.
 if(APPLE)
-    set(RES_FILES freedv.icns)
-    set_source_files_properties(freedv.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+    # The icon: Assets.car for macOS 11 and later (CFBundleIconName), and
+    # freedv.icns for whatever only reads CFBundleIconFile. Both are made
+    # from contrib/icon/FreeDV.icon by contrib/icon/update-icons.sh.
+    set(RES_FILES freedv.icns Assets.car)
+    set_source_files_properties(freedv.icns Assets.car PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
     # Translations go in Contents/Resources/<lang>.lproj, where wxWidgets
     # looks for them by default.
@@ -335,7 +344,7 @@ if(APPLE)
         COMMAND rm -rf dist_tmp FreeDV.dmg || true
         COMMAND DYLD_LIBRARY_PATH=${portaudio_BINARY_DIR}:${DYLD_LIBRARY_PATH} ${CMAKE_SOURCE_DIR}/macdylibbundler/dylibbundler ARGS -od -b -x FreeDV.app/Contents/MacOS/FreeDV -d FreeDV.app/Contents/libs -p @loader_path/../libs/ -i /usr/lib ${PORTAUDIO_BUNDLE_ARG} -s ${rade_BINARY_DIR}/src -s `dirname ${CLANG_SANITIZER_FILE}` -ns
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/clean-duplicate-rpaths.sh FreeDV.app/
-        COMMAND cp ARGS ${CMAKE_CURRENT_SOURCE_DIR}/freedv.icns FreeDV.app/Contents/Resources
+        COMMAND cp ARGS ${CMAKE_CURRENT_SOURCE_DIR}/freedv.icns ${CMAKE_CURRENT_SOURCE_DIR}/Assets.car FreeDV.app/Contents/Resources
         COMMAND rm ARGS -rf FreeDV.app/Contents/Frameworks
         COMMAND mkdir ARGS FreeDV.app/Contents/Frameworks
         

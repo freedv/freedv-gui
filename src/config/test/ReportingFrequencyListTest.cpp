@@ -146,6 +146,39 @@ bool sortedFrequencyIndex()
            ReportingConfiguration::SortedFrequencyIndex(StringList {}, 7.0) == 0;
 }
 
+// What's typed as a frequency, in the units shown: only a frequency gives
+// one, rather than one made up from something else.
+bool displayedFrequencyToHz()
+{
+    auto hz = [](const char* text, bool asKhz) { return ReportingConfiguration::DisplayedFrequencyToHz(text, asKhz); };
+    bool result = true;
+    result &= hz("14.2360", false) == 14236000;
+    result &= hz("14236.0", true) == 14236000;
+    result &= hz(" 7.0700 ", false) == 7070000;
+    result &= hz("0.0000004", false) == 0;     // rounds to under 1 Hz
+    result &= hz("", false) == 0;
+    result &= hz("abc", false) == 0;
+    result &= hz("-14.2", false) == 0;
+    result &= hz("0", false) == 0;
+    result &= hz("1e400", false) == 0;
+    result &= hz("999999999999999999999999", false) == 0;
+    result &= hz("1000000", false) == 1000000000000ULL;   // the highest
+    result &= hz("1000001", false) == 0;
+    return result;
+}
+
+// Only what FreeDV writes loads from the file: anything else written there
+// (a sign, a word, a number too big to be a frequency) is dropped, and digits
+// below 1 Hz are ignored.
+bool loadDropsWhatIsNotAFrequency()
+{
+    ReportingConfiguration config;
+    config.reportingFrequencyAsKhz = false;
+    config.reportingFrequencyList.setWithoutProcessing(
+        { "14.236000", "-5.000000", "abc", "7.1x", "99999999999999999.0", "3.6250001", "1.-5" });
+    return listIs(config.reportingFrequencyList.get(), { "3.6250", "14.2360" });
+}
+
 // Entries that aren't a positive frequency (a cleared field, a stray zero,
 // something negative or blank) store as zero rather than as a garbage
 // frequency.
@@ -179,5 +212,7 @@ int main()
     executeTestCase("savedThenLoadedIsUnchanged (kHz)", []() { return savedThenLoadedIsUnchanged(true); });
     executeTestCase("sortedFrequencyIndex", sortedFrequencyIndex);
     executeTestCase("nonPositiveEntriesStoreAsZero", nonPositiveEntriesStoreAsZero);
+    executeTestCase("displayedFrequencyToHz", displayedFrequencyToHz);
+    executeTestCase("loadDropsWhatIsNotAFrequency", loadDropsWhatIsNotAFrequency);
     return testResult();
 }

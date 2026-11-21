@@ -35,6 +35,26 @@ from test_main_window import (CALLSIGN, MICROPHONE, RADIO_RX, RADIO_TX, audio_de
 
 SKIPPED = 77
 
+# FreeDV shows and reports the frequency at the centre of the signal (as in
+# the frequency list's defaults). In digital mode the radio's on upper
+# sideband, so its dial is 1.5 kHz below that: on 20m, 14.2375 is the radio
+# on 14.236000; on 40m, 7.1755 is the radio on 7.174000. On a mode without a
+# sideband (e.g. AM), and in analog, what's shown is the dial frequency.
+DIGITAL_OFFSET_HZ = 1500
+
+
+def dial(centre):
+    """Where the radio's dial is with FreeDV in digital mode on the given
+    (centre) frequency."""
+    return centre - DIGITAL_OFFSET_HZ
+
+
+def digital_radio(radio, frequency):
+    """Puts the radio on the given dial frequency in the mode FreeDV uses for
+    digital, so that the centre frequency is shown from the start."""
+    radio.command("M PKTUSB 0")
+    radio.set_frequency(frequency)
+
 
 def rig_settings(address, **extra):
     """Returns settings for FreeDV to control the radio at the given address."""
@@ -76,6 +96,18 @@ def wait_for(condition, what, timeout=10):
     check(False, what() if callable(what) else what)
 
 
+def controller_threads(app):
+    """How many of FreeDV's threads belong to a rig controller. ThreadedObject
+    names each thread after its object, and only the object's destructor ends
+    it, so a controller that's never freed keeps its thread."""
+    folder = "/proc/%d/task" % app.pid
+    try:
+        return sum(1 for task in os.listdir(folder)
+                   if open(os.path.join(folder, task, "comm")).read().strip().endswith("hamlib"))
+    except OSError:
+        return None
+
+
 def errors(app):
     return [box["message"] for box in app.message_boxes()]
 
@@ -87,24 +119,25 @@ def errors(app):
 def test_control():
     """Frequency, mode and PTT, in both directions."""
     with Rigctld() as radio, audio_devices():
-        radio.set_frequency(14236000)
+        digital_radio(radio, 14236000)
         with freedvtest.start(settings=rig_settings(radio.address)) as app:
             app.wait_for_window("main")
             start_modem(app)
 
-            # FreeDV shows where the radio is, and follows it.
-            wait_for_frequency(app, "14.2360", "Frequency displayed once connected")
-            radio.set_frequency(7177000)
-            wait_for_frequency(app, "7.1770", "Frequency displayed after turning the radio's dial")
+            # FreeDV shows where the radio is (the centre of the signal), and
+            # follows it.
+            wait_for_frequency(app, "14.2375", "Frequency displayed once connected")
+            radio.set_frequency(7174000)
+            wait_for_frequency(app, "7.1755", "Frequency displayed after turning the radio's dial")
 
             # Changing it in FreeDV changes the radio, mode included.
-            app.set_value("main.cboReportFrequency", "14.2400")
-            wait_for(lambda: radio.frequency() == 14240000,
-                     lambda: "The radio is on %d Hz, not 14240000" % radio.frequency())
+            app.set_value("main.cboReportFrequency", "14.2415")
+            wait_for(lambda: radio.frequency() == dial(14241500),
+                     lambda: "The radio is on %d Hz, not %d" % (radio.frequency(), dial(14241500)))
             wait_for(lambda: "USB" in radio.mode(), lambda: "The radio's mode on 20m is %s" % radio.mode())
-            app.set_value("main.cboReportFrequency", "3.6250")
-            wait_for(lambda: radio.frequency() == 3625000,
-                     lambda: "The radio is on %d Hz, not 3625000" % radio.frequency())
+            app.set_value("main.cboReportFrequency", "3.6235")
+            wait_for(lambda: radio.frequency() == dial(3623500),
+                     lambda: "The radio is on %d Hz, not %d" % (radio.frequency(), dial(3623500)))
             # (FreeDV uses upper sideband whatever the band.)
             wait_for(lambda: "USB" in radio.mode(), lambda: "The radio's mode on 80m is %s" % radio.mode())
             check_equal(errors(app), [], "Errors displayed")
@@ -135,13 +168,13 @@ def test_control():
             check_equal(radio.transmitting(), False, "Radio transmitting after stopping")
             radio.set_frequency(21313000)
             time.sleep(2)
-            check_equal(displayed_frequency(app), "3.6250", "Frequency displayed after the radio moved while stopped")
+            check_equal(displayed_frequency(app), "3.6235", "Frequency displayed after the radio moved while stopped")
 
             # On the next start, the radio's put back where FreeDV was.
             start_modem(app)
-            wait_for(lambda: radio.frequency() == 3625000,
-                     lambda: "The radio is on %d Hz after starting again, not 3625000" % radio.frequency())
-            check_equal(displayed_frequency(app), "3.6250", "Frequency displayed after starting again")
+            wait_for(lambda: radio.frequency() == dial(3623500),
+                     lambda: "The radio is on %d Hz after starting again, not %d" % (radio.frequency(), dial(3623500)))
+            check_equal(displayed_frequency(app), "3.6235", "Frequency displayed after starting again")
             stop_modem(app)
             quit_and_check_log(app)
 
@@ -155,19 +188,22 @@ def test_frequency_only():
         with freedvtest.start(settings=rig_settings(radio.address, **extra)) as app:
             app.wait_for_window("main")
             start_modem(app)
+            # (Left in AM, which has no sideband, the radio's dial frequency
+            # is FreeDV's, both ways.)
             wait_for_frequency(app, "14.2360", "Frequency displayed once connected")
-            app.set_value("main.cboReportFrequency", "7.1770")
-            wait_for(lambda: radio.frequency() == 7177000,
-                     lambda: "The radio is on %d Hz, not 7177000" % radio.frequency())
+            app.set_value("main.cboReportFrequency", "7.1755")
+            wait_for(lambda: radio.frequency() == 7175500,
+                     lambda: "The radio is on %d Hz, not 7175500" % radio.frequency())
             time.sleep(1)
             check_equal(radio.mode(), "AM", "Radio's mode")
+            check_equal(displayed_frequency(app), "7.1755", "Frequency displayed with the radio left in AM")
             stop_modem(app)
             quit_and_check_log(app)
 
         # Told to leave both alone, it only keys the radio.
         radio.set_frequency(14236000)
         extra = dict(Hamlib__EnableFreqModeChanges=False, Hamlib__EnableFreqChangesOnly=False,
-                     Reporting__ManualFrequencyReporting=True, Reporting__Frequency=7177000)
+                     Reporting__ManualFrequencyReporting=True, Reporting__Frequency=7175500)
         with freedvtest.start(settings=rig_settings(radio.address, **extra)) as app:
             app.wait_for_window("main")
             start_modem(app)
@@ -191,22 +227,25 @@ def test_save_restore_frequency():
         with Rigctld() as radio, audio_devices():
             radio.set_frequency(14236000)
             radio.command("M AM 6000")
-            extra = dict(Hamlib__SaveRestoreFrequency=save_restore, Reporting__Frequency=7177000)
+            extra = dict(Hamlib__SaveRestoreFrequency=save_restore, Reporting__Frequency=7175500)
             with freedvtest.start(settings=rig_settings(radio.address, **extra)) as app:
                 app.wait_for_window("main")
                 start_modem(app)
                 if save_restore:
-                    wait_for(lambda: radio.frequency() == 7177000,
-                             lambda: "The radio is on %d Hz after starting, not 7177000" % radio.frequency())
-                    wait_for_frequency(app, "7.1770", "Frequency displayed after starting")
+                    wait_for(lambda: radio.frequency() == dial(7175500),
+                             lambda: "The radio is on %d Hz after starting, not %d" %
+                             (radio.frequency(), dial(7175500)))
+                    wait_for_frequency(app, "7.1755", "Frequency displayed after starting")
                 else:
-                    wait_for_frequency(app, "14.2360", "Frequency displayed after starting")
+                    # The dial stays put; once FreeDV's put the radio in its
+                    # own mode, the centre of the signal is shown.
+                    wait_for_frequency(app, "14.2375", "Frequency displayed after starting")
                     check_equal(radio.frequency(), 14236000, "Radio's frequency after starting")
 
                     # Moving it from FreeDV still works; that's where it stays.
-                    app.set_value("main.cboReportFrequency", "7.1770")
-                    wait_for(lambda: radio.frequency() == 7177000,
-                             lambda: "The radio is on %d Hz, not 7177000" % radio.frequency())
+                    app.set_value("main.cboReportFrequency", "7.1755")
+                    wait_for(lambda: radio.frequency() == dial(7175500),
+                             lambda: "The radio is on %d Hz, not %d" % (radio.frequency(), dial(7175500)))
                 wait_for(lambda: "USB" in radio.mode(), lambda: "The radio's mode after starting is %s" % radio.mode())
 
                 stop_modem(app)
@@ -216,7 +255,7 @@ def test_save_restore_frequency():
                              (radio.frequency(), radio.mode()))
                 else:
                     time.sleep(3)
-                    check_equal(radio.frequency(), 7177000, "Radio's frequency after stopping")
+                    check_equal(radio.frequency(), dial(7175500), "Radio's frequency after stopping")
                     check("USB" in radio.mode(), "The radio's mode after stopping is %s" % radio.mode())
                 quit_and_check_log(app)
 
@@ -258,11 +297,11 @@ def test_analog_sideband():
     """Analog mode uses the sideband that's usual for the band, and stays on
     the same audio when that means changing sideband."""
     with Rigctld() as radio, audio_devices():
-        radio.set_frequency(14236000)
+        digital_radio(radio, 14236000)
         with freedvtest.start(settings=rig_settings(radio.address)) as app:
             app.wait_for_window("main")
             start_modem(app)
-            wait_for_frequency(app, "14.2360", "Frequency displayed once connected")
+            wait_for_frequency(app, "14.2375", "Frequency displayed once connected")
 
             def tune(displayed, frequency):
                 app.set_value("main.cboReportFrequency", displayed)
@@ -276,39 +315,44 @@ def test_analog_sideband():
                 wait_for(lambda: radio.frequency() == expected_frequency,
                          lambda: "The radio %s is on %d Hz, not %d" % (what, radio.frequency(), expected_frequency))
 
-            tune("14.2400", 14240000)
+            tune("14.2415", dial(14241500))
             wait_for(lambda: "USB" in radio.mode(), lambda: "The radio's mode for FreeDV is %s" % radio.mode())
             digital = radio.mode()
 
-            # 20m: upper sideband either way, so the radio stays put.
-            analog("USB", 14240000, "in analog mode on 20m")
-            analog(digital, 14240000, "back in digital mode on 20m")
+            # 20m: upper sideband either way, so the radio stays put. (In
+            # analog, its dial frequency is shown.)
+            analog("USB", dial(14241500), "in analog mode on 20m")
+            wait_for_frequency(app, "14.2400", "Frequency displayed in analog mode on 20m")
+            analog(digital, dial(14241500), "back in digital mode on 20m")
+            wait_for_frequency(app, "14.2415", "Frequency displayed back in digital mode on 20m")
 
             # 40m: lower sideband for analog, 3 kHz up so that the same
-            # stretch of the band is heard.
-            tune("7.1770", 7177000)
-            analog("LSB", 7180000, "in analog mode on 40m")
-            wait_for_frequency(app, "7.1800", "Frequency displayed in analog mode on 40m")
-            analog(digital, 7177000, "back in digital mode on 40m")
-            wait_for_frequency(app, "7.1770", "Frequency displayed back in digital mode on 40m")
+            # stretch of the band is heard: the centre frequency, 7.1755, is
+            # then 1.5 kHz below the dial.
+            tune("7.1755", dial(7175500))
+            analog("LSB", 7177000, "in analog mode on 40m")
+            wait_for_frequency(app, "7.1770", "Frequency displayed in analog mode on 40m")
+            analog(digital, dial(7175500), "back in digital mode on 40m")
+            wait_for_frequency(app, "7.1755", "Frequency displayed back in digital mode on 40m")
 
             # 60m is the exception below 10 MHz: upper sideband.
-            tune("5.3715", 5371500)
-            analog("USB", 5371500, "in analog mode on 60m")
-            analog(digital, 5371500, "back in digital mode on 60m")
+            tune("5.3700", dial(5370000))
+            analog("USB", dial(5370000), "in analog mode on 60m")
+            analog(digital, dial(5370000), "back in digital mode on 60m")
 
             # A radio that's between the 100 Hz steps FreeDV displays is
             # shown at the nearest one.
             radio.set_frequency(14236060)
-            wait_for_frequency(app, "14.2361", "Frequency displayed with the radio on 14.236060")
+            wait_for_frequency(app, "14.2376", "Frequency displayed with the radio on 14.236060")
             radio.set_frequency(14236040)
-            wait_for_frequency(app, "14.2360", "Frequency displayed with the radio on 14.236040")
+            wait_for_frequency(app, "14.2375", "Frequency displayed with the radio on 14.236040")
             check_equal(errors(app), [], "Errors displayed")
             stop_modem(app)
             quit_and_check_log(app)
 
         # Left to choose its own mode in analog, the radio's shown as being
-        # in the right one or not for where it is.
+        # in the right one or not for where it is. (In analog, the
+        # frequencies shown are the radio's dial.)
         extra = dict(Hamlib__EnableFreqModeChanges=False, Hamlib__EnableFreqChangesOnly=True)
         with freedvtest.start(settings=rig_settings(radio.address, **extra)) as app:
             app.wait_for_window("main")
@@ -334,29 +378,29 @@ def test_editing_frequency():
     there; once it's been left alone, it goes back to showing where the
     radio is."""
     with Rigctld() as radio, audio_devices():
-        radio.set_frequency(14236000)
+        digital_radio(radio, 14236000)
         with freedvtest.start(settings=rig_settings(radio.address)) as app:
             app.wait_for_window("main")
             start_modem(app)
-            wait_for_frequency(app, "14.2360", "Frequency displayed once connected")
+            wait_for_frequency(app, "14.2375", "Frequency displayed once connected")
 
             app.focus("main.cboReportFrequency")
-            radio.set_frequency(7177000)
+            radio.set_frequency(7174000)
             time.sleep(4)
-            check_equal(displayed_frequency(app), "14.2360", "Frequency displayed while it's being edited")
+            check_equal(displayed_frequency(app), "14.2375", "Frequency displayed while it's being edited")
 
             # Left as it was, nothing's sent to the radio...
             app.focus("main.cboReportFrequency", lost=True)
-            wait_for_frequency(app, "7.1770", "Frequency displayed once it's no longer being edited")
-            check_equal(radio.frequency(), 7177000, "Radio's frequency")
+            wait_for_frequency(app, "7.1755", "Frequency displayed once it's no longer being edited")
+            check_equal(radio.frequency(), 7174000, "Radio's frequency")
 
             # ...and typing one in sends it there.
             app.focus("main.cboReportFrequency")
-            app.set_value("main.cboReportFrequency", "21.3130")
+            app.set_value("main.cboReportFrequency", "21.3145")
             app.focus("main.cboReportFrequency", lost=True)
-            wait_for(lambda: radio.frequency() == 21313000,
-                     lambda: "The radio is on %d Hz, not 21313000" % radio.frequency())
-            wait_for_frequency(app, "21.3130", "Frequency displayed after typing one in")
+            wait_for(lambda: radio.frequency() == dial(21314500),
+                     lambda: "The radio is on %d Hz, not %d" % (radio.frequency(), dial(21314500)))
+            wait_for_frequency(app, "21.3145", "Frequency displayed after typing one in")
 
             # Clearing it doesn't send anywhere near zero to the radio; the
             # frequency it's actually on goes back into the box.
@@ -364,8 +408,8 @@ def test_editing_frequency():
             app.set_value("main.cboReportFrequency", "")
             app.focus("main.cboReportFrequency", lost=True)
             time.sleep(2)
-            check_equal(radio.frequency(), 21313000, "Radio's frequency after clearing the box")
-            wait_for_frequency(app, "21.3130", "Frequency displayed after clearing the box")
+            check_equal(radio.frequency(), dial(21314500), "Radio's frequency after clearing the box")
+            wait_for_frequency(app, "21.3145", "Frequency displayed after clearing the box")
             check_equal(errors(app), [], "Errors displayed after clearing the box")
             check_equal(errors(app), [], "Errors displayed")
             stop_modem(app)
@@ -405,9 +449,9 @@ def test_unreachable():
 
             # With the radio back, so is control of it.
             radio.start()
-            radio.set_frequency(7177000)
+            digital_radio(radio, 7174000)
             start_modem(app)
-            wait_for_frequency(app, "7.1770", "Frequency displayed once the radio's back")
+            wait_for_frequency(app, "7.1755", "Frequency displayed once the radio's back")
             check_equal(errors(app), [], "Errors displayed with the radio back")
             stop_modem(app)
             check_equal(app.quit(), 0, "FreeDV's exit code")
@@ -468,7 +512,7 @@ def test_serial_ptt():
     """Hamlib control of the radio with a serial port named for keying:
     its RTS or DTR line, or no PTT line at all."""
     with Rigctld() as radio, audio_devices():
-        radio.set_frequency(14236000)
+        digital_radio(radio, 14236000)
         for ptt_type in (1, 2, 3):
             with SerialPorts() as ports:
                 ptt = ports.add()
@@ -477,7 +521,7 @@ def test_serial_ptt():
                         env=ports.env) as app:
                     app.wait_for_window("main")
                     start_modem(app)
-                    wait_for_frequency(app, "14.2360", "Frequency displayed once connected")
+                    wait_for_frequency(app, "14.2375", "Frequency displayed once connected")
 
                     # FreeDV opens the keying port it was given and keys the
                     # radio through the connection it has.
@@ -557,11 +601,11 @@ def test_receive_after_transmit():
 def test_lost():
     """The radio going away while FreeDV is running."""
     with Rigctld() as radio, audio_devices():
-        radio.set_frequency(14236000)
+        digital_radio(radio, 14236000)
         with freedvtest.start(settings=rig_settings(radio.address)) as app:
             app.wait_for_window("main")
             start_modem(app)
-            wait_for_frequency(app, "14.2360", "Frequency displayed once connected")
+            wait_for_frequency(app, "14.2375", "Frequency displayed once connected")
 
             radio.stop()
             time.sleep(3)
@@ -586,11 +630,11 @@ def test_lost():
             # Once it's back, the next start finds it and puts it where
             # FreeDV was.
             radio.start()
-            radio.set_frequency(7177000)
+            digital_radio(radio, 7174000)
             start_modem(app)
             wait_for(lambda: radio.frequency() == 14236000,
                      lambda: "The radio is on %d Hz once it's back, not 14236000" % radio.frequency())
-            check_equal(displayed_frequency(app), "14.2360", "Frequency displayed once the radio's back")
+            check_equal(displayed_frequency(app), "14.2375", "Frequency displayed once the radio's back")
             app.click("main.btnPTT")
             wait_for_transmit(app)
             wait_for(radio.transmitting, "The radio wasn't keyed")
@@ -598,6 +642,100 @@ def test_lost():
             wait_for_transmit(app, False)
             stop_modem(app)
             check_equal(app.quit(), 0, "FreeDV's exit code")
+
+
+def test_ptt_test():
+    """The Settings window's Test PTT button with a Hamlib radio.
+
+    Each click makes a controller of its own for the test. The handlers put
+    on that controller belong to it, so they mustn't hold it as well: that's
+    a cycle, and the controller's own thread -- which only its destructor
+    joins -- is then never ended, one more per click.
+    """
+    clicks = 3
+
+    with Rigctld() as radio, audio_devices():
+        with freedvtest.start(settings=rig_settings(radio.address)) as app:
+            app.wait_for_window("main")
+            app.menu("Settings/Edit Settings...")
+            app.wait_for_window("settings")
+            app.set_value("settings.notebook", "Radio")
+            check_equal(app.get("settings.ckUseHamlibPTT")["value"], True, "Hamlib PTT chosen")
+
+            before = controller_threads(app)
+            for attempt in range(clicks):
+                app.click("settings.buttonTestPTT")
+                check_equal(app.get("settings.buttonTestPTT")["enabled"], False,
+                            "Test PTT enabled during the test")
+                wait_for(radio.transmitting, "The radio wasn't keyed by Test PTT")
+                app.wait_until(lambda: app.get("settings.buttonTestPTT")["enabled"], timeout=15,
+                               description="Test PTT to be usable again")
+                check_equal(radio.transmitting(), False, "The radio after Test PTT")
+            check_equal(app.message_boxes(), [], "Messages displayed")
+
+            app.click("settings.sdbSizer5Cancel")
+            app.wait_for_window_closed("settings")
+
+            # (Only Linux has a thread of its own to wait for: macOS gives
+            # ThreadedObject's work to GCD instead.)
+            if before is not None:
+                wait_for(lambda: controller_threads(app) == before,
+                         lambda: "%d controller threads after %d PTT tests, %d before"
+                                 % (controller_threads(app), clicks, before))
+
+            check_equal(app.quit(), 0, "FreeDV's exit code")
+
+
+def test_settings_while_running():
+    """The radio's settings changed while FreeDV is running take effect
+    without stopping it: FreeDV lets go of the radio it had and connects with
+    the new settings, putting that radio where FreeDV is."""
+    with Rigctld() as first, Rigctld() as second, audio_devices():
+        digital_radio(first, 14236000)
+        digital_radio(second, 7174000)
+        with freedvtest.start(settings=rig_settings(first.address)) as app:
+            app.wait_for_window("main")
+            start_modem(app)
+            wait_for_frequency(app, "14.2375", "Frequency displayed once connected")
+
+            app.menu("Settings/Edit Settings...")
+            app.wait_for_window("settings")
+            app.set_value("settings.notebook", "Radio")
+            app.set_value("settings.cbSerialPort", second.address)
+            app.click("settings.sdbSizer5OK")
+            app.wait_for_window_closed("settings")
+            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="the settings to be applied")
+            check(app.state()["running"], "Changing the radio's settings stopped FreeDV")
+
+            # The new radio is put where FreeDV was, and followed from then on.
+            # FreeDV sets its frequency and then its mode, and sends the
+            # frequency again after a mode change (as some radios move a
+            # little on changing it), so its dial isn't turned until that's
+            # all done: a turn in between would be undone.
+            wait_for(lambda: (second.frequency(), second.mode()) == (14236000, "PKTUSB"),
+                     lambda: "The new radio is on %d Hz %s, not 14236000 Hz PKTUSB" %
+                             (second.frequency(), second.mode()))
+            time.sleep(1)
+            check_equal(displayed_frequency(app), "14.2375", "Frequency displayed once reconnected")
+            second.set_frequency(7174000)
+            wait_for_frequency(app, "7.1755", "Frequency displayed after turning the new radio's dial")
+
+            # The old one isn't.
+            first.set_frequency(3622000)
+            time.sleep(3)
+            check_equal(displayed_frequency(app), "7.1755", "Frequency displayed after turning the old radio's dial")
+
+            # Transmitting keys the new radio and not the old.
+            app.click("main.btnPTT")
+            wait_for_transmit(app)
+            wait_for(second.transmitting, "The new radio wasn't keyed")
+            check_equal(first.transmitting(), False, "The old radio keyed")
+            app.click("main.btnPTT")
+            wait_for_transmit(app, False)
+            wait_for(lambda: not second.transmitting(), "The new radio was left keyed")
+
+            stop_modem(app)
+            quit_and_check_log(app)
 
 
 SCENARIOS = {
@@ -609,9 +747,11 @@ SCENARIOS = {
     "editing_frequency": test_editing_frequency,
     "unreachable": test_unreachable,
     "serial_ptt": test_serial_ptt,
+    "ptt_test": test_ptt_test,
     "missing_port": test_missing_port,
     "receive_after_transmit": test_receive_after_transmit,
     "lost": test_lost,
+    "settings_while_running": test_settings_while_running,
 }
 
 

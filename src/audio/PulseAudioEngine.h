@@ -52,12 +52,15 @@ public:
     static void DestroyConnection(pa_threaded_mainloop* mainloop, pa_context* context);
 
 private:
-    bool initialized_;
+    bool initialized_ = false;
 
-    // Used for device enumeration only; each PulseAudioDevice has its own connection.
-    pa_threaded_mainloop *mainloop_;
-    pa_context* context_;
-    std::mutex startStopMtx_;
+    // Used for device enumeration only; each PulseAudioDevice has its own
+    // connection. The queries take it too, so that a stop() can't free the
+    // main loop and context out from under one; it's recursive because they
+    // call one another.
+    pa_threaded_mainloop *mainloop_ = nullptr;
+    pa_context* context_ = nullptr;
+    std::recursive_mutex startStopMtx_;
 
     void stopImpl_();
 };

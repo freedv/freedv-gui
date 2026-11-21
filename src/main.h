@@ -236,9 +236,66 @@ class MainApp : public wxApp
         std::shared_ptr<FreeDVReporter> m_sharedReporterObject;
         
         std::vector<std::shared_ptr<IReporter> > m_reporters;
+
+        // The sideband of the station FreeDV last went to (by double-clicking
+        // it in FreeDV Reporter, or accepting its QSY request), if it said:
+        // the radio's put on that sideband while it stays on that station's
+        // frequency, rather than the one usual there (see
+        // GetModeForSideband()). Once FreeDV's somewhere else, it's forgotten
+        // (see forgetFollowedSidebandUnlessAt()), so coming back later to the
+        // same frequency is on the usual sideband again.
+        void followSideband(uint64_t frequencyHz, IReporter::Sideband sideband)
+        {
+            m_followedSidebandFrequency = roundToFrequencyStep_(frequencyHz);
+            m_followedSideband = sideband;
+        }
+
+        // Called whenever FreeDV's frequency changes (typed or chosen in, or
+        // from the radio): forgets the followed sideband unless that's still
+        // its frequency.
+        void forgetFollowedSidebandUnlessAt(uint64_t frequencyHz)
+        {
+            if (m_followedSidebandFrequency != 0 && roundToFrequencyStep_(frequencyHz) != m_followedSidebandFrequency)
+            {
+                m_followedSidebandFrequency = 0;
+                m_followedSideband = IReporter::Sideband::UNKNOWN;
+            }
+        }
+
+        IReporter::Sideband followedSidebandAt(uint64_t frequencyHz) const
+        {
+            return (m_followedSidebandFrequency != 0 && roundToFrequencyStep_(frequencyHz) == m_followedSidebandFrequency) ?
+                m_followedSideband : IReporter::Sideband::UNKNOWN;
+        }
+
+        // The radio's mode as it last reported it (UNKNOWN while there's no
+        // radio, or it hasn't said yet).
+        HamlibRigController::Mode lastRadioMode = HamlibRigController::UNKNOWN;
+
+        // The mode to convert between FreeDV's (centre) frequency and the
+        // radio's dial frequency with, when FreeDV wants the radio in the
+        // given mode: that mode, unless FreeDV isn't allowed to change it,
+        // in which case the radio stays in its own (e.g. AM, with no
+        // offset), if known.
+        HamlibRigController::Mode dialConversionMode(HamlibRigController::Mode wanted)
+        {
+            if (appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges ||
+                lastRadioMode == HamlibRigController::UNKNOWN)
+            {
+                return wanted;
+            }
+            return lastRadioMode;
+        }
         
         bool                loadConfig();
         bool                saveConfig();
+
+    private:
+        // To the 100 Hz FreeDV keeps its own frequency to.
+        static uint64_t roundToFrequencyStep_(uint64_t frequencyHz) { return (frequencyHz + 50) / 100 * 100; }
+        uint64_t m_followedSidebandFrequency = 0;
+        IReporter::Sideband m_followedSideband = IReporter::Sideband::UNKNOWN;
+    public:
 
         // misc
         float      m_channel_snr_dB;
@@ -254,7 +311,6 @@ class MainApp : public wxApp
 
         // debugging 700D audio break up
 
-        bool       m_txRxThreadHighPriority;
 
         int        m_prevMode;
         
@@ -351,6 +407,12 @@ class MainFrame : public TopFrame
         wxTimer                 m_levelMeterTxTimer;
         wxTimer                 m_plotSpeechOutTimer;
         wxTimer                 m_plotDemodInTimer;
+
+        // Consecutive plot ticks that found each waveform plot's FIFO empty
+        // (see DrainPlotFifo()).
+        int                     plotSpeechInEmptyTicks_ = 0;
+        int                     plotSpeechOutEmptyTicks_ = 0;
+        int                     plotDemodInEmptyTicks_ = 0;
         wxTimer                 m_plotSNRTimer;
 
         // Time-Out Timer (TOT): stops TX after configured period
@@ -402,9 +464,10 @@ class MainFrame : public TopFrame
         void StopPlaybackFileFromRadio();
         void StopRecFileFromRadio();
         void StopRecFileFromDecoder();
+        void StopRecFileFromMic();
         
         bool isReceiveOnly();
-        
+
     protected:
 
         void setsnrBeta(bool snrSlow);
@@ -571,6 +634,11 @@ class MainFrame : public TopFrame
         std::shared_ptr<IAudioDevice> rxOutSoundDevice;
         std::shared_ptr<IAudioDevice> txInSoundDevice;
         std::shared_ptr<IAudioDevice> txOutSoundDevice;
+
+        // Clears all four (with takeSoundDevice(), at the end of this
+        // file), then releases them after unlocking, as tearing a device
+        // down can take a while.
+        void releaseSoundDevices_();
         
         unsigned int         m_timeSinceSyncLoss;
         bool        m_useMemory;
@@ -605,6 +673,10 @@ class MainFrame : public TopFrame
         float      vk_rx_sync_time;
         bool suppressFreqModeUpdates_;
         bool firstFreqUpdateOnConnect_;
+
+        // The sideband last told to the reporters (see reportSideband_()).
+        IReporter::Sideband reportedSideband_;
+        void reportSideband_(IReporter::Sideband sideband);
         FilterFrequency lastBand_;
         // Restore-point: the TX/tune level that was active when we entered the
         // current band (or when Enable was first clicked for that band). Restore
@@ -627,6 +699,7 @@ class MainFrame : public TopFrame
 
         bool terminating_; // used for terminating FreeDV
         bool closingReporterDialog_; // set while closing waits for the Reporter dialog's last messages
+        bool onOffInProgress_ = false; // set while a Start/Stop worker runs; UI thread only
         bool realigned_; // used to inhibit resize hack once already done
         bool syncState_; // GUI copy of current sync state
 
@@ -638,6 +711,9 @@ class MainFrame : public TopFrame
         // unresponsive one.
         std::future<void> rigPttDisconnectFuture_;
         std::future<void> rigFreqDisconnectFuture_;
+
+        // Waits up to 3 seconds for both of the above.
+        void waitForRigDisconnect_();
 
         // Caches appConfiguration.experimentalFeatures as of the last tab layout load
         // attempt, so exit-time save uses that instead of a possibly-since-toggled live
@@ -657,10 +733,55 @@ class MainFrame : public TopFrame
         
         void performFreeDVOn_();
         void performFreeDVOff_();
-        
+
+        // Parts of Start and Stop, also used to apply settings changed while
+        // FreeDV is running (see applySettingsWhileRunning_()). startModem_()
+        // and the *SessionTimers_() ones run on the UI thread, the rest on a
+        // Start, Stop or apply worker.
+        void startModem_();
+        void stopModem_();
+        void startReporting_();
+        void stopReporting_();
+        void openRigControllers_();
+        void closeRigControllers_();
+        void startSessionTimers_();
+        void stopSessionTimers_();
+
+        // Has RADE send the callsign being reported, in its end-of-over text.
+        // On the UI thread, with the modem started.
+        void setReliableTextCallsign_();
+
+        // What the settings changed while running still need to take effect
+        // (ConfigChange::Effect flags), from FreeDVConfiguration::onChanged.
+        // UI thread only, like applyingSettings_.
+        uint32_t pendingChangeEffects_ = 0;
+        bool applyingSettings_ = false;
+
+        void onSettingsChanged_(uint32_t effects);
+
+        // Updates the running audio's copies of settings it keeps (see
+        // ConfigChange::UPDATES_RUNNING_AUDIO), unless it's being started,
+        // stopped or restarted: those copy them themselves, and this is done
+        // again once they're done.
+        void updateRunningAudio_();
+
+        // True while transmitting, or while something is under way that a
+        // restart would cut off (the voice keyer, Tune, a recording for the
+        // voice keyer).
+        bool isTransmitBusy_();
+
+        // Applies settings saved while running, now if FreeDV is receiving
+        // and nothing else is being started, stopped or applied, and
+        // otherwise as soon as it is.
+        void tryApplyPendingSettings_();
+        void applySettingsWhileRunning_(uint32_t effects);
+        void updateTransmitControls_();
+
         void executeOnUiThreadAndWait_(std::function<void()> fn);
         
         void updateReportingFreqList_();
+        // FreeDV's frequency as shown in the frequency box.
+        static wxString reportFrequencyString_(uint64_t hz);
         wxString reportFrequencyListString_(wxString const& text);
         void addReportFrequencyToList_(wxString const& freq);
         void updateFreqBoxLabel_();
@@ -695,9 +816,10 @@ class MainFrame : public TopFrame
             std::string callsign;
             uint64_t freqHz;
             std::string message;
+            IReporter::Sideband sideband;
         };
 
-        void onQsyRequest_(std::string callsign, uint64_t freqHz, std::string message);
+        void onQsyRequest_(std::string callsign, uint64_t freqHz, std::string message, IReporter::Sideband sideband);
         void onQsyRequestUIThread_(QsyRequestArgs* args);
         
         bool isFrequencyControlEnabled_()
@@ -743,5 +865,28 @@ void my_put_next_rx_char(void *callback_state, char c);
 
 // helper complex freq shift function
 
+// Accessors for the shared_ptr handles that the UI thread and the
+// Start/Stop worker threads mutate concurrently (wxGetApp().rigPttController,
+// rigFrequencyController and m_pttInSerialPort, under a mutex in
+// util.cpp). snapshot*() copies the
+// handle, take*() copies and clears the global, publish*() stores a new
+// handle. Never touch those members directly outside these helpers.
+std::shared_ptr<IRigPttController> snapshotRigPttController();
+std::shared_ptr<IRigPttController> takeRigPttController();
+void publishRigPttController(std::shared_ptr<IRigPttController> ptr);
+std::shared_ptr<IRigFrequencyController> snapshotRigFrequencyController();
+std::shared_ptr<IRigFrequencyController> takeRigFrequencyController();
+void publishRigFrequencyController(std::shared_ptr<IRigFrequencyController> ptr);
+std::shared_ptr<SerialPortInRigController> snapshotPTTInSerialPort();
+std::shared_ptr<SerialPortInRigController> takePTTInSerialPort();
+void publishPTTInSerialPort(std::shared_ptr<SerialPortInRigController> ptr);
+
+// The same for MainFrame's rxIn/rxOut/txIn/txOutSoundDevice, which the
+// Start/Stop worker threads set and clear while the UI thread reads them
+// (under a second mutex). Pass the member itself; the lock is held
+// only for the copy, so stop() a taken device after the call, not under it.
+std::shared_ptr<IAudioDevice> snapshotSoundDevice(std::shared_ptr<IAudioDevice> const& device);
+std::shared_ptr<IAudioDevice> takeSoundDevice(std::shared_ptr<IAudioDevice>& device);
+void publishSoundDevice(std::shared_ptr<IAudioDevice>& device, std::shared_ptr<IAudioDevice> ptr);
 
 #endif //__FDMDV2_MAIN__

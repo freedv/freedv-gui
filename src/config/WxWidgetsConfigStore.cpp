@@ -19,9 +19,81 @@
 //
 //==========================================================================
 
+#include <algorithm>
+#include <climits>
 #include <wx/tokenzr.h>
 #include <wx/numformatter.h>
+#include <cassert>
+#include <cstring>
+#include <wx/memconf.h>
+#include "util/logging/ulog.h"
 #include "WxWidgetsConfigStore.h"
+
+namespace
+{
+    // Where elements() is collecting elements, if it is (on this thread).
+    thread_local std::vector<IConfigurationDataElement*>* elementsBeingListed = nullptr;
+}
+
+void WxWidgetsConfigStore::noteSaved_(IConfigurationDataElement& configElement)
+{
+    if (elementsBeingListed != nullptr)
+    {
+        elementsBeingListed->push_back(&configElement);
+    }
+}
+
+std::vector<IConfigurationDataElement*> WxWidgetsConfigStore::elements()
+{
+    // save() names each of them, and its list is the one that's kept up to
+    // date. Into a configuration that's thrown away afterwards.
+    std::vector<IConfigurationDataElement*> result;
+    wxMemoryConfig scratch;
+    auto* outer = elementsBeingListed;
+    elementsBeingListed = &result;
+    save(&scratch);
+    elementsBeingListed = outer;
+    return result;
+}
+
+bool WxWidgetsConfigStore::elementsPairUp(
+    std::vector<IConfigurationDataElement*> const& first,
+    std::vector<IConfigurationDataElement*> const& second)
+{
+    bool pairUp = first.size() == second.size();
+    if (!pairUp)
+    {
+        log_error("Configurations to copy between have %zu and %zu settings", first.size(), second.size());
+    }
+    for (size_t index = 0; index < first.size() && index < second.size(); index++)
+    {
+        if (strcmp(first[index]->getElementName(), second[index]->getElementName()) != 0)
+        {
+            // (Those after it most likely don't either.)
+            log_error("Setting %zu of configurations to copy between is %s in one and %s in the other",
+                index, first[index]->getElementName(), second[index]->getElementName());
+            return false;
+        }
+    }
+    return pairUp;
+}
+
+void WxWidgetsConfigStore::copyFrom(WxWidgetsConfigStore& other)
+{
+    // Not at all if they don't pair up: that would copy settings into others.
+    auto mine = elements();
+    auto theirs = other.elements();
+    if (!elementsPairUp(mine, theirs))
+    {
+        assert(false);
+        return;
+    }
+
+    for (size_t index = 0; index < mine.size(); index++)
+    {
+        mine[index]->copyValueFrom(*theirs[index]);
+    }
+}
 
 // wxWidgets by default expands anything that looks like an environment variable
 // (e.g. $HOME) when reading strings. Settings should instead come back exactly as 
@@ -56,11 +128,38 @@ void WxWidgetsConfigStore::load_<wxString>(wxConfigBase* config, ConfigurationDa
     configElement.setWithoutProcessing(val);
 }
 
+// A number in the config file too big or small for the setting's type
+// (anything can have been written there) would otherwise wrap around into
+// some other value on the way in: the default is used instead.
 template<>
-void WxWidgetsConfigStore::load_<unsigned int>(wxConfigBase* config, ConfigurationDataElement<unsigned int>& configElement)
+void WxWidgetsConfigStore::load_<int>(wxConfigBase* config, ConfigurationDataElement<int>& configElement)
 {
     long val;
     config->Read(configElement.getElementName(), &val, (long)configElement.getDefaultVal());
+    if ((long long)val < INT_MIN || (long long)val > INT_MAX)
+    {
+        val = configElement.getDefaultVal();
+    }
+    configElement.setWithoutProcessing((int)val);
+}
+
+template<>
+void WxWidgetsConfigStore::load_<unsigned int>(wxConfigBase* config, ConfigurationDataElement<unsigned int>& configElement)
+{
+    // As a number, not as text: on Windows a config value is a registry
+    // REG_DWORD, and reading one as a string fails (wxRegKey::QueryValue logs
+    // "is not text"), which would put every unsigned setting back to its
+    // default.
+    long val;
+    config->Read(configElement.getElementName(), &val, (long)configElement.getDefaultVal());
+    // Where a long is 64 bits (Linux/macOS), one outside an unsigned int is
+    // taken as the default rather than whatever it would wrap into. Where it's
+    // 32 bits (Windows), one above INT_MAX comes back as the negative number
+    // with the same bits, which the cast below restores.
+    if ((long long)val < INT_MIN || (long long)val > (long long)UINT_MAX)
+    {
+        val = configElement.getDefaultVal();
+    }
     configElement.setWithoutProcessing((unsigned int)val);
 }
 
@@ -77,6 +176,7 @@ void WxWidgetsConfigStore::load_<std::vector<int> >(wxConfigBase* config, Config
 template<>
 void WxWidgetsConfigStore::save_<std::vector<int> >(wxConfigBase* config, ConfigurationDataElement<std::vector<int> >& configElement)
 {
+    noteSaved_(configElement);
     wxString val = generateStringFromArray_(configElement.getWithoutProcessing());
     config->Write(configElement.getElementName(), val);
 }
@@ -94,6 +194,7 @@ void WxWidgetsConfigStore::load_<std::vector<bool> >(wxConfigBase* config, Confi
 template<>
 void WxWidgetsConfigStore::save_<std::vector<bool> >(wxConfigBase* config, ConfigurationDataElement<std::vector<bool> >& configElement)
 {
+    noteSaved_(configElement);
     wxString val = generateStringFromArray_(configElement.getWithoutProcessing());
     config->Write(configElement.getElementName(), val);
 }
@@ -115,6 +216,7 @@ void WxWidgetsConfigStore::load_<std::vector<wxString> >(wxConfigBase* config, C
 template<>
 void WxWidgetsConfigStore::save_<std::vector<wxString> >(wxConfigBase* config, ConfigurationDataElement<std::vector<wxString> >& configElement)
 {
+    noteSaved_(configElement);
     wxString val = generateStringFromArray_(configElement.getWithoutProcessing());
     config->Write(configElement.getElementName(), val);
 }
@@ -141,6 +243,7 @@ void WxWidgetsConfigStore::load_<std::map<wxString, int> >(wxConfigBase* config,
 template<>
 void WxWidgetsConfigStore::save_<std::map<wxString, int> >(wxConfigBase* config, ConfigurationDataElement<std::map<wxString, int> >& configElement)
 {
+    noteSaved_(configElement);
     wxString path = configElement.getElementName();
     wxString groupName = path.AfterLast('/');
     wxString parentPath = path.BeforeLast('/');
@@ -207,9 +310,13 @@ std::vector<int> WxWidgetsConfigStore::generateNumArrayFromString_(wxString cons
     while ( tokenizer.HasMoreTokens() )
     {
         wxString token = tokenizer.GetNextToken();
-        long tmp = 0;
-        wxNumberFormatter::FromString(token, &tmp);
-        rv.push_back((int)tmp);
+        wxLongLong_t tmp = 0;
+        if (!wxNumberFormatter::FromString(token, &tmp))
+        {
+            tmp = 0;
+        }
+        // (Within an int, rather than wrapping around into some other value.)
+        rv.push_back((int)std::clamp<long long>(tmp, INT_MIN, INT_MAX));
     }
     
     return rv;

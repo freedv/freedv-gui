@@ -418,6 +418,14 @@ also enabled, this frequency will automatically remain in sync with the current 
 frequency is changed in the application, the radio will also change its frequency). Double-clicking on users in 
 the Tools->FreeDV Reporter window will also cause this frequency to change to match the other user.
 
+With Hamlib or OmniRig enabled (and "Manual Frequency Reporting" turned off), FreeDV also reports which sideband 
+(USB or LSB) the radio is on. Other stations' sidebands, where their versions of FreeDV report them, are shown after
+their frequencies in the Tools->FreeDV Reporter window (e.g. "14.2360 USB") and on the FreeDV Reporter website.
+Double-clicking a station that reports its sideband, or accepting its QSY request, also puts the radio on that 
+sideband (in the radio's data mode, e.g. LSB-D, unless "Use USB instead of DIGU" is checked in Settings) for as long as
+FreeDV stays on that frequency, even if that isn't the sideband usually used on that band (e.g. LSB on 20 meters). A QSY
+request you send tells the other station which sideband you're on.
+
 By default, pushing Start sets the radio to the frequency FreeDV last used, and pushing Stop returns the radio to the
 frequency and mode it had before Start. To leave the radio's frequency alone instead (FreeDV shows the radio's current
 frequency on Start, and the radio stays where it is on Stop), uncheck "Save and restore the frequency on start and stop"
@@ -460,6 +468,11 @@ FreeDV supports integration with external logging utilities that support the WSJ
 [KLog](https://github.com/ea4k/klog). This can be enabled by going to Settings->Edit Settings->Reporting and enabling 
 the "Enable QSO Logging" option. By default, it sends packets to "localhost" (127.0.0.1) port 2237, but this
 can be changed if the logging computer is elsewhere on the network.
+
+As WSJT-X does, FreeDV sends each logged contact both as a "QSO Logged" message and as a "Logged ADIF" message 
+(an ADIF record of the contact, with mode DIGITALVOICE and submode FREEDV). Some logging programs, such as 
+Log4OM, save contacts from the latter: in Log4OM, make sure that the option to import QSOs from WSJT-X's 
+ADIF message (JT message #12) is enabled for the UDP connection that FreeDV sends to.
 
 Once FreeDV decodes a callsign, it will appear in the drop-down list on the bottom of the main window. To log
 this contact (or any other contact received by the application), simply choose that callsign from the list and
@@ -531,6 +544,14 @@ this window as well.
 
 ## Settings - Edit Settings
 
+Settings can be changed while FreeDV is running, and take effect when OK or Apply is pressed:
+
+* Changes to the sound devices, or to the FIFO size, briefly restart the audio. Recordings and file playback are stopped, and FreeDV needs to sync again.
+* Changes to CAT control, PTT or frequency/mode control reconnect to the radio. As when FreeDV stops and starts, the radio may first go back to the frequency it had before FreeDV was started, and is then set to FreeDV's frequency.
+* Changes to reporting reconnect to PSK Reporter, FreeDV Reporter and the other reporting services.
+
+While transmitting (or using the voice keyer or Tune), changes like these are saved but only applied once FreeDV is back on receive. The Setup Wizard and the configuration import and reset options remain unavailable until FreeDV is stopped.
+
 ### Modem Options
 
 Control | Description
@@ -561,7 +582,7 @@ As the Tab is dragged into position a faint blue/gray image will show the positi
 
 Tabs can be resized as required by hovering the cursor over the border and clicking and holding the left mouse button and dragging to required size.
 
-By default, the tab layout is not saved. However, by enabling experimental features (see "Advanced/Developer Features"), experimental support for
+By default, the tab layout is not saved. However, by enabling experimental features (see [Experimental Features](#experimental-features)), experimental support for
 saving and restoring the tab layout will be enabled. This has not been well tested and may have hidden bugs or other issues.
 
 ![Multiple Panes](contrib/multiple_panes.png)
@@ -883,8 +904,13 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Improved ease of use when adjusting predefined frequencies. (PR #1570, #1581) - thanks @barjac!
     * Improved Level metering and AGC for easier input level adjustment. (PR #1532, #1599, #1604) - thanks @barjac!
     * Hamlib/OmniRig: add option to disable saving and restoring the radio's frequency on start and stop. (PR #1600)
+    * RADE: fill in the missing high frequencies when transmitting with an 8 kHz mic (e.g. a Bluetooth headset). (PR #1614)
+    * Settings: apply half duplex and the VOX tone immediately while running, allow changing the PTT key and TX/RX delay, and note which settings take effect the next time FreeDV starts. (PR #1631)
+    * Settings: apply every setting while running, restarting the audio or reconnecting to the radio and reporting services as needed, once back on receive. (PR #1632, #1649)
+    * FreeDV Reporter: report which sideband (USB or LSB) the radio is on, and show other stations' after their frequencies. (PR #1644)
 2. Bugfixes:
     * Fix silence being mixed into the first half second of each transmission, and holes in the signal at its start. (PR #1562)
+    * Hamlib/OmniRig: fix the radio sometimes being put back on FreeDV's frequency after being tuned elsewhere just after Start. (PR #1632)
 3. Build system:
     * Update wxWidgets to 3.3.4. (PR #1560, #1556)
     * CI: only build with PGO, run the tests and report coverage on merges; other pushes get unsigned packages to try out. (PR #1563, #1585)
@@ -893,14 +919,45 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Add automated tests of the user interface: Setup Wizard, FreeDV Reporter, Settings, main, Log QSO, Start Recording and Filter windows, plots, audio device errors, serial port PTT and rig control. (PR #1544, #1546, #1548, #1550, #1551, #1553, #1554, #1556, #1588, #1595)
     * Run the automated user interface tests, and report test coverage, as part of CI. (PR #1556)
     * Run the automated user interface tests on macOS. (PR #1563)
-    * Run the automated user interface tests on Windows. (PR #1566)
+    * Run the automated user interface tests on Windows. (PR #1566, #1607)
     * Remove unused plot, main window and FreeDV Reporter code. (PR #1556)
     * Settings: play back audio input tests through the speaker/headphones instead of the radio. (PR #1548)
     * Add tests of whole transmissions through the TX/RX threads without sound cards, and diagnostics for rade_loss test failures. (PR #1562)
+    * Add translations for Swedish, Brazilian Portuguese and Latvian. (PR #1615)
+    * Additional data race cleanup. (PR #1616)
+    * Settings: remove the txRxThreadPriority, txRxDumpTiming and APiVerbose debugging options, which had no effect. (PR #1632)
+    * Add tests of audio device and engine thread safety, re-recording a voice keyer message, and Settings' Test PTT. (PR #1625)
+    * Add new FreeDV application icon. (PR #1641)
 
 *Note: Legacy FreeDV modes (700D/700E/1600) have been removed due to low use. FreeDV 2.4.x is still available if one wishes to operate these modes.*
 
-## V2.4.1 TBD 2026
+## V2.4.2 TBD 2026
+
+1. Bugfixes:
+    * FreeDV Reporter: don't select the station under the mouse when the list gains focus without a click. (PR #1611)
+    * Fix waterfall going black when the received audio level is very low. (PR #1618)
+    * Windows: stop busy-waiting in the audio threads, which increased CPU usage in 2.4.1. (PR #1617)
+    * Let the radio's audio finish before releasing PTT in modes other than RADE, and don't play what's left into the radio after it returns to receive. (PR #1622)
+    * Fix various audio thread races and teardown gaps. (PR #1620)
+    * Send WSJT-X's Logged ADIF message when a QSO is logged, so that logging programs which save contacts from it (e.g. Log4OM) log FreeDV contacts automatically. (PR #1624)
+    * Fix memory corruption in the waterfall after a mode change, and in the RF spectrum with large audio blocks. (PR #1626)
+    * Fix races between audio engine error reports and FreeDV starting, stopping or exiting. (PR #1626)
+    * Fix a voice keyer recording being left unreadable when a new one is started before it's stopped, or corrupted when the new one is to the same file. (PR #1626)
+    * Fix the PTT dialog's Test button leaving a radio connection running after each test. (PR #1626)
+    * Cover a briefly late microphone with silence rather than leaving a gap in the transmitted signal. (PR #1621)
+    * Fix intermittent dropouts drawn in the Frm Radio, Frm Mic and Frm Decoder plots, and their traces falling behind the audio. (PR #1628)
+    * Hamlib: fix rigctld sometimes dropping FreeDV's connection when Test PTT is clicked again, Start follows Stop quickly, or another program disconnects from rigctld, just as FreeDV connects. (PR #1634)
+    * Fix Test PTT becoming usable again before the radio was unkeyed and the serial port closed, when using serial port or OmniRig PTT. (PR #1636)
+    * Stop the play file and any recording when the modem stops. (PR #1642)
+    * Refuse what isn't a number instead of saving stack garbage. (PR #1643, #1648)
+    * FreeDV Reporter (macOS): leave no station selected when the selected one's row is hidden by a filter or removed, rather than selecting the station below it. (PR #1647)
+    * FreeDV Reporter: fix a crash when the server reports a station that's already connected. (PR #1645)
+2. Documentation:
+    * User manual: Update reference to Experimental Features section. (PR #1613)
+3. Build system:
+    * Build the macOS DMG as ULFO. (PR #1639)
+
+## V2.4.1 October 2026
 
 1. Bugfixes:
     * Add logic to prevent FIFO sizes that are too small to allow TX thread to function. (PR #1474)
@@ -979,6 +1036,19 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Stop the radio recording budget at zero instead of wrapping it. (PR #1592)
     * Windows: Fix issue preventing audio devices that don't support raw mode from starting. (PR #1594)
     * PlotScalar: draw the trace when the plot is wider than its sample count. (PR #1597) - thanks @barjac!
+    * Linux/FreeDV Reporter: fix uninitialized value deciding whether a selection is honored. (PR #1606)
+    * Allow microphone and speaker devices below 16 kHz (such as Bluetooth headsets in call mode) with a warning instead of refusing to start. (PR #1608)
+    * FreeDV Reporter: fix possible crash when repeatedly connecting and disconnecting. (freedv-backend PR #44)
+    * FreeDV Reporter: fix exiting FreeDV taking up to 60 seconds when the server stalls setting up the secure connection; give up on it after 10 seconds instead. (freedv-backend PR #63)
+    * FreeDV Reporter: fix memory leak when FreeDV exits just as FreeDV Reporter connects. (freedv-backend PR #75)
+    * Recording: fix up to the last 100 ms of audio being lost when a recording stops, and log when audio has to be dropped. (freedv-backend PR #71, #72)
+    * Fix conversion of 16-bit audio to floating point going slightly past full scale. (freedv-backend PR #60)
+    * Fix buffer overruns when one RADE receive call decodes several frames and when resampling 8 kHz audio by large ratios. (freedv-backend PR #78)
+    * Fix the audio pipeline rebuilding its resampler when the sample rate is unchanged but not when it changes, and freeing the kept resampler twice. (freedv-backend PR #78)
+    * FreeDV Reporter: refuse a secure connection if TLS 1.2 or certificate hostname checking can't be enforced. (freedv-backend PR #78)
+    * macOS/FreeDV Reporter: fix endless loop and log spam when the connection closes while sending. (freedv-backend PR #78)
+    * Fix network and threading code continuing after a failed socket or semaphore setup, Linux semaphore waits ending early on a signal, and a macOS crash on an empty background task. (freedv-backend PR #78)
+    * Windows: fix exiting FreeDV taking 20 seconds or more while logging heavily. (freedv-backend PR #78)
 2. Build system:
     * Windows versions are now built with llvm-mingw 20260908 (PR #1489)
     * Ccache support extended to third party dependencies. (PR #1498, #1505))
@@ -989,12 +1059,17 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Add unit tests for non-GUI code. (PR #1542)
     * Add tests of whole transmissions through the TX/RX threads without sound cards. (PR #1567)
     * Resolve build failure on OpenSUSE Tumbleweed. (PR #1577)
+    * Fix Windows build failures with newer llvm-mingw (clang/libc++) releases. (freedv-backend PR #51)
+    * Fix Windows build with older mingw-w64 headers that don't declare SetThreadDescription. (freedv-backend PR #60)
+    * macOS: fix RNNoise build failure with newer Xcode versions. (freedv-backend PR #59)
+    * Fix build errors with GCC 16 and with OpenSSL 4 deprecations. (freedv-backend PR #41, #73)
 3. Documentation:
     * Update documentation to reflect new repo URL. (PR #1569)
 4. Other:
     * Various GUI performance improvements. (PR #1481, #1521, #1524, #1527, #1531)
     * Windows audio thread timing improvements. (PR #1488)
     * Log when the sound server puts a PulseAudio stream on another device. (PR #1591)
+    * Log from the audio threads without blocking them. (freedv-backend PR #60)
 
 ## V2.4.0 August 2026
 

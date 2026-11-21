@@ -282,6 +282,20 @@ bool outputStartsWithPttOff()
     return f.connect() && f.events.pttChangesAre({ false });
 }
 
+// The controller's own setup on connecting isn't one of the handlers the
+// application can replace: an application assigning its own (rather than
+// adding one) mustn't leave the radio keyed by whatever the lines were.
+bool outputStartsWithPttOffWhenHandlersAreReplaced()
+{
+    PttOutput f;
+    f.controller.onRigConnected = [&f](IRigController*) {
+        std::unique_lock<std::mutex> lk(f.events.mtx);
+        f.events.numConnects++;
+        f.events.cv.notify_all();
+    };
+    return f.connect() && f.events.pttChangesAre({ false });
+}
+
 bool outputReportsPttChanges(bool useRts, bool useDtr)
 {
     PttOutput f("", useRts, useDtr);
@@ -438,6 +452,27 @@ bool inputReportsStateOnConnecting(bool ctsPos)
     return f.events.pttChangesAre({ !ctsPos }) && f.events.noErrors();
 }
 
+// Likewise for the input controller: it still watches the port once the
+// application has replaced the connection and disconnection handlers.
+bool inputWatchesPortWhenHandlersAreReplaced()
+{
+    PttInput f(true);
+    f.controller.onRigConnected = [&f](IRigController*) {
+        std::unique_lock<std::mutex> lk(f.events.mtx);
+        f.events.numConnects++;
+        f.events.cv.notify_all();
+    };
+    f.controller.onRigDisconnected = [](IRigController*) {};
+    if (!f.connect()) return false;
+    if (!f.events.pttChangesAre({ false })) return false;
+
+    // Disconnecting still stops the polling thread (or destruction would hang
+    // or crash joining it later).
+    f.controller.disconnect();
+    std::this_thread::sleep_for(SEVERAL_POLLS);
+    return !f.controller.isConnected() && f.events.noErrors();
+}
+
 bool inputLeavesPortSettingsAlone()
 {
     // Some virtual serial port drivers lock up if their settings are queried or changed.
@@ -559,6 +594,7 @@ int main()
 
     executeTestCase("outputConnects", outputConnects);
     executeTestCase("outputStartsWithPttOff", outputStartsWithPttOff);
+    executeTestCase("outputStartsWithPttOffWhenHandlersAreReplaced", outputStartsWithPttOffWhenHandlersAreReplaced);
     executeTestCase("outputReportsPttChanges (RTS and DTR)", []() { return outputReportsPttChanges(true, true); });
     executeTestCase("outputReportsPttChanges (RTS)", []() { return outputReportsPttChanges(true, false); });
     executeTestCase("outputReportsPttChanges (DTR)", []() { return outputReportsPttChanges(false, true); });
@@ -572,6 +608,7 @@ int main()
     executeTestCase("outputIgnoresControlLinesWhilePortUnopened", outputIgnoresControlLinesWhilePortUnopened);
     executeTestCase("inputReportsStateOnConnecting (CTS means transmit)", []() { return inputReportsStateOnConnecting(true); });
     executeTestCase("inputReportsStateOnConnecting (CTS means receive)", []() { return inputReportsStateOnConnecting(false); });
+    executeTestCase("inputWatchesPortWhenHandlersAreReplaced", inputWatchesPortWhenHandlersAreReplaced);
     executeTestCase("inputLeavesPortSettingsAlone", inputLeavesPortSettingsAlone);
     executeTestCase("inputReportsNothingWhileSuspended", inputReportsNothingWhileSuspended);
     executeTestCase("inputCannotKeyRadio", inputCannotKeyRadio);

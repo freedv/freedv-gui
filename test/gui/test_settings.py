@@ -814,10 +814,10 @@ def test_frequency_list():
         for button, expected in zip(buttons, [add, remove]):
             check_equal(app.get(name(button))["enabled"], expected, button + " enabled")
 
-    settings = {"/Reporting/FrequencyList": "3.625000,7.177000,14.236000"}
+    settings = {"/Reporting/FrequencyListCentred": "3.623500,7.175500,14.237500"}
     with freedvtest.start(settings=settings) as app:
         open_settings(app, "Rig Control")
-        check_equal(frequencies(app), ["3.6250", "7.1770", "14.2360"], "Frequencies listed")
+        check_equal(frequencies(app), ["3.6235", "7.1755", "14.2375"], "Frequencies listed")
         check_equal(label(app, "labelEnterFreq"), "Enter frequency (MHz):", "Frequency entry label")
         check_values(app, {"txtCtrlNewFrequency": ""})
         check_buttons(app, False, False)
@@ -825,17 +825,17 @@ def test_frequency_list():
         # on offer but nothing else.
         set_value(app, "ckboxFrequencyEntryAsKHz", True)
         press_apply(app)
-        check_equal(frequencies(app), ["3625.0", "7177.0", "14236.0"], "Frequencies listed in kHz")
+        check_equal(frequencies(app), ["3623.5", "7175.5", "14237.5"], "Frequencies listed in kHz")
         set_value(app, "ckboxFrequencyEntryAsKHz", False)
         press_apply(app)
-        check_equal(frequencies(app), ["3.6250", "7.1770", "14.2360"], "Frequencies listed again in MHz")
+        check_equal(frequencies(app), ["3.6235", "7.1755", "14.2375"], "Frequencies listed again in MHz")
         check_values(app, {"txtCtrlNewFrequency": ""})
 
         # Applying while something is typed in but the units haven't
         # changed adds nothing.
         set_value(app, "txtCtrlNewFrequency", "10.136")
         press_apply(app)
-        check_equal(frequencies(app), ["3.6250", "7.1770", "14.2360"], "Frequencies listed")
+        check_equal(frequencies(app), ["3.6235", "7.1755", "14.2375"], "Frequencies listed")
         # Something that isn't a frequency can't be added.
         for text in ["abc", "0", "-5"]:
             set_value(app, "txtCtrlNewFrequency", text)
@@ -845,52 +845,52 @@ def test_frequency_list():
         set_value(app, "txtCtrlNewFrequency", "10.136")
         check_buttons(app, True, False)
         app.click(name("freqListAdd"))
-        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "14.2360"], "Frequencies listed")
+        check_equal(frequencies(app), ["3.6235", "7.1755", "10.1360", "14.2375"], "Frequencies listed")
         check_values(app, {"txtCtrlNewFrequency": ""})
 
         # ...including at the end.
         set_value(app, "txtCtrlNewFrequency", "28.33")
         app.click(name("freqListAdd"))
-        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "14.2360", "28.3300"],
+        check_equal(frequencies(app), ["3.6235", "7.1755", "10.1360", "14.2375", "28.3300"],
                     "Frequencies listed")
 
         # One that's already listed can be removed, whether it's typed in...
-        set_value(app, "txtCtrlNewFrequency", "3.6250")
+        set_value(app, "txtCtrlNewFrequency", "3.6235")
         check_buttons(app, False, True)
 
         # ...or picked from the list.
-        set_value(app, "freqList", "7.1770")
-        check_values(app, {"txtCtrlNewFrequency": "7.1770"})
+        set_value(app, "freqList", "7.1755")
+        check_values(app, {"txtCtrlNewFrequency": "7.1755"})
         check_buttons(app, False, True)
 
 
-        set_value(app, "freqList", "14.2360")
+        set_value(app, "freqList", "14.2375")
         app.click(name("freqListRemove"))
-        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "28.3300"], "Frequencies listed")
+        check_equal(frequencies(app), ["3.6235", "7.1755", "10.1360", "28.3300"], "Frequencies listed")
         check_values(app, {"txtCtrlNewFrequency": ""})
         check_buttons(app, False, False)
 
         # They're what's offered in the main window once saved.
         press_ok(app)
         check_equal([item["label"] for item in app.get("main.lbReportFrequencies")["items"]],
-                    ["3.6250", "7.1770", "10.1360", "28.3300"], "Frequencies offered in the main window")
+                    ["3.6235", "7.1755", "10.1360", "28.3300"], "Frequencies offered in the main window")
 
         # Frequencies can be worked with in kHz instead.
         open_settings(app, "Rig Control")
-        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "28.3300"], "Frequencies listed")
-        set_value(app, "txtCtrlNewFrequency", "14.236")
+        check_equal(frequencies(app), ["3.6235", "7.1755", "10.1360", "28.3300"], "Frequencies listed")
+        set_value(app, "txtCtrlNewFrequency", "14.2375")
         set_value(app, "ckboxFrequencyEntryAsKHz", True)
         press_apply(app)
-        check_equal(frequencies(app), ["3625.0", "7177.0", "10136.0", "28330.0"], "Frequencies listed in kHz")
+        check_equal(frequencies(app), ["3623.5", "7175.5", "10136.0", "28330.0"], "Frequencies listed in kHz")
         check_equal(label(app, "labelEnterFreq"), "Enter frequency (kHz):", "Frequency entry label")
-        check_equal(ungrouped(value(app, "txtCtrlNewFrequency")), "14236.0", "txtCtrlNewFrequency")
+        check_equal(ungrouped(value(app, "txtCtrlNewFrequency")), "14237.5", "txtCtrlNewFrequency")
         check_buttons(app, True, False)
         app.click(name("freqListAdd"))
-        check_equal(frequencies(app), ["3625.0", "7177.0", "10136.0", "14236.0", "28330.0"],
+        check_equal(frequencies(app), ["3623.5", "7175.5", "10136.0", "14237.5", "28330.0"],
                     "Frequencies listed in kHz")
         press_ok(app)
         check_saved(app, {"/Reporting/FrequencyAsKHz": 1})
-        check_equal(offered(app), ["3625.0", "7177.0", "10136.0", "14236.0", "28330.0"],
+        check_equal(offered(app), ["3623.5", "7175.5", "10136.0", "14237.5", "28330.0"],
                     "Frequencies offered in the main window")
 
         # And back again, along with what's been typed in so far.
@@ -904,7 +904,7 @@ def test_frequency_list():
         set_value(app, "txtCtrlNewFrequency", "")
         press_ok(app)
         check_equal([item["label"] for item in app.get("main.lbReportFrequencies")["items"]],
-                    ["3.6250", "7.1770", "10.1360", "14.2360", "28.3300"],
+                    ["3.6235", "7.1755", "10.1360", "14.2375", "28.3300"],
                     "Frequencies offered in the main window")
 
         quit_and_check_log(app)
@@ -930,17 +930,17 @@ def test_frequency_list_from_main_window():
     def list_shown(app):
         return app.get("main.lbReportFrequencies")["shown"]
 
-    settings = {"/Reporting/FrequencyList": "3.625000,7.177000,14.236000",
-                "/Reporting/Frequency": "14236000"}
+    settings = {"/Reporting/FrequencyListCentred": "3.623500,7.175500,14.237500",
+                "/Reporting/Frequency": "14237500"}
     with freedvtest.start(settings=settings) as app:
-        check_equal(offered(app), ["3.6250", "7.1770", "14.2360"], "Frequencies offered")
+        check_equal(offered(app), ["3.6235", "7.1755", "14.2375"], "Frequencies offered")
 
         # The frequency in the box can be added, into its place in the list.
         app.set_value("main.cboReportFrequency", "10.136")
         items = app.context_menu("main.cboReportFrequency", choose="Add 10.1360MHz to list")
         check_equal([(item["label"], item["enabled"]) for item in items][0],
                     ("Add 10.1360MHz to list", True), "Frequency box's menu")
-        check_equal(offered(app), ["3.6250", "7.1770", "10.1360", "14.2360"], "Frequencies offered")
+        check_equal(offered(app), ["3.6235", "7.1755", "10.1360", "14.2375"], "Frequencies offered")
 
         # ...but only once.
         items = app.context_menu("main.cboReportFrequency")
@@ -962,18 +962,18 @@ def test_frequency_list_from_main_window():
         # opens again for the next.
         app.combo_popup("main.cboReportFrequency", True)
         app.wait_until(lambda: list_shown(app), description="the frequencies to be listed")
-        app.context_menu("main.lbReportFrequencies", item=0, choose="Delete 3.6250MHz from list")
-        check_equal(offered(app), ["7.1770", "10.1360", "14.2360"], "Frequencies offered")
+        app.context_menu("main.lbReportFrequencies", item=0, choose="Delete 3.6235MHz from list")
+        check_equal(offered(app), ["7.1755", "10.1360", "14.2375"], "Frequencies offered")
         app.wait_until(lambda: list_shown(app), description="the list to open again")
 
         # Or with Del on the highlighted one, which leaves the list open.
-        app.set_value("main.lbReportFrequencies", "14.2360")
+        app.set_value("main.lbReportFrequencies", "14.2375")
         app.key("main.lbReportFrequencies", "Delete")
-        check_equal(offered(app), ["7.1770", "10.1360"], "Frequencies offered")
+        check_equal(offered(app), ["7.1755", "10.1360"], "Frequencies offered")
         check(list_shown(app), "The list closed")
         # Keys in the open list move the highlight about, clamping at the
         # ends, and Enter takes the highlighted frequency.
-        app.set_value("main.lbReportFrequencies", "7.1770")
+        app.set_value("main.lbReportFrequencies", "7.1755")
         app.key("main.lbReportFrequencies", "Down")
         check_equal(app.get("main.lbReportFrequencies")["selection"], 1, "Highlight moved down")
         app.key("main.lbReportFrequencies", "Down")
@@ -989,7 +989,7 @@ def test_frequency_list_from_main_window():
         app.key("main.lbReportFrequencies", "Home")
         check_equal(app.get("main.lbReportFrequencies")["selection"], 0, "Highlight at the top")
         app.key("main.lbReportFrequencies", NUMPAD_ENTER)
-        check_equal(app.get("main.cboReportFrequency")["value"], "7.1770", "Frequency taken with Enter")
+        check_equal(app.get("main.cboReportFrequency")["value"], "7.1755", "Frequency taken with Enter")
         check(not list_shown(app), "The list closed on Enter")
 
         # Reopening the list: it highlights the frequency the box already
@@ -1014,12 +1014,12 @@ def test_frequency_list_from_main_window():
         # The changes are kept, as Tools > Options shows.
         open_settings(app, "Rig Control")
         check_equal([item["label"] for item in app.get(name("freqList"))["items"]],
-                    ["7.1770", "10.1360"], "Frequencies listed in Options")
+                    ["7.1755", "10.1360"], "Frequencies listed in Options")
         press_cancel(app)
         # Deleting down to nothing leaves an empty list that isn't reopened.
         app.combo_popup("main.cboReportFrequency", True)
         app.wait_until(lambda: list_shown(app), description="the frequencies to be listed")
-        app.context_menu("main.lbReportFrequencies", item=0, choose="Delete 7.1770MHz from list")
+        app.context_menu("main.lbReportFrequencies", item=0, choose="Delete 7.1755MHz from list")
         check_equal(offered(app), ["10.1360"], "The last frequency")
         app.wait_until(lambda: list_shown(app), description="the list to open again")
         app.context_menu("main.lbReportFrequencies", item=0, choose="Delete 10.1360MHz from list")
@@ -1052,7 +1052,7 @@ def test_frequency_list_from_main_window():
 
     # In kHz mode, the box and the list show the list's frequencies in kHz,
     # to one decimal place, and the box is read as kHz too.
-    settings = {"/Reporting/FrequencyList": "3.6,14.2", "/Reporting/FrequencyAsKHz": True,
+    settings = {"/Reporting/FrequencyListCentred": "3.6,14.2", "/Reporting/FrequencyAsKHz": True,
                 "/Reporting/Frequency": "14200000"}
     with freedvtest.start(settings=settings) as app:
         check_equal(offered(app), ["3600.0", "14200.0"], "Frequencies offered in kHz")
@@ -1308,8 +1308,8 @@ def test_modem_and_debugging():
         set_value(app, "statsResetTime", "25")
 
         go_to_tab(app, "Debugging")
-        check_values(app, {"txtCtrlFifoSize": "640", "ckboxVerbose": False, "ckboxFreeDVAPIVerbose": False,
-                           "experimentalFeatures": False, "ckboxTone": False})
+        check_values(app, {"txtCtrlFifoSize": "640", "ckboxVerbose": False, "experimentalFeatures": False,
+                           "ckboxTone": False})
 
         # The interfering tone's settings only apply when there is one.
         check_enabled(app, ["txtToneFreqHz", "txtToneAmplitude"], False)
@@ -1320,16 +1320,14 @@ def test_modem_and_debugging():
 
         set_value(app, "txtCtrlFifoSize", "480")
         set_value(app, "ckboxVerbose", True)
-        set_value(app, "ckboxFreeDVAPIVerbose", True)
         set_value(app, "experimentalFeatures", True)
-        for checkbox in ["ckboxTxRxThreadPriority", "ckboxTxRxDumpTiming", "ckboxTxRxDumpFifoState"]:
-            app.click(name(checkbox))
+        app.click(name("ckboxTxRxDumpFifoState"))
         app.click(name("BtnFifoReset"))
 
         press_ok(app)
         check_saved(app, {
             "/Rig/HalfDuplex": 0, "/Debug/showDecodeStats": 1, "/Stats/ResetTime": 25, "/Audio/fifoSize_ms": 480,
-            "/Debug/verbose": 1, "/Debug/APIverbose": 1, "/ExperimentalFeatures": 1,
+            "/Debug/verbose": 1, "/ExperimentalFeatures": 1,
         })
         check_equal(app.get("main.textBits")["shown"], True, "Decode stats shown in the main window")
 
@@ -1337,9 +1335,8 @@ def test_modem_and_debugging():
         open_settings(app, "Modem")
         check_values(app, {"ckHalfDuplex": False, "showDecodeStats": True, "statsResetTime": "25"})
         go_to_tab(app, "Debugging")
-        check_values(app, {"txtCtrlFifoSize": "480", "ckboxVerbose": True, "ckboxFreeDVAPIVerbose": True,
-                           "experimentalFeatures": True, "ckboxTone": True, "txtToneFreqHz": "1500",
-                           "txtToneAmplitude": "500"})
+        check_values(app, {"txtCtrlFifoSize": "480", "ckboxVerbose": True, "experimentalFeatures": True,
+                           "ckboxTone": True, "txtToneFreqHz": "1500", "txtToneAmplitude": "500"})
         set_value(app, "ckboxTone", False)
         set_value(app, "ckboxVerbose", False)
         go_to_tab(app, "Modem")
@@ -1349,6 +1346,150 @@ def test_modem_and_debugging():
         check_equal(app.get("main.textBits")["shown"], False, "Decode stats shown in the main window")
 
         quit_and_check_log(app)
+
+
+def test_invalid_numbers():
+    """The text fields that hold numbers, filled with what a user can put in
+    them: nothing, and in the ones with no filter, words. FreeDV keeps the
+    value it had instead of storing something made up, and still starts."""
+    settings = audio_settings()
+    # The UDP port fields are only reachable with reporting on, so it's on
+    # from the start, pointed at addresses nothing answers on.
+    settings.update({"/Reporting/Enable": True, "/Reporting/Callsign": "AA1ZZZ", "/Reporting/GridSquare": "DM12",
+                     "/Reporting/UDP/Enable": True, "/Reporting/UDP/Hostname": "192.0.2.1",
+                     "/Reporting/UDPBroadcast/Enable": True, "/Reporting/FreeDV/Hostname": NOWHERE,
+                     "/Reporting/FreeDV/UseTls": False})
+    with audio_devices():
+        with freedvtest.start(settings=settings) as app:
+            open_settings(app, "Debugging")
+            check_values(app, {"txtCtrlFifoSize": "640"})
+
+            # The FIFO size has no filter, so anything can be typed into it.
+            set_value(app, "txtCtrlFifoSize", "lots")
+            press_ok(app)
+            check_saved(app, {"/Audio/fifoSize_ms": 640})
+
+            # Empty is something a user gets to in every one of these fields.
+            open_settings(app, "Debugging")
+            check_values(app, {"txtCtrlFifoSize": "640"})
+            set_value(app, "txtCtrlFifoSize", "")
+            set_value(app, "ckboxTone", True)
+            set_value(app, "txtToneFreqHz", "")
+            set_value(app, "txtToneAmplitude", "")
+            press_ok(app)
+            check_saved(app, {"/Audio/fifoSize_ms": 640})
+            # The tone's aren't saved, so they're checked where they're shown.
+            open_settings(app, "Debugging")
+            check_values(app, {"txtToneFreqHz": "1000", "txtToneAmplitude": "500"})
+            press_cancel(app)
+
+            open_settings(app, "Voice Keyer")
+            set_value(app, "txtCtrlVoiceKeyerRxPause", "wait")
+            set_value(app, "txtCtrlVoiceKeyerRepeats", "")
+            press_ok(app)
+            check_saved(app, {"/VoiceKeyer/RxPause": 10, "/VoiceKeyer/Repeats": 5})
+
+            open_settings(app, "Reporting")
+            set_value(app, "udpPort", "port")
+            set_value(app, "udpBroadcastPort", "")
+            press_ok(app)
+            check_saved(app, {"/Reporting/UDP/Port": 2237, "/Reporting/UDPBroadcast/Port": 7177})
+
+            # Numbers that aren't ports: not the nearest port either.
+            open_settings(app, "Reporting")
+            set_value(app, "udpPort", "70000")
+            set_value(app, "udpBroadcastPort", "-1")
+            press_ok(app)
+            check_saved(app, {"/Reporting/UDP/Port": 2237, "/Reporting/UDPBroadcast/Port": 7177})
+
+            open_settings(app, "Modem")
+            set_value(app, "statsResetTime", "")
+            press_ok(app)
+            check_saved(app, {"/Stats/ResetTime": 10})
+
+            open_settings(app, "Rig Control")
+            set_value(app, "txtTxRxDelayMilliseconds", "250")
+            set_value(app, "txtTOTTimerSecs", "90")
+            press_ok(app)
+            check_saved(app, {"/Audio/TxRxDelayMilliseconds": 250, "/Rig/TotTimerSecs": 90})
+
+            open_settings(app, "Rig Control")
+            set_value(app, "txtTxRxDelayMilliseconds", "")
+            set_value(app, "txtTOTTimerSecs", "")
+            press_ok(app)
+            check_saved(app, {"/Audio/TxRxDelayMilliseconds": 250, "/Rig/TotTimerSecs": 90})
+
+            # Numbers that are numbers, but far too big (or small) for what
+            # they're used for: brought within it rather than wrapped around
+            # into some other number, as the digits-only fields' longest
+            # runs of digits would be.
+            open_settings(app, "Debugging")
+            set_value(app, "txtCtrlFifoSize", "999999999")
+            set_value(app, "txtToneFreqHz", "99999999999")
+            set_value(app, "txtToneAmplitude", "99999999999")
+            press_ok(app)
+            check_saved(app, {"/Audio/fifoSize_ms": 10000})
+            open_settings(app, "Debugging")
+            check_values(app, {"txtToneFreqHz": "20000", "txtToneAmplitude": "32767"})
+            press_cancel(app)
+
+            open_settings(app, "Rig Control")
+            set_value(app, "txtTxRxDelayMilliseconds", "99999999999")
+            set_value(app, "txtTOTTimerSecs", "99999999999")
+            press_ok(app)
+            check_saved(app, {"/Audio/TxRxDelayMilliseconds": 10000, "/Rig/TotTimerSecs": 86400})
+
+            open_settings(app, "Voice Keyer")
+            set_value(app, "txtCtrlVoiceKeyerRxPause", "3000000000")
+            set_value(app, "txtCtrlVoiceKeyerRepeats", "-5")
+            press_ok(app)
+            check_saved(app, {"/VoiceKeyer/RxPause": 3600, "/VoiceKeyer/Repeats": 0})
+
+            open_settings(app, "Modem")
+            set_value(app, "statsResetTime", "99999999999")
+            press_ok(app)
+            check_saved(app, {"/Stats/ResetTime": 86400})
+
+            # The tone's frequency and amplitude are used as they stand, so
+            # start FreeDV with the junk still in the fields.
+            start_modem(app)
+            stop_modem(app)
+            quit_and_check_log(app)
+
+
+def test_out_of_range_config():
+    """Numbers in the configuration file that can't be used as they stand,
+    as anything can be written there: too big or small for what they're
+    used for, or for the type they're read into. Each is brought within its
+    range (or, where it doesn't fit its type at all, back to its default),
+    shown that way in Settings, and FreeDV still starts."""
+    settings = audio_settings()
+    settings.update({"/Reporting/Enable": True, "/Reporting/Callsign": "AA1ZZZ", "/Reporting/GridSquare": "DM12",
+                     "/Reporting/UDP/Enable": True, "/Reporting/UDP/Hostname": "192.0.2.1",
+                     "/Reporting/FreeDV/Hostname": NOWHERE, "/Reporting/FreeDV/UseTls": False,
+                     "/Reporting/UDP/Port": 70000,
+                     "/Audio/fifoSize_ms": 40000000,
+                     "/Audio/TxRxDelayMilliseconds": 99999,
+                     "/Rig/TotTimerSecs": -5,
+                     "/VoiceKeyer/Repeats": 99999999999,
+                     "/Stats/ResetTime": 99999999999})
+    with audio_devices():
+        with freedvtest.start(settings=settings) as app:
+            open_settings(app, "Debugging")
+            check_values(app, {"txtCtrlFifoSize": "10000"})
+            go_to_tab(app, "Rig Control")
+            check_values(app, {"txtTxRxDelayMilliseconds": "10000", "txtTOTTimerSecs": "0"})
+            go_to_tab(app, "Voice Keyer")
+            check_values(app, {"txtCtrlVoiceKeyerRepeats": "5"})
+            go_to_tab(app, "Modem")
+            check_values(app, {"statsResetTime": "10"})
+            go_to_tab(app, "Reporting")
+            check_values(app, {"udpPort": "65535"})
+            press_cancel(app)
+
+            start_modem(app)
+            stop_modem(app)
+            quit_and_check_log(app)
 
 
 def test_ptt_key_names():
@@ -1454,8 +1595,26 @@ def test_auto_start():
         shutil.rmtree(config_dir, ignore_errors=True)
 
 
+RUNNING_NOTES = [("RX Audio", "runningNoteRxAudio"), ("TX Audio", "runningNoteTxAudio"),
+                 ("Radio", "runningNoteRadio"), ("Rig Control", "runningNoteRigControl"),
+                 ("Debugging", "runningNoteDebug")]
+
+
+def check_running_notes(app, shown):
+    """Whether each page's note about FreeDV running is shown and, when it
+    is, that it's all on one line: there's room for it on every page."""
+    for tab, note in RUNNING_NOTES:
+        go_to_tab(app, tab)
+        info = app.get(name(note))
+        check_equal(info["shown"], shown, "Note on the %s page shown" % tab)
+        check("\n" not in info["label"], "Note on the %s page wraps at %d pixels: %r"
+              % (tab, info["clientSize"][0], info["label"]))
+
+
 def test_while_running():
-    """Some settings can't be changed while FreeDV is running."""
+    """Everything in Settings can be changed while FreeDV is running. The
+    pages where applying a change restarts the audio or reconnects to the
+    radio say so."""
     reporting = ["ckboxReportingEnable", "txt_callsign", "txt_grid_square", "ckboxManualFrequencyReporting",
                  "ckboxPskReporterEnable", "ckboxFreeDVReporterEnable", "useMetricDistances",
                  "freedvReporterHostname", "ckboxFreeDVReporterUseTls", "ckboxFreeDVReporterForceReceiveOnly",
@@ -1464,6 +1623,9 @@ def test_while_running():
     rig_control = ["ckboxEnableFreqModeChanges", "ckboxEnableFreqChangesOnly", "ckboxNoFreqModeChanges",
                    "ckboxUseAnalogModes", "ckboxSaveRestoreFrequency", "ckboxEnableSpacebarForPTT",
                    "txtTxRxDelayMilliseconds"]
+
+    def check_notes(shown):
+        check_running_notes(app, shown)
 
     settings = audio_settings()
     settings.update({
@@ -1477,29 +1639,57 @@ def test_while_running():
             check_enabled(app, reporting, True)
             go_to_tab(app, "Rig Control")
             check_enabled(app, rig_control, True)
+            check_notes(False)
             press_cancel(app)
 
             start_modem(app)
             open_settings(app, "Reporting")
-            check_enabled(app, reporting, False)
+            check_enabled(app, reporting, True)
             go_to_tab(app, "Rig Control")
-            check_enabled(app, rig_control, False)
+            check_enabled(app, rig_control, True)
+            check_notes(True)
 
-            # Everything else still can be, and is saved.
+            # What's changed is saved, and FreeDV carries on running.
+            go_to_tab(app, "Rig Control")
+            set_value(app, "txtTxRxDelayMilliseconds", "250")
             go_to_tab(app, "Modem")
             set_value(app, "statsResetTime", "30")
+            go_to_tab(app, "Reporting")
+            set_value(app, "txt_callsign", "AB2YYY")
             press_ok(app)
-            check_saved(app, {"/Stats/ResetTime": 30, "/Reporting/Enable": 1, "/Reporting/Callsign": "AA1ZZZ"})
+            app.wait_until(lambda: app.get("main.btnOnOff")["enabled"], description="the settings to be applied")
+            check_saved(app, {"/Stats/ResetTime": 30, "/Audio/TxRxDelayMilliseconds": 250,
+                              "/Reporting/Enable": 1, "/Reporting/Callsign": "AB2YYY"})
             check(app.state()["running"], "Changing settings stopped FreeDV")
+            check_equal(app.message_boxes(), [], "Errors displayed")
 
             stop_modem(app)
             open_settings(app, "Reporting")
             check_enabled(app, reporting, True)
             go_to_tab(app, "Rig Control")
             check_enabled(app, rig_control, True)
+            check_notes(False)
             press_cancel(app)
 
-            quit_and_check_log(app)
+
+def test_opened_while_running():
+    """Settings opened for the first time once FreeDV is already running, so
+    that the notes are put up before the window has been shown, and the
+    pages given their sizes, at all."""
+    with audio_devices():
+        with freedvtest.start(settings=audio_settings()) as app:
+            start_modem(app)
+            open_settings(app, "RX Audio")
+            check_running_notes(app, True)
+            press_cancel(app)
+
+            # And once FreeDV stops and starts again with the window shut.
+            stop_modem(app)
+            start_modem(app)
+            open_settings(app, "RX Audio")
+            check_running_notes(app, True)
+            press_cancel(app)
+            stop_modem(app)
 
 
 SCENARIOS = {
@@ -1515,9 +1705,12 @@ SCENARIOS = {
     "voice_keyer": test_voice_keyer,
     "display": test_display,
     "modem_and_debugging": test_modem_and_debugging,
+    "invalid_numbers": test_invalid_numbers,
+    "out_of_range_config": test_out_of_range_config,
     "ptt_key_names": test_ptt_key_names,
     "auto_start": test_auto_start,
     "while_running": test_while_running,
+    "opened_while_running": test_opened_while_running,
 }
 
 

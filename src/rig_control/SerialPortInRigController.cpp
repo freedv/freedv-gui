@@ -35,33 +35,38 @@ SerialPortInRigController::SerialPortInRigController(std::string serialPort, boo
     , firstPoll_(true)
     , suspendChanges_(false)
 {
-    // Perform required initialization on successful connection.
-    onRigConnected = [&](IRigController*) {
-        // Set RTS and DTR enabled for certain PTT input interfaces.
-        raiseRTS_();
-        raiseDTR_();
+    // empty
+}
 
-        // Start polling thread.
-        threadExiting_ = false;
-        currentPttInputState_ = false;
-        firstPoll_ = true;
-        pollThread_ = std::thread(std::bind(&SerialPortInRigController::pollThreadEntry_, this));
-    };
+void SerialPortInRigController::onConnected_()
+{
+    // Set RTS and DTR enabled for certain PTT input interfaces.
+    raiseRTS_();
+    raiseDTR_();
 
-    onRigDisconnected = [&](IRigController*) {
-        threadExiting_ = true;
-        if (pollThread_.joinable())
-        {
-            pollThread_.join();
-        }
-    };
+    // Start polling thread.
+    threadExiting_ = false;
+    currentPttInputState_ = false;
+    firstPoll_ = true;
+    pollThread_ = std::thread(std::bind(&SerialPortInRigController::pollThreadEntry_, this));
+}
+
+void SerialPortInRigController::onDisconnected_()
+{
+    threadExiting_ = true;
+    if (pollThread_.joinable())
+    {
+        pollThread_.join();
+    }
 }
 
 SerialPortInRigController::~SerialPortInRigController()
 {
     // Stop polling from the controller's own thread. A disconnect requested
     // just before destruction may still be in progress there, and that uses
-    // both the disconnection handlers and the polling thread.
+    // the polling thread. The disconnection handlers are dropped too, so the
+    // disconnect ~SerialPortRigController() makes doesn't report one to an
+    // application that's letting go of this controller.
     std::shared_ptr<std::promise<void>> prom = std::make_shared<std::promise<void>>();
     auto fut = prom->get_future();
     enqueue_([this, prom]() {

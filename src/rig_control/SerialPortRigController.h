@@ -70,6 +70,15 @@ protected:
     // deadlocks if tcgetattr or tcsetattr are called.
     virtual bool shouldConfigureTermios_() const { return true; }
 
+    // Called on the controller's thread once the port is open, just before
+    // onRigConnected's handlers, and once it's closed, just before
+    // onRigDisconnected's. For a derived controller's own setup and teardown:
+    // the handler lists are the application's, which can replace or clear
+    // them. (Not reached from ~SerialPortRigController(), by which time the
+    // derived part is gone; a derived destructor does its own teardown.)
+    virtual void onConnected_() {}
+    virtual void onDisconnected_() {}
+
     void raiseDTR_(void);
     void lowerDTR_(void);
     void raiseRTS_(void);

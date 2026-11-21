@@ -35,24 +35,27 @@
 #include "PortAudioEngine.h"
 #endif // defined(AUDIO_ENGINE_NATIVE_ENABLE)
 
-std::shared_ptr<IAudioEngine> AudioEngineFactory::SystemEngine_;
-
 std::shared_ptr<IAudioEngine> AudioEngineFactory::GetAudioEngine()
 {
-    if (!SystemEngine_)
-    {
+    // Made once, the first time it's asked for. A local static does that in
+    // a single step even when two threads ask at once -- the GUI does when
+    // it fills in the Options dialog and a Start worker does when it sets
+    // the session up -- whereas checking a shared pointer and then building
+    // it lets both build one: the loser is freed while something is still
+    // using it, and the sound server is left with two engines' connections.
+    static std::shared_ptr<IAudioEngine> systemEngine = []() {
 #if defined(AUDIO_ENGINE_NATIVE_ENABLE)
 #if defined(__linux)
-        SystemEngine_ = std::shared_ptr<IAudioEngine>(new PulseAudioEngine());
+        return std::shared_ptr<IAudioEngine>(new PulseAudioEngine());
 #elif defined(__APPLE__)
-        SystemEngine_ = std::shared_ptr<IAudioEngine>(new MacAudioEngine());
+        return std::shared_ptr<IAudioEngine>(new MacAudioEngine());
 #elif defined(_WIN32)
-        SystemEngine_ = std::shared_ptr<IAudioEngine>(new WASAPIAudioEngine());
+        return std::shared_ptr<IAudioEngine>(new WASAPIAudioEngine());
 #endif // __linux || __APPLE__ || _WIN32
 #else
-        SystemEngine_ = std::shared_ptr<IAudioEngine>(new PortAudioEngine());
+        return std::shared_ptr<IAudioEngine>(new PortAudioEngine());
 #endif // defined(AUDIO_ENGINE_NATIVE_ENABLE)
-    }
-    
-    return SystemEngine_;
+    }();
+
+    return systemEngine;
 }

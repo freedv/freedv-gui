@@ -104,10 +104,13 @@ const char* AudioConfiguration::AudioDeviceConfigName<2, AudioConfiguration::DIR
 
 template<int DeviceId, AudioConfiguration::Direction AudioDirection>
 AudioConfiguration::SoundDevice<DeviceId, AudioDirection>::SoundDevice()
-    : deviceName(AudioConfiguration::AudioDeviceConfigName<DeviceId, AudioDirection>::GetDeviceNameConfigName(), "none")
-    , sampleRate(AudioConfiguration::AudioDeviceConfigName<DeviceId, AudioDirection>::GetSampleRateConfigName(), -1)
+    : deviceName(AudioConfiguration::AudioDeviceConfigName<DeviceId, AudioDirection>::GetDeviceNameConfigName(), "none", ConfigChange::RESTARTS_AUDIO)
+    , sampleRate(AudioConfiguration::AudioDeviceConfigName<DeviceId, AudioDirection>::GetSampleRateConfigName(), -1, ConfigChange::RESTARTS_AUDIO)
 {
-    // empty
+    // -1 for the device's own. The FIFOs are sized from this before the
+    // device is opened, so one hand-written into the config file can't be
+    // left big enough to overflow that.
+    sampleRate.setLimits(-1, 768000);
 }
 
 template<int DeviceId, AudioConfiguration::Direction AudioDirection>

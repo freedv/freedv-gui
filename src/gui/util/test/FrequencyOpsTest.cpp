@@ -112,6 +112,39 @@ bool upperSidebandJustOutside60MetersDigital()
     return result;
 }
 
+// Going to a station on the sideband it's said it's on: that sideband,
+// whatever the band's usual one, in the same kind of mode (data or not) as
+// GetModeForFrequency() would use. Not known: as GetModeForFrequency().
+bool followsGivenSideband()
+{
+    using Sideband = IReporter::Sideband;
+    bool result = true;
+    for (uint64_t frequency : { 7177000ULL, 5403500ULL, 14236000ULL })
+    {
+        for (bool useAnalog : { false, true })
+        {
+            for (bool inAnalog : { false, true })
+            {
+                bool analogMode = useAnalog || inAnalog;
+                result &= (GetModeForSideband(frequency, Sideband::LSB, useAnalog, inAnalog) ==
+                           (analogMode ? HamlibRigController::LSB : HamlibRigController::DIGL));
+                result &= (GetModeForSideband(frequency, Sideband::USB, useAnalog, inAnalog) ==
+                           (analogMode ? HamlibRigController::USB : HamlibRigController::DIGU));
+                result &= (GetModeForSideband(frequency, Sideband::UNKNOWN, useAnalog, inAnalog) ==
+                           GetModeForFrequency(frequency, useAnalog, inAnalog));
+            }
+        }
+    }
+    return result;
+}
+
+bool lowerSidebandModes()
+{
+    return IsLowerSidebandMode(HamlibRigController::LSB) && IsLowerSidebandMode(HamlibRigController::DIGL) &&
+           !IsLowerSidebandMode(HamlibRigController::USB) && !IsLowerSidebandMode(HamlibRigController::DIGU) &&
+           !IsLowerSidebandMode(HamlibRigController::AM) && !IsLowerSidebandMode(HamlibRigController::UNKNOWN);
+}
+
 }
 
 int main()
@@ -124,5 +157,7 @@ int main()
     executeTestCase("upperSidebandOn60MetersDigital", upperSidebandOn60MetersDigital);
     executeTestCase("lowerSidebandJustOutside60MetersAnalog", lowerSidebandJustOutside60MetersAnalog);
     executeTestCase("upperSidebandJustOutside60MetersDigital", upperSidebandJustOutside60MetersDigital);
+    executeTestCase("followsGivenSideband", followsGivenSideband);
+    executeTestCase("lowerSidebandModes", lowerSidebandModes);
     return testResult();
 }

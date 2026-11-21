@@ -12,6 +12,10 @@
 
 extern wxMutex g_mutexProtectingCallbackData;
 extern std::mutex g_mutexProtectingPlayFiles;
+// Guards the record handles below (and g_sfRecFileFromModulator) against
+// RecordStep's file thread: see main.cpp for why it's separate from the
+// callback mutex.
+extern std::mutex g_mutexProtectingRecordFiles;
 std::atomic<SNDFILE*> g_sfPlayFile;
 // Read state for g_sfPlayFile when it was opened from VoiceKeyerFileCache.
 // Must be released only after g_sfPlayFile is closed.
@@ -212,15 +216,33 @@ void MainFrame::StopRecFileFromRadio()
     if (g_sfRecFile.load(std::memory_order_acquire) != nullptr)
     {
         log_debug("Stopping Record....");
+
+        // The handles go null under the mutex RecordStep's file thread
+        // takes around its write, and the files are closed once that's
+        // dropped: a write already under way then finishes in the file it
+        // started with instead of one that's gone.
+        SNDFILE* recordFile = nullptr;
+        SNDFILE* modulatorRecordFile = nullptr;
+        {
+            std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+            recordFile = g_sfRecFile.exchange(nullptr, std::memory_order_acq_rel);
+            modulatorRecordFile = g_sfRecFileFromModulator.exchange(nullptr, std::memory_order_acq_rel);
+        }
+
         g_mutexProtectingCallbackData.Lock();
         g_recFileFromRadio.store(false, std::memory_order_release);
         g_recFileFromModulator = false;
-        sf_close(g_sfRecFile.load(std::memory_order_acquire));
-        g_sfRecFile.store(nullptr, std::memory_order_release);
-        g_sfRecFileFromModulator = nullptr;
         SetStatusText(wxT(""));
-        
         g_mutexProtectingCallbackData.Unlock();
+
+        if (recordFile != nullptr)
+        {
+            sf_close(recordFile);
+        }
+        if (modulatorRecordFile != nullptr && modulatorRecordFile != recordFile)
+        {
+            sf_close(modulatorRecordFile);
+        }
         
         m_audioRecord->SetValue(false);
         m_audioRecord->SetBackgroundColour(wxNullColour);
@@ -232,13 +254,23 @@ void MainFrame::StopRecFileFromDecoder()
     if (g_sfRecDecoderFile.load(std::memory_order_acquire) != nullptr)
     {
         log_debug("Stopping Record....");
+
+        // Detached and closed the same way as the radio's record file.
+        SNDFILE* decoderRecordFile = nullptr;
+        {
+            std::unique_lock<std::mutex> lkRecordFiles(g_mutexProtectingRecordFiles);
+            decoderRecordFile = g_sfRecDecoderFile.exchange(nullptr, std::memory_order_acq_rel);
+        }
+
         g_mutexProtectingCallbackData.Lock();
         g_recFileFromDecoder.store(false, std::memory_order_release);
-        sf_close(g_sfRecDecoderFile.load(std::memory_order_acquire));
-        g_sfRecDecoderFile.store(nullptr, std::memory_order_release);
         SetStatusText(wxT(""));
-        
         g_mutexProtectingCallbackData.Unlock();
+
+        if (decoderRecordFile != nullptr)
+        {
+            sf_close(decoderRecordFile);
+        }
         
         m_audioRecord->SetValue(false);
         m_audioRecord->SetBackgroundColour(wxNullColour);

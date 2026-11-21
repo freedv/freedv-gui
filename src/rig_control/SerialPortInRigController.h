@@ -53,6 +53,9 @@ private:
     // deadlocks if tcgetattr or tcsetattr are called.
     virtual bool shouldConfigureTermios_() const override { return false; }
 
+    virtual void onConnected_() override;
+    virtual void onDisconnected_() override;
+
     bool getCTS_(void);
 
     void pollThreadEntry_();

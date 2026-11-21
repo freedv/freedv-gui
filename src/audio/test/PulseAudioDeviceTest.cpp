@@ -10,6 +10,8 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <atomic>
+#include <future>
 
 #include <semaphore.h>
 
@@ -59,16 +61,19 @@ struct PulseAudioDeviceTestAccess
         return name;
     }
 
-    // What starting a device does, once its stream is connected, for the
-    // thread that works to the stream's timing to wait on.
+    // What starting a device does, once its stream is connected and its
+    // semaphore is set up, for the thread that works to the stream's timing
+    // to wait on.
     static void prepareToPaceWork(PulseAudioDevice& device)
     {
         sem_init(&device.sem_, 0, 0);
+        device.semReady_ = true;
     }
 
     static void finishedPacingWork(PulseAudioDevice& device)
     {
         sem_destroy(&device.sem_);
+        device.semReady_ = false;
     }
 };
 
@@ -81,25 +86,41 @@ const char* const NO_SOUND_SERVER = "unix:/nonexistent/freedv-test-pulse-socket"
 
 const char* const MISSING_DEVICE = "FreeDVTestMissingDevice";
 
-// Where this was told to find the sound server when it was run, if anywhere.
+// Where this was told to find the sound server when it was run, if anywhere,
+// and the X display, which libpulse also asks.
 const char* const originalSoundServer = getenv("PULSE_SERVER") != nullptr ? strdup(getenv("PULSE_SERVER")) : nullptr;
+const char* const originalDisplay = getenv("DISPLAY") != nullptr ? strdup(getenv("DISPLAY")) : nullptr;
+
+void restoreVariable(const char* name, const char* value)
+{
+    if (value != nullptr)
+    {
+        setenv(name, value, 1);
+    }
+    else
+    {
+        unsetenv(name);
+    }
+}
 
 void useNoSoundServer()
 {
     setenv("PULSE_SERVER", NO_SOUND_SERVER, 1);
+
+    // Every connection makes libpulse read its client configuration again,
+    // which includes asking the X display where the sound server is
+    // (pa_client_conf_from_x11). That's microseconds on a desktop, but can be
+    // seconds under the loaded Xvfb a full CTest run leaves behind, enough to
+    // turn a case that connects in a loop into minutes. With no sound server
+    // there's nothing for it to find, so don't ask.
+    unsetenv("DISPLAY");
 }
 
 // The one that FreeDV itself would use, if there is one.
 void useUsualSoundServer()
 {
-    if (originalSoundServer != nullptr)
-    {
-        setenv("PULSE_SERVER", originalSoundServer, 1);
-    }
-    else
-    {
-        unsetenv("PULSE_SERVER");
-    }
+    restoreVariable("PULSE_SERVER", originalSoundServer);
+    restoreVariable("DISPLAY", originalDisplay);
 }
 
 // What PulseAudioEngine::start() and PulseAudioDevice::start() report when
@@ -997,6 +1018,355 @@ bool deviceSpecificationsFallBackToTheirServerNamesForDisplay()
     }
     return true;
 }
+
+// A stream the running server refuses (there's no such sink or source to
+// connect to) leaves the device not running: FreeDV asks isRunning() right
+// after start() and otherwise goes ahead with a session that can never
+// carry audio. Stopping it must also be clean -- the stream exists but
+// nothing was ever set up to pace work to it -- and it's stopped and
+// destroyed twice over, as FreeDV's own cleanup and the destructor do.
+bool aDeviceTheServerRefusesTheStreamForIsNotRunning()
+{
+    if (!soundServerReachable())
+    {
+        std::cout << "[no sound server to try this with] ";
+        return true;
+    }
+    useUsualSoundServer();
+
+    auto device = PulseAudioDeviceTestAccess::create(MISSING_DEVICE, IAudioEngine::AUDIO_ENGINE_IN, 48000, 2);
+
+    std::vector<std::string> reported;
+    device->setOnAudioError(&recordDeviceError, &reported);
+
+    device->start();
+    bool runningAfterRefusedConnect = device->isRunning();
+    device->stop();
+    device->stop();
+    bool runningAfterStop = device->isRunning();
+
+    useNoSoundServer();
+
+    bool refused = std::any_of(reported.begin(), reported.end(), [](std::string const& error) {
+        return error.find("Could not connect PulseAudio stream to ") != std::string::npos;
+    });
+
+    if (!refused)
+    {
+        // PipeWire records from the default source rather than refusing a
+        // name it doesn't have, so there's no refused stream to check here.
+        std::cout << "[the sound server took the missing device name] ";
+        return !runningAfterStop;
+    }
+
+    if (runningAfterRefusedConnect || runningAfterStop)
+    {
+        std::cout << "[running after start(): " << runningAfterRefusedConnect
+                  << ", after stop(): " << runningAfterStop << "] ";
+        return false;
+    }
+    return true;
+}
+
+// A device that never got a stream has no stream to be paced by, so the
+// wait its worker thread makes falls back to a plain sleep rather than to a
+// semaphore that start() never set up.
+bool aDeviceWithoutAStreamPacesWorkWithAPlainSleep()
+{
+    useNoSoundServer();
+
+    auto device = PulseAudioDeviceTestAccess::create(MISSING_DEVICE, IAudioEngine::AUDIO_ENGINE_IN, 8000, 1);
+    device->start();
+    if (device->isRunning())
+    {
+        std::cout << "[started without a sound server] ";
+        device->stop();
+        return false;
+    }
+
+    device->startRealTimeWork();
+    auto begin = std::chrono::steady_clock::now();
+    device->stopRealTimeWork();
+    auto waitedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - begin).count();
+    device->stop();
+
+    if (waitedMs < 0 || waitedMs > 500)
+    {
+        std::cout << "[waited " << waitedMs << " ms without a stream] ";
+        return false;
+    }
+    return true;
+}
+
+// Asking for devices uses the engine's connection, and stop() destroys it.
+// Unless both take the engine's start/stop lock, one thread can be left
+// holding a main loop and context that another has just freed. Built with
+// ThreadSanitizer, this fails if the two ever stop serializing.
+bool deviceEnumerationIsSerializedAgainstEngineStartAndStop()
+{
+    useNoSoundServer();
+
+    PulseAudioEngine engine;
+    std::atomic<bool> finished{false};
+    int numListed = 0;
+
+    std::thread startAndStop([&]() {
+        // (Quick to go round, as useNoSoundServer() keeps libpulse from
+        // asking the X display on every start().)
+        while (!finished.load())
+        {
+            engine.start();
+            engine.stop();
+        }
+    });
+
+    for (int iteration = 0; iteration < 200; iteration++)
+    {
+        numListed += engine.getAudioDeviceList(IAudioEngine::AUDIO_ENGINE_IN).size();
+        engine.getDefaultAudioDevice(IAudioEngine::AUDIO_ENGINE_IN);
+    }
+
+    finished.store(true);
+    startAndStop.join();
+
+    // With no sound server there's nothing to list either way; what matters
+    // is that the two never touched the connection at the same time.
+    return numListed == 0;
+}
+
+// A device's running state is asked from a thread other than the one that
+// starts and stops it: startRxStream() asks isRunning() on the "TurningOn"
+// worker, while a close that the worker outlasts takes the same devices down
+// from the UI thread (topFrame_OnClose() says so outright). start() and
+// stopImpl_() write the device's stream pointer under objLock_, and every
+// other read of it holds that lock -- but isRunning() read it with nothing,
+// so a reader could pick up the pointer of a stream another thread was in the
+// middle of freeing. Built with ThreadSanitizer, this fails if the two ever
+// touch it unsynchronized.
+bool runningStateIsSynchronizedAgainstDeviceStartAndStop()
+{
+    if (!soundServerReachable())
+    {
+        std::cout << "[no sound server to try this with] ";
+        return true;
+    }
+
+    useUsualSoundServer();
+
+    // A sink of our own, so that the connects and disconnects are real ones
+    // and take the time a real stream's teardown does.
+    auto module = loadNullSink("FreeDVTestRaceSink");
+    auto device = PulseAudioDeviceTestAccess::create("FreeDVTestRaceSink", IAudioEngine::AUDIO_ENGINE_OUT, 48000, 2);
+
+    std::atomic<bool> finished{false};
+    std::atomic<int> asked{0};
+    std::atomic<int> sawRunning{0};
+
+    std::thread startAndStop([&, module]() {
+        for (int iteration = 0; iteration < 100 && !finished.load(); iteration++)
+        {
+            device->start();
+            // Leave the stream up long enough for the other thread to ask
+            // about it while it's there, as it is between the check
+            // startRxStream() makes and a close that overtakes it.
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            device->stop();
+        }
+        finished.store(true);
+    });
+
+    std::thread asking([&]() {
+        while (!finished.load())
+        {
+            asked++;
+            if (device->isRunning()) sawRunning++;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    });
+
+    startAndStop.join();
+    asking.join();
+    unloadModule(module);
+    useNoSoundServer();
+
+    // Nothing may say it's running once the stream it was asked about is gone.
+    if (device->isRunning())
+    {
+        std::cout << "[running after the last stop()] ";
+        return false;
+    }
+
+    // The two did overlap: a reader that never caught a live stream never had
+    // a creation or a teardown to race with either.
+    if (asked.load() < 50 || sawRunning.load() == 0)
+    {
+        std::cout << "[" << asked.load() << " ask(s), " << sawRunning.load()
+                  << " of them while running] ";
+        return false;
+    }
+    return true;
+}
+
+// The handler an engine reports errors to is replaced by the application
+// while another thread may be reporting to it: ~MainFrame() and
+// stopRxStream() clear it on the UI thread while the "TurningOn" worker is
+// inside engine->start(). It's a std::function and a state pointer assigned
+// by two separate stores, so a thread reporting an error can read a handler
+// another thread is already freeing, or a handler paired with the state some
+// other registration installed. Each registration here checks that the state
+// it's handed is the one registered with it. Built with ThreadSanitizer, this
+// fails if the pair is ever touched unsynchronized.
+std::atomic<int> engineErrorReports{0};
+std::atomic<int> engineErrorMismatches{0};
+
+constexpr int FIRST_REGISTRATION = 1;
+constexpr int SECOND_REGISTRATION = 2;
+int firstState = FIRST_REGISTRATION;
+int secondState = SECOND_REGISTRATION;
+
+void checkFirstHandler(IAudioEngine&, std::string const&, void* state)
+{
+    engineErrorReports++;
+    if (state == nullptr || *static_cast<int*>(state) != FIRST_REGISTRATION) engineErrorMismatches++;
+}
+
+void checkSecondHandler(IAudioEngine&, std::string const&, void* state)
+{
+    engineErrorReports++;
+    if (state == nullptr || *static_cast<int*>(state) != SECOND_REGISTRATION) engineErrorMismatches++;
+}
+
+bool engineErrorHandlersAreNotReplacedWhileReporting()
+{
+    useNoSoundServer();
+
+    PulseAudioEngine engine;
+    std::atomic<bool> finished{false};
+    std::atomic<int> starts{0};
+    engineErrorReports.store(0);
+    engineErrorMismatches.store(0);
+
+    // Each start() with no sound server to connect to reports one error,
+    // which is one read of the handler and its state on this thread.
+    std::thread reporting([&]() {
+        while (!finished.load())
+        {
+            engine.start();
+            starts++;
+            engine.stop();
+        }
+    });
+
+    // Keep replacing the pair while the other thread works. A burst of its
+    // own would be over before a start() of theirs got as far as reporting.
+    while (starts.load() < 50)
+    {
+        engine.setOnEngineError(&checkFirstHandler, &firstState);
+        engine.setOnEngineError(&checkSecondHandler, &secondState);
+    }
+
+    finished.store(true);
+    reporting.join();
+    engine.setOnEngineError(nullptr, nullptr);
+
+    if (engineErrorMismatches.load() > 0)
+    {
+        std::cout << "[" << engineErrorMismatches.load() << " of " << engineErrorReports.load()
+                  << " report(s) got another registration's state] ";
+        return false;
+    }
+
+    // The two did overlap; otherwise there was nothing to race with.
+    if (engineErrorReports.load() == 0)
+    {
+        std::cout << "[the engine reported nothing while its handler was replaced] ";
+        return false;
+    }
+    return true;
+}
+// Clearing the handler has to wait for a report another thread is already
+// making: ~MainFrame() clears it and goes on to free the MainFrame the handler
+// was handed, so a report still running then would use it after it's gone.
+std::atomic<bool> slowHandlerEntered{false};
+std::atomic<bool> slowHandlerReturned{false};
+
+void slowHandler(IAudioEngine&, std::string const&, void*)
+{
+    slowHandlerEntered.store(true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    slowHandlerReturned.store(true);
+}
+
+bool clearingTheHandlerWaitsForReportsInFlight()
+{
+    useNoSoundServer();
+
+    PulseAudioEngine engine;
+    slowHandlerEntered.store(false);
+    slowHandlerReturned.store(false);
+    engine.setOnEngineError(&slowHandler, nullptr);
+
+    // start() with no sound server to connect to reports one error.
+    std::thread reporting([&]() {
+        engine.start();
+        engine.stop();
+    });
+
+    while (!slowHandlerEntered.load())
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    engine.setOnEngineError(nullptr, nullptr);
+    bool returnedFirst = slowHandlerReturned.load();
+    reporting.join();
+
+    if (!returnedFirst)
+    {
+        std::cout << "[setOnEngineError() returned while the old handler was still running] ";
+        return false;
+    }
+    return true;
+}
+
+// A handler may replace the registration itself; the report it's being
+// called from mustn't then be one the replacement waits for.
+std::atomic<int> handlerReplacedItself{0};
+
+void replaceSelfHandler(IAudioEngine& engine, std::string const&, void*)
+{
+    engine.setOnEngineError(nullptr, nullptr);
+    handlerReplacedItself++;
+}
+
+bool handlerCanReplaceItsOwnRegistration()
+{
+    useNoSoundServer();
+
+    PulseAudioEngine engine;
+    handlerReplacedItself.store(0);
+    engine.setOnEngineError(&replaceSelfHandler, nullptr);
+
+    auto done = std::async(std::launch::async, [&]() {
+        engine.start();
+        engine.stop();
+    });
+    if (done.wait_for(std::chrono::seconds(10)) != std::future_status::ready)
+    {
+        // The report is stuck waiting for itself; nothing more can be done
+        // here than say so (the thread can't be joined).
+        std::cout << "[a handler replacing its own registration hangs] ";
+        std::_Exit(1);
+    }
+    done.get();
+
+    if (handlerReplacedItself.load() != 1)
+    {
+        std::cout << "[handler ran " << handlerReplacedItself.load() << " time(s)] ";
+        return false;
+    }
+    return true;
+}
 } // namespace
 
 int main()
@@ -1027,6 +1397,13 @@ int main()
     executeTestCase("aMovedStreamCarriesOnWithTheNewDeviceName", aMovedStreamCarriesOnWithTheNewDeviceName);
     executeTestCase("destroyingTheEngineWithoutStoppingItLeavesTheServerUsable", destroyingTheEngineWithoutStoppingItLeavesTheServerUsable);
     executeTestCase("deviceSpecificationsFallBackToTheirServerNamesForDisplay", deviceSpecificationsFallBackToTheirServerNamesForDisplay);
+    executeTestCase("aDeviceTheServerRefusesTheStreamForIsNotRunning", aDeviceTheServerRefusesTheStreamForIsNotRunning);
+    executeTestCase("aDeviceWithoutAStreamPacesWorkWithAPlainSleep", aDeviceWithoutAStreamPacesWorkWithAPlainSleep);
+    executeTestCase("deviceEnumerationIsSerializedAgainstEngineStartAndStop", deviceEnumerationIsSerializedAgainstEngineStartAndStop);
+    executeTestCase("runningStateIsSynchronizedAgainstDeviceStartAndStop", runningStateIsSynchronizedAgainstDeviceStartAndStop);
+    executeTestCase("engineErrorHandlersAreNotReplacedWhileReporting", engineErrorHandlersAreNotReplacedWhileReporting);
+    executeTestCase("clearingTheHandlerWaitsForReportsInFlight", clearingTheHandlerWaitsForReportsInFlight);
+    executeTestCase("handlerCanReplaceItsOwnRegistration", handlerCanReplaceItsOwnRegistration);
 
     return testResult();
 }

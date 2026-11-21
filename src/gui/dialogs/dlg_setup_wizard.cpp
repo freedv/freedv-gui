@@ -1124,8 +1124,12 @@ void SetupWizard::saveConfig()
         if (rateStr == "default")
             cfg.rigControlConfiguration.hamlibSerialRate = 0;
         else {
-            long r; rateStr.ToLong(&r);
-            cfg.rigControlConfiguration.hamlibSerialRate = (unsigned int)r;
+            // (The list only offers rates, but the box can be typed into:
+            // what isn't one is taken as Hamlib's default rather than
+            // wrapped into some other number.)
+            long r = 0;
+            cfg.rigControlConfiguration.hamlibSerialRate =
+                (rateStr.Strip(wxString::both).ToLong(&r) && r > 0) ? (unsigned int)r : 0;
         }
     }
     cfg.rigControlConfiguration.hamlibPTTType = m_cbPttMethod->GetCurrentSelection();
