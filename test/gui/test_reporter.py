@@ -2510,6 +2510,38 @@ def test_selection():
             quit_and_check_log(app)
 
 
+def test_window_position():
+    """The window goes back where it was left, wherever that is on the
+    display, as the main window does (see test_main_window.py's
+    test_window_position()), and is brought back onto the display when too
+    little of its title bar would be on it. On a 3840x2160 display of its
+    own with no window manager, so that the window goes exactly where
+    FreeDV puts it."""
+    with freedvtest.private_display(3840, 2160) as env:
+        if env is None:
+            print("SKIPPED: needs Xvfb", flush=True)
+            sys.exit(SKIPPED)
+
+        with ReporterServer() as server:
+            def saved_geometry(left, top, width=1200, height=500):
+                extra = {"/Windows/FreeDVReporter/left": left, "/Windows/FreeDVReporter/top": top,
+                         "/Windows/FreeDVReporter/width": width, "/Windows/FreeDVReporter/height": height}
+                with freedvtest.start(settings=reporter_settings(server.hostname, **extra), env=env) as app:
+                    app.wait_for_window("main")
+                    app.menu("Tools/FreeDV Reporter")
+                    app.wait_for_window("reporter")
+                    quit_and_check_log(app)
+                    saved = freedvtest.read_config(app.config_path)
+                return tuple(int(saved["/Windows/FreeDVReporter/" + name])
+                             for name in ("left", "top", "width", "height"))
+
+            check_equal(saved_geometry(2500, 1500), (2500, 1500, 1200, 500), "Window left beyond 2048 pixels")
+            check_equal(saved_geometry(3791, 100), (20, 20, 1200, 500),
+                        "Window with 49 pixels of its title bar on the display")
+            check_equal(saved_geometry(100, -500), (20, 20, 1200, 500), "Window above the display")
+            check_equal(saved_geometry(100, 100, 5000, 3000), (100, 100, 3840, 2160), "Window bigger than the display")
+
+
 def test_window():
     """Opening and closing the window, and it remembering how it was left."""
     config_dir = tempfile.mkdtemp(prefix="freedvtest-config-")
@@ -3074,6 +3106,7 @@ SCENARIOS = {
     "saved_filters": test_saved_filters,
     "selection": test_selection,
     "window": test_window,
+    "window_position": test_window_position,
     "connection_burst": test_connection_burst,
     "frequency_in_khz": test_frequency_in_khz,
     "sideband": test_sideband,

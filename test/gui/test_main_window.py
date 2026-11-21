@@ -2634,6 +2634,42 @@ def test_window_geometry():
     check((width, height) == (900, 700), "A 900x700 window was saved as %dx%d" % (width, height))
 
 
+def test_window_position():
+    """The window goes back where it was left, wherever that is on the
+    display: even further right or down than 2048 pixels, as on a 4K display
+    or one to the right of another. Where too little of its title bar would
+    be on the display to drag it by, it's brought back onto the display
+    instead, and it's made no bigger than the display.
+
+    On a 3840x2160 display of its own with no window manager, so that the
+    window goes exactly where FreeDV puts it. (A display above or to the
+    left of the main one, where positions are negative, can't be made with
+    Xvfb, so WindowPlacementTest covers those.)"""
+    with freedvtest.private_display(3840, 2160) as env:
+        if env is None:
+            print("SKIPPED: needs Xvfb", flush=True)
+            sys.exit(77)
+
+        def saved_geometry(left, top, width=900, height=700):
+            extra = dict(MainFrame__left=left, MainFrame__top=top, MainFrame__width=width, MainFrame__height=height)
+            with freedvtest.start(settings=settings(**extra), env=env) as app:
+                app.wait_for_window("main")
+                quit_and_check_log(app)
+                saved = freedvtest.read_config(app.config_path)
+            return tuple(int(saved["/MainFrame/" + name]) for name in ("left", "top", "width", "height"))
+
+        check_equal(saved_geometry(2500, 1200), (2500, 1200, 900, 700), "Window left beyond 2048 pixels")
+        check_equal(saved_geometry(0, 0), (0, 0, 900, 700), "Window left at the top left")
+        check_equal(saved_geometry(3790, 100), (3790, 100, 900, 700),
+                    "Window with 50 pixels of its title bar on the display")
+        check_equal(saved_geometry(3791, 100), (20, 20, 900, 700),
+                    "Window with 49 pixels of its title bar on the display")
+        check_equal(saved_geometry(-3000, 100), (20, 20, 900, 700), "Window left of the display")
+        check_equal(saved_geometry(100, -500), (20, 20, 900, 700), "Window above the display")
+        check_equal(saved_geometry(100, 2150), (20, 20, 900, 700), "Window below the display")
+        check_equal(saved_geometry(100, 100, 5000, 3000), (100, 100, 3840, 2160), "Window bigger than the display")
+
+
 def test_receive_reports():
     """Where a callsign that's been received goes other than FreeDV Reporter:
     the list of stations heard, the log of them and to other programs
@@ -3384,6 +3420,7 @@ SCENARIOS = {
     "tab_layout": test_tab_layout,
     "heard_list": test_heard_list,
     "window_geometry": test_window_geometry,
+    "window_position": test_window_position,
     "receive_reports": test_receive_reports,
     "test_tone": test_test_tone,
     "duplex_while_running": test_duplex_while_running,

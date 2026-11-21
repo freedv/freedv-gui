@@ -25,6 +25,7 @@ completion has passed.
 FreeDV must have been built with -DUNITTEST=1.
 """
 
+import contextlib
 import json
 import os
 import re
@@ -196,6 +197,36 @@ def start(binary=None, config=None, settings=None, args=(), env=None, user_confi
     """
     return FreeDV(binary or default_binary(), config, settings, args, env, user_config_files, timeout, home,
                   default_config)
+
+
+@contextlib.contextmanager
+def private_display(width, height):
+    """Starts an X display of the given size of its own, with no window
+    manager, and yields what to pass to start() as env for FreeDV to use it:
+    windows there go exactly where FreeDV puts them, and stay that size.
+    Yields None where there's no Xvfb to start (anywhere but Linux)."""
+    if not sys.platform.startswith("linux") or shutil.which("Xvfb") is None:
+        yield None
+        return
+    # Xvfb picks a display number that's free and writes it to -displayfd.
+    read_fd, write_fd = os.pipe()
+    process = subprocess.Popen(
+        ["Xvfb", "-displayfd", str(write_fd), "-screen", "0", "%dx%dx24" % (width, height), "-nolisten", "tcp"],
+        pass_fds=(write_fd,), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    os.close(write_fd)
+    try:
+        with os.fdopen(read_fd, "r") as numbers:
+            number = numbers.readline().strip()
+        if not number:
+            raise FreeDVError("Xvfb didn't start (exit code %r)" % process.poll())
+        yield {"DISPLAY": ":" + number}
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
 
 
 class FreeDV:
