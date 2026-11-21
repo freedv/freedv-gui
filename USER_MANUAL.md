@@ -145,6 +145,12 @@ Hitting **Refresh** in the lower left hand corner of the Tools/Audio Config will
 
 Another solution is to re-start FreeDV and check Tools/Audio Config again after changing any audio hardware.
 
+#### Devices Moved by the Sound Server (Linux)
+
+On Linux, the sound server (PipeWire or PulseAudio) can move FreeDV's audio to another device while FreeDV is running. It does this when a device is unplugged or stops working, including when a USB device can't start because there isn't enough USB bandwidth for it. You can also move FreeDV's audio yourself with a tool like pavucontrol. FreeDV follows these moves and saves the new devices in its settings, so it'll use them the next time it starts too. When this happens, FreeDV shows which of its audio streams were moved and to which devices.
+
+If you didn't expect the move, select the correct devices again in Tools/Audio Config. If moves keep happening, check whether your USB audio devices (e.g. your radio's built-in sound card and a USB headset, microphone or speakers) are plugged into the same USB hub. Many hubs share one 12 Mbit/s link among all of the older "full speed" devices plugged into them, which isn't always enough for several audio devices at once. Messages containing "Not enough bandwidth" in the output of `sudo dmesg` confirm this. Plugging your radio directly into the computer, with the other audio devices on a different port, normally fixes it.
+
 ### CAT/PTT Configuration
 
 The Tools->CAT and PTT Config dialog supports three different ways to control PTT on
@@ -973,8 +979,10 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Refuse what isn't a number instead of saving stack garbage. (PR #1643, #1648)
     * FreeDV Reporter (macOS): leave no station selected when the selected one's row is hidden by a filter or removed, rather than selecting the station below it. (PR #1647)
     * FreeDV Reporter: fix a crash when the server reports a station that's already connected. (PR #1645)
+    * Linux: warn when the sound server moves FreeDV's audio to another device. (PR #1652)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
+    * User manual: Explain why the sound server can move FreeDV's audio on Linux, and what to do about it. (PR #1652)
 3. Build system:
     * Build the macOS DMG as ULFO. (PR #1639)
 
