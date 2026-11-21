@@ -100,7 +100,6 @@
 #include "voicekeyer_cache.h"
 
 #define _USE_TIMER              1
-#define _USE_ONIDLE             1
 #define _DUMMY_DATA             1
 //#define _AUDIO_PASSTHROUGH    1
 #define _REFRESH_TIMER_PERIOD   (DT*1000)
@@ -523,9 +522,6 @@ class MainFrame : public TopFrame
         void OnDeleteConfigUI( wxUpdateUIEvent& event );
 #ifdef _USE_TIMER
         void OnTimer(wxTimerEvent &evt);
-#endif
-#ifdef _USE_ONIDLE
-        void OnIdle(wxIdleEvent &evt);
 #endif
 
         int VoiceKeyerStartTx(void);

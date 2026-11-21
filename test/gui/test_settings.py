@@ -11,6 +11,7 @@ freedvtest/audio.py for the audio devices it needs.
 """
 
 import contextlib
+import glob
 import os
 import shutil
 import sys
@@ -143,6 +144,15 @@ def audio_settings():
 
 def device_labels(app, control):
     return [item["label"] for item in app.get(name(control))["items"]]
+
+
+def other_serial_ports():
+    """The serial ports FreeDV finds on Linux by name rather than through
+    /sys/class/tty (USB adapters by their ID, and Bluetooth ones): what a
+    port list should offer besides those."""
+    if not sys.platform.startswith("linux"):
+        return []
+    return sorted(glob.glob("/dev/serial/by-id/*") + glob.glob("/dev/rfcomm*"))
 
 
 def start_modem(app):
@@ -354,7 +364,7 @@ def test_audio_tests():
         app.wait_until(lambda: label(app, button) == "Test", timeout=30, description="the audio test to finish")
         check_enabled(app, ["btnSoundCard1InTest", "btnSoundCard1OutTest"], True)
 
-    with audio_devices():
+    with audio_devices() as devices:
         with freedvtest.start(settings=audio_settings()) as app:
             open_settings(app, "RX Audio")
             check_enabled(app, ["btnSoundCard1InTest", "btnSoundCard1OutTest"], True)
@@ -427,8 +437,37 @@ def test_audio_tests():
                         ["Please select an audio output device first.", "Please select an audio input device first."],
                         "Messages displayed")
             check_equal(label(app, "btnSoundCard1OutTest"), "Test", "Test button's label")
-            press_cancel(app)
 
+            # A device that's gone since it was chosen: there's nothing for
+            # the test to play through, and saving what's chosen keeps the
+            # sample rate that was recorded for it, as there's no device left
+            # to look one up on. (Only where devices can be taken away.)
+            if not freedvtest.audio.FIXED_DEVICES:
+                set_value(app, "lcSoundCard1OutDevice", SPEAKER)
+                devices.remove(SPEAKER)
+                app.click(name("btnSoundCard1OutTest"))
+                app.wait_until(lambda: label(app, "btnSoundCard1OutTest") == "Test", timeout=15,
+                               description="the test of a device that's gone to finish")
+                check_equal(app.message_boxes(), [], "Messages displayed for a device that's gone")
+                press_apply(app)
+                check_saved(app, {"/Audio/soundCard2OutDeviceName": SPEAKER,
+                                  "/Audio/soundCard2OutSampleRate": 48000})
+
+                # Saving what was chosen for a device that's gone leaves
+                # nothing chosen at all, so there's nothing for the test to
+                # play through.
+                check_values(app, {"tcSoundCard1OutDevice": ""})
+                app.click(name("btnSoundCard1OutTest"))
+                check_equal([box["message"] for box in app.message_boxes(clear=True)],
+                            ["Please select an audio output device first."],
+                            "Message displayed when no output device is chosen")
+
+            # FreeDV exiting while an audio test is still running waits for
+            # it rather than leaving it going as the window goes with it.
+            set_value(app, "lcSoundCard1OutDevice", RADIO_TX)
+            app.click(name("btnSoundCard1OutTest"))
+            check_equal(label(app, "btnSoundCard1OutTest"), "Playing", "Test button's label while testing")
+            press_cancel(app)
             quit_and_check_log(app)
 
     # A speaker that runs at a different sample rate from what's recorded:
@@ -475,6 +514,12 @@ def test_radio():
         open_settings(app, "Radio")
         rig = find_rig(app, "Yaesu FT-991")
         icom = find_rig(app, "Icom IC-7300")
+
+        # Every list of serial ports offers the ones found by name too.
+        for control in ["cbSerialPort", "cbPttSerialPort", "cbCtlDevicePath", "cbCtlDevicePathPttIn"]:
+            listed = device_labels(app, control)
+            check_equal([port for port in other_serial_ports() if port not in listed], [],
+                        "Serial ports missing from %s" % control)
 
         # Nothing's usable until the way of keying the radio is chosen.
         check_values(app, {"ckUseHamlibPTT": False, "ckUseSerialPTT": False, "ckUsePTTInput": False})
@@ -534,6 +579,36 @@ def test_radio():
         check_enabled(app, PTT_INPUT_CONTROLS, True)
         set_value(app, "cbCtlDevicePathPttIn", "/dev/ttyFreeDVTest3")
         set_value(app, "ckCTSPos", True)
+
+        # What's saved as the radio's address and rate: only what reads as a
+        # number, with an empty address meaning Hamlib's own. The field holds
+        # at most two hex characters, so an address too big for a byte can't be
+        # typed in; only the configuration file can bring that about.
+        press_apply(app)
+        check_saved(app, {"/Hamlib/IcomCIVHex": 0x94, "/Hamlib/SerialRate": 19200})
+        set_value(app, "tcIcomCIVHex", "zz")
+        press_apply(app)
+        check_saved(app, {"/Hamlib/IcomCIVHex": 0x94})
+        set_value(app, "tcIcomCIVHex", "")
+        press_apply(app)
+        check_saved(app, {"/Hamlib/IcomCIVHex": 0})
+        set_value(app, "tcIcomCIVHex", "94")
+
+        # A rate that isn't one is left as it was, and changing rig while
+        # "default" is chosen keeps it chosen.
+        set_value(app, "cbSerialRate", "fast")
+        press_apply(app)
+        check_saved(app, {"/Hamlib/SerialRate": 19200})
+
+        # Zero is a number, but not a rate.
+        set_value(app, "cbSerialRate", "0")
+        press_apply(app)
+        check_saved(app, {"/Hamlib/SerialRate": 19200})
+        set_value(app, "cbSerialRate", "default")
+        set_value(app, "cbRigName", rig)
+        check_values(app, {"cbSerialRate": "default"})
+        set_value(app, "cbRigName", icom)
+        set_value(app, "cbSerialRate", "19200")
 
         hamlib_values = {
             "ckUseHamlibPTT": True, "cbRigName": icom, "cbSerialPort": "/dev/ttyFreeDVTest2", "cbSerialRate": "19200",
@@ -612,6 +687,20 @@ def test_ptt_test():
         check_equal(app.message_boxes(), [], "Messages displayed by a successful RTS test")
         set_value(app, "cbPttMethod", "CAT")
 
+        # Keying by nothing at all: there's nothing for Hamlib to key, but
+        # the test still runs to the end. A serial rate that isn't one -- no
+        # digits, zero, or more than Hamlib can use -- is left for Hamlib to
+        # choose.
+        set_value(app, "cbPttMethod", "None")
+        for rate in ["notarate", "0", "9999999"]:
+            set_value(app, "cbSerialRate", rate)
+            app.click(name("buttonTestPTT"))
+            wait_for_test_to_finish(app)
+            check_equal(app.message_boxes(), [],
+                        "Messages displayed when there's nothing to key at %s baud" % rate)
+        set_value(app, "cbSerialRate", "default")
+        set_value(app, "cbPttMethod", "CAT")
+
         # Keying by tone can't be tested from here, which gets said.
         set_value(app, "ckLeftChannelVoxTone", True)
         app.click(name("buttonTestPTT"))
@@ -621,8 +710,11 @@ def test_ptt_test():
                     "Messages displayed")
         set_value(app, "ckLeftChannelVoxTone", False)
 
-        # A radio that isn't there.
-        set_value(app, "cbRigName", find_rig(app, "Yaesu FT-991"))
+        # A radio that isn't there -- an Icom, so that the address field is
+        # used too: what isn't a hex number is left as Hamlib's own rather
+        # than guessed at.
+        set_value(app, "cbRigName", find_rig(app, "Icom IC-7300"))
+        set_value(app, "tcIcomCIVHex", "zz")
         set_value(app, "cbSerialPort", "/dev/ttyFreeDVTestMissing")
         app.click(name("buttonTestPTT"))
         wait_for_test_to_finish(app)
@@ -854,6 +946,25 @@ def test_frequency_list():
         check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "14.2360", "28.3300"],
                     "Frequencies listed")
 
+        # What's already listed is found by its value, not by the text shown:
+        # the same frequency written differently (or one that would be
+        # listed as it, at the tenth of a kHz the list shows) can't be added
+        # a second time, but it can be removed.
+        for text in ["10.136", "10.13600", "010.136", "10.13604"]:
+            set_value(app, "txtCtrlNewFrequency", text)
+            check_buttons(app, False, True)
+        app.click(name("freqListRemove"))
+        check_equal(frequencies(app), ["3.6250", "7.1770", "14.2360", "28.3300"],
+                    "Frequencies listed with 10.1360 removed")
+        check_values(app, {"txtCtrlNewFrequency": ""})
+        # One that only comes close is a different frequency.
+        set_value(app, "txtCtrlNewFrequency", "14.2361")
+        check_buttons(app, True, False)
+        set_value(app, "txtCtrlNewFrequency", "10.136")
+        app.click(name("freqListAdd"))
+        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "14.2360", "28.3300"],
+                    "Frequencies listed")
+
         # One that's already listed can be removed, whether it's typed in...
         set_value(app, "txtCtrlNewFrequency", "3.6250")
         check_buttons(app, False, True)
@@ -907,6 +1018,20 @@ def test_frequency_list():
                     ["3.6250", "7.1770", "10.1360", "14.2360", "28.3300"],
                     "Frequencies offered in the main window")
 
+        quit_and_check_log(app)
+
+    # What's read as the window is first built: the units of the frequency
+    # list, and which waterfall colours were chosen.
+    with freedvtest.start(settings={"/Reporting/FrequencyList": "3.625000,14.236000",
+                                    "/Reporting/FrequencyAsKHz": True,
+                                    "/Waterfall/Color": 2}) as app:
+        open_settings(app, "Rig Control")
+        check_equal(label(app, "labelEnterFreq"), "Enter frequency (kHz):", "Frequency entry label")
+        check_equal(frequencies(app), ["3625.0", "14236.0"], "Frequencies listed")
+        go_to_tab(app, "Display")
+        check_values(app, {"waterfallColorScheme1": False, "waterfallColorScheme2": False,
+                           "waterfallColorScheme3": True})
+        press_cancel(app)
         quit_and_check_log(app)
 
 
@@ -1402,6 +1527,13 @@ def test_invalid_numbers():
             press_ok(app)
             check_saved(app, {"/Reporting/UDP/Port": 2237, "/Reporting/UDPBroadcast/Port": 7177})
 
+            # Zero is a number, but not a port.
+            open_settings(app, "Reporting")
+            set_value(app, "udpPort", "0")
+            set_value(app, "udpBroadcastPort", "0")
+            press_ok(app)
+            check_saved(app, {"/Reporting/UDP/Port": 2237, "/Reporting/UDPBroadcast/Port": 7177})
+
             open_settings(app, "Modem")
             set_value(app, "statsResetTime", "")
             press_ok(app)
@@ -1513,6 +1645,9 @@ def test_ptt_key_names():
                             (ord("q"), "Q"),
                             # F13 and F24 as they are everywhere but Linux, and as they are there
                             (340 + 12, "F13"), (340 + 23, "F24"), (436, "F13"), (447, "F24"),
+                            # Just past Linux's F13-F24, and something that
+                            # isn't a character
+                            (448, "Key(448)"), (31, "Key(31)"),
                             # Something FreeDV has no name for
                             (390, "Key(390)"), ("Space", "Space")]:
             choose(key)
@@ -1521,9 +1656,9 @@ def test_ptt_key_names():
 
         # Keys that only modify others aren't a choice; FreeDV keeps waiting.
         app.click(name("btnSetPTTKey"))
-        # (By number: Alt, Caps Lock, Num Lock, Scroll Lock, both Windows keys
-        # and the menu key.)
-        for modifier in ["Shift", "Control", 307, 311, 364, 365, 393, 394, 395]:
+        # (By number: Alt, Caps Lock, Num Lock, Scroll Lock, both Windows
+        # keys, the menu key, and a key event with no key in it.)
+        for modifier in ["Shift", "Control", 307, 311, 364, 365, 393, 394, 395, 0]:
             app.key(name("txtPTTKeyName"), modifier)
             check_values(app, {"txtPTTKeyName": "Press any key..."})
             check_equal(label(app, "btnSetPTTKey"), "Cancel", "PTT key button after pressing %s" % modifier)
@@ -1548,6 +1683,16 @@ def test_ptt_key_names():
         press_ok(app)
         check_saved(app, {"/Rig/PttKeyCode": 340 + 6})  # F7
         check_equal(app.quit(), 0, "FreeDV's exit code")
+
+    # Escape and Tab back out of choosing rather than being chosen, so they
+    # are only ever seen as the names of what's already in the configuration
+    # file.
+    for code, called in [(9, "Tab"), (27, "Escape")]:
+        with freedvtest.start(settings={"/Rig/PttKeyCode": code}) as app:
+            open_settings(app, "Rig Control")
+            check_values(app, {"txtPTTKeyName": called})
+            press_cancel(app)
+            quit_and_check_log(app)
 
 
 def test_auto_start():

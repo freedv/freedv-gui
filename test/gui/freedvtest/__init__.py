@@ -332,23 +332,37 @@ class FreeDV:
         request.update({key: value for key, value in params.items() if value is not None})
         self._next_id += 1
 
-        try:
-            self._connection.sendall(json.dumps(request).encode("utf-8") + b"\n")
-            while b"\n" not in self._received:
-                data = self._connection.recv(65536)
-                if not data:
-                    raise FreeDVError("FreeDV closed the connection during '%s'" % cmd)
-                self._received += data
-        except OSError as e:
-            raise FreeDVError("No response from FreeDV to '%s': %s" % (cmd, e))
-
-        line, self._received = self._received.split(b"\n", 1)
-        response = json.loads(line.decode("utf-8"))
+        response = self._exchange(json.dumps(request), "'%s'" % cmd)
         if response.get("id") != request["id"]:
             raise FreeDVError("Unexpected response to '%s': %r" % (cmd, response))
         if not response.get("ok"):
             raise CommandError(response.get("error", "unknown error"))
         return response.get("result")
+
+    def raw_request(self, line):
+        """Sends one line to FreeDV exactly as given, rather than as a
+        command, and returns the reply it gets, ok or not. For testing what
+        FreeDV makes of requests that aren't well formed: a reply to one
+        that isn't a JSON object has no id to match it to a command by."""
+        if self._connection is None:
+            raise FreeDVError("FreeDV is not running")
+        return self._exchange(line, repr(line))
+
+    def _exchange(self, line, what):
+        """Sends a line to FreeDV and returns the reply, as read from the
+        connection."""
+        try:
+            self._connection.sendall(line.encode("utf-8") + b"\n")
+            while b"\n" not in self._received:
+                data = self._connection.recv(65536)
+                if not data:
+                    raise FreeDVError("FreeDV closed the connection during %s" % what)
+                self._received += data
+        except OSError as e:
+            raise FreeDVError("No response from FreeDV to %s: %s" % (what, e))
+
+        reply, self._received = self._received.split(b"\n", 1)
+        return json.loads(reply.decode("utf-8"))
 
     def windows(self):
         """Returns FreeDV's top-level windows (the main window and dialogs)."""
@@ -404,10 +418,12 @@ class FreeDV:
             except FreeDVError:
                 pass
 
-    def close(self, name):
+    def close(self, name, force=False):
         """Closes a top-level window as its title bar's close button would,
-        or something that's popped up as clicking elsewhere would."""
-        self.command("close", name=name)
+        or something that's popped up as clicking elsewhere would. force=True
+        is a close the window can't refuse, as a log out or the window manager
+        forcing it away is."""
+        self.command("close", name=name, force=force or None)
 
     def menu(self, path, window=None):
         """Selects a menu item, e.g. "Settings/Setup Wizard...", from the

@@ -52,6 +52,7 @@ extern std::atomic<bool> g_loopPlayFileFromRadio;
 extern std::atomic<bool> isModemRunning;
 extern std::atomic<float> g_agcAppliedGainDb;
 extern FreeDVInterface freedvInterface;
+extern std::atomic<bool> g_testAgentHoldOnOff;
 
 #if defined(__APPLE__)
 // See test_agent_osx.mm.
@@ -435,6 +436,21 @@ void TestAgent::handleLine_(std::string const& line)
             wxSysColourChangedEvent event;
             event.SetEventObject(window);
             window->ProcessWindowEvent(event);
+        }
+    }
+    else if (cmd == "hold_on_off")
+    {
+        // {"hold": true} keeps Start and Stop Modem from finishing (see
+        // main.cpp) until {"hold": false}.
+        yyjson_val* hold = yyjson_obj_get(request, "hold");
+        if (!yyjson_is_bool(hold))
+        {
+            replyError_(id, "'hold_on_off' needs a boolean 'hold'");
+        }
+        else
+        {
+            g_testAgentHoldOnOff.store(yyjson_get_bool(hold), std::memory_order_release);
+            replyOk_(id, yyjson_mut_doc_new(nullptr));
         }
     }
     else if (cmd == "message_boxes")
@@ -1215,7 +1231,9 @@ void TestAgent::commandSetValue_(yyjson_val* id, yyjson_val* request)
             selection = container->FindString(wanted, true);
             if (selection == wxNOT_FOUND)
             {
-                if (comboBox == nullptr || !comboBox->IsEditable())
+                // (A read-only combo box can still say it's editable: on
+                // macOS, IsEditable() doesn't reflect wxCB_READONLY.)
+                if (comboBox == nullptr || comboBox->HasFlag(wxCB_READONLY) || !comboBox->IsEditable())
                 {
                     replyError_(id, wxString::Format("'%s' has no item labeled '%s'", window->GetName(), wanted));
                     return;
@@ -1417,7 +1435,9 @@ void TestAgent::commandClose_(yyjson_val* id, yyjson_val* request)
     }
 
     replyOk_(id, yyjson_mut_doc_new(nullptr));
-    window->Close();
+    // {"force": true} closes as a close that can't be refused does -- what a
+    // log out or the window manager forcing the window away looks like.
+    window->Close(yyjson_get_bool(yyjson_obj_get(request, "force")));
 }
 
 // Brings a window to the front, as clicking on it would.

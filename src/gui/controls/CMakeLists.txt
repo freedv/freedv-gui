@@ -3,9 +3,15 @@ add_library(fdv_gui_controls STATIC
     plot_scalar.cpp
     plot_spectrum.cpp
     plot_waterfall.cpp
-    ReportMessageRenderer.cpp
     MsgListPopup.cpp
     LevelMeterLed.cpp)
+
+# ReportMessageRenderer is only used for the Reporter's message column on
+# Windows (see USER_MESSAGE_COL in freedv_reporter.cpp), so it isn't built
+# anywhere else.
+if(WIN32)
+    target_sources(fdv_gui_controls PRIVATE ReportMessageRenderer.cpp)
+endif(WIN32)
 
 if(APPLE)
     target_sources(fdv_gui_controls PRIVATE plot_osx.mm plot_waterfall_osx.mm)

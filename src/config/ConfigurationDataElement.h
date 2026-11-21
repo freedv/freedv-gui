@@ -159,9 +159,9 @@ uint32_t ConfigurationDataElement<UnderlyingDataType>::getChangeEffects() const
 template<typename UnderlyingDataType>
 bool ConfigurationDataElement<UnderlyingDataType>::hasSameValueAs(IConfigurationDataElement& other)
 {
-    auto* same = dynamic_cast<ConfigurationDataElement<UnderlyingDataType>*>(&other);
+    auto* same = dynamic_cast<ConfigurationDataElement<UnderlyingDataType>*>(&other); // GCOVR_EXCL_BR_LINE: gcov counts the cast's null test on this line and on the guard below, so both are marked
     assert(same != nullptr && same != this);
-    if (same == nullptr)
+    if (same == nullptr) // GCOVR_EXCL_BR_LINE: only taken with the assert above compiled out
     {
         return false;
     }
@@ -174,9 +174,9 @@ bool ConfigurationDataElement<UnderlyingDataType>::hasSameValueAs(IConfiguration
 template<typename UnderlyingDataType>
 void ConfigurationDataElement<UnderlyingDataType>::copyValueFrom(IConfigurationDataElement& other)
 {
-    auto* same = dynamic_cast<ConfigurationDataElement<UnderlyingDataType>*>(&other);
+    auto* same = dynamic_cast<ConfigurationDataElement<UnderlyingDataType>*>(&other); // GCOVR_EXCL_BR_LINE: see hasSameValueAs() above
     assert(same != nullptr && same != this);
-    if (same == nullptr)
+    if (same == nullptr) // GCOVR_EXCL_BR_LINE: only taken with the assert above compiled out
     {
         return;
     }

@@ -13,9 +13,12 @@ running, on Linux or macOS: see freedvtest/audio.py for the audio devices it
 needs.
 """
 
+import array
 import os
 import sys
+import tempfile
 import time
+import wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -40,6 +43,8 @@ PLOTS = {
     "AGC dB": "main.plotAgcGain",
 }
 
+METER = "main.gaugeLevel"
+
 
 def tuned_to(app):
     """Returns the frequency FreeDV is tuned to within what it hears, having
@@ -54,6 +59,19 @@ def show(app, tab):
     app.wait_until(lambda: app.get(PLOTS[tab])["shown"], description="the %s plot to be displayed" % tab)
     time.sleep(0.3)
 
+
+def write_clipped(path, seconds=1.0, rate=48000):
+    """Creates a 16 bit WAV file that goes past what the waveform plots can
+    show: a square wave whose bottom sits at -32768, one step below the -1.0
+    that the plots stop their samples at. Written at the rate FreeDV's radio
+    input runs at, so its samples reach the pipeline exactly as written."""
+    half = rate // 30  # 30 Hz, so each half cycle is a long flat run
+    samples = array.array("h", [-32768 if (n // half) % 2 else 32767 for n in range(int(rate * seconds))])
+    with wave.open(path, "wb") as f:
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        f.setframerate(rate)
+        f.writeframes(samples.tobytes())
 
 # ---------------------------------------------------------------------------
 # Scenarios
@@ -291,7 +309,9 @@ def test_spectrum_averaging():
 def test_sized_plots():
     """The plots at window sizes where they have to fit fewer pixels' worth
     into the space they're given: shorter waterfall columns, and a narrow
-    spectrum whose bins no longer all get drawn.
+    spectrum whose bins no longer all get drawn. The narrow widths are also
+    given a radio signal that goes a step past full scale, which the waveform
+    plots have to stop at the ends of their range.
 
     Consecutive heights are launched so that one of them divides the
     waterfall's slices exactly."""
@@ -320,6 +340,25 @@ def test_sized_plots():
                             "Running with a %d-wide window" % width)
                 app.mouse(PLOTS["Spectrum"], "middle_down")
                 check_equal(tuned_to(app), CENTRE, "Tuned to in a %d-wide window" % width)
+
+                # Piped in from a file rather than heard through the sound
+                # card, so that the samples arrive exactly as written. The
+                # level meter peaks on the same samples the plot is fed, so
+                # its reading says whether they got there.
+                with tempfile.TemporaryDirectory(prefix="freedvtest-files-") as folder:
+                    clipped = os.path.join(folder, "clipped.wav")
+                    write_clipped(clipped)
+                    show(app, "Frm Radio")
+                    app.choose_next_path(clipped, loop=True)
+                    app.menu("Tools/Start Play File - From Radio...")
+                    check_equal(app.get("main")["status"], "Playing file %s as radio input" % clipped,
+                                "Status while playing the clipped file")
+                    app.wait_until(lambda: app.get(METER)["value"] >= app.get(METER)["maxDb"], timeout=10,
+                                   description="the level meter to read full scale")
+                    time.sleep(1)
+                    check_equal(app.state()["running"], True,
+                                "Running while drawing a clipped signal in a %d-wide window" % width)
+                    app.menu("Tools/Stop Play File - From Radio...")
                 stop_modem(app)
                 quit_and_check_log(app)
 

@@ -300,6 +300,11 @@ class OptionsDlg : public wxDialog
         void OnReportingFreqRemove(wxCommandEvent& event);
         
      private:
+         // The row of the frequency list holding the frequency text gives, or
+         // wxNOT_FOUND: by value (to the precision the list shows), so that
+         // "10.136" finds the "10.1360" shown.
+         int findFrequency_(wxString const& text) const;
+
          void updateReportingState();
          void updateChannelNoiseState();
          void updateToneState();

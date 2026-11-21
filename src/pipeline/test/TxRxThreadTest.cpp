@@ -1551,6 +1551,48 @@ public:
         return result;
     }
 
+    // One modem frame of room left, rather than none: the thread makes that
+    // much and stops, instead of going on to make signal it has nowhere to
+    // put or writing over what the radio's sound card hasn't taken yet.
+    static bool txProcessingStopsWhenTheRadioFifoRunsOutOfRoom()
+    {
+        constexpr short MARKER = 12345;
+
+        resetGlobals();
+        g_tx = true;
+        FifoGuard fifos;
+        seedSine(g_rxUserdata->infifo2, TEST_SAMPLE_RATE); // 1s of speech
+
+        std::atomic<int> micInDone{0}, recRadioDone{0}, playRadioDone{0};
+        TxRxThread thread(true, TEST_SAMPLE_RATE, TEST_SAMPLE_RATE, nullptr, nullptr, makeHooks(micInDone, recRadioDone, playRadioDone));
+        thread.initializePipeline_();
+
+        // (Only now: the frame size depends on the transmit step this
+        // thread's pipeline has just made.)
+        const int oneFrame = (freedvInterface.getTxNNomModemSamples() * TEST_SAMPLE_RATE)
+                             / freedvInterface.getTxModemSampleRate();
+        std::vector<short> waiting(g_rxUserdata->outfifo1->capacity() - oneFrame, MARKER);
+        g_rxUserdata->outfifo1->write(waiting.data(), (int)waiting.size());
+
+        FakeRealtimeHelper helper;
+        thread.txProcessing_(&helper);
+
+        auto radioOut = drain(g_rxUserdata->outfifo1);
+
+        bool result = true;
+        // What was queued stays at the front of what the radio plays, and
+        // only the room that was left is filled.
+        result &= onlyContains(std::vector<short>(radioOut.begin(), radioOut.begin() + (int)waiting.size()), MARKER)
+                      ? true : (std::cout << "[the signal was written over what was queued for the radio] ", false);
+        result &= checkBetween("samples made for the radio", (int)radioOut.size() - (int)waiting.size(), 1, oneFrame);
+
+        // Room for one frame and no more, so the thread stops taking
+        // microphone audio well short of the second that was waiting.
+        result &= g_rxUserdata->infifo2->numUsed() > 0
+                      ? true : (std::cout << "[the whole second of speech was taken with only one frame of room] ", false);
+        return result;
+    }
+
     static bool timeOutWarningBeepsThenTurnsItselfOff()
     {
         resetGlobals();
@@ -3440,6 +3482,7 @@ int main()
     executeTestCase("playFileFromRadioStartsOverWhenLooping", &TxRxThreadTest::playFileFromRadioStartsOverWhenLooping);
     executeTestCase("recordingFromRadioContinuesUntilStopped", &TxRxThreadTest::recordingFromRadioContinuesUntilStopped);
     executeTestCase("txProcessingDropsOutputWhenRadioFifoIsFull", &TxRxThreadTest::txProcessingDropsOutputWhenRadioFifoIsFull);
+    executeTestCase("txProcessingStopsWhenTheRadioFifoRunsOutOfRoom", &TxRxThreadTest::txProcessingStopsWhenTheRadioFifoRunsOutOfRoom);
     executeTestCase("radioRecordingStopsWhenItsBudgetIsUsedUp", &TxRxThreadTest::radioRecordingStopsWhenItsBudgetIsUsedUp);
     executeTestCase("timeOutWarningBeepsThenTurnsItselfOff", &TxRxThreadTest::timeOutWarningBeepsThenTurnsItselfOff);
     executeTestCase("interferingToneIsAddedToReceivedAudio", &TxRxThreadTest::interferingToneIsAddedToReceivedAudio);

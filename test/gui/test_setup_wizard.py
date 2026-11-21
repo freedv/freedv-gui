@@ -10,6 +10,7 @@ Run from the build folder (or set FREEDV_BINARY), on Linux or macOS: see
 freedvtest/audio.py for the audio devices it needs.
 """
 
+import glob
 import os
 import shutil
 import sys
@@ -543,13 +544,16 @@ def test_auto_select():
     dax_iq = "FreeDVGuiTest_Dax_Iq"
     dax_rx2 = "FreeDVGuiTest_Dax_Second"
     dax_rx1 = "FreeDVGuiTest_Dax_First"
-    # A receive channel without a number, and a device that isn't a receiver.
+    # A receive channel without a number, a device that isn't a receiver,
+    # and a monitor of a channel, which isn't receive audio either.
     dax_left = "FreeDVGuiTest_Dax_Left"
     dax_side = "FreeDVGuiTest_Dax_Side"
+    dax_mon = "FreeDVGuiTest_Dax_Monitor"
     dax_tx = "FreeDVGuiTest_Dax_Transmit"
     with VirtualAudioDevices(
             inputs={dax_iq: "DAX IQ RX 1", dax_rx2: "DAX Audio RX 2", dax_rx1: "DAX Audio RX 1",
-                    dax_left: "DAX Audio RX Left", dax_side: "DAX Side"},
+                    dax_left: "DAX Audio RX Left", dax_side: "DAX Side",
+                    dax_mon: "Monitor of DAX Audio RX 1"},
             outputs={dax_tx: "DAX Audio TX (FlexRadio Systems DAX TX)"}):
         with freedvtest.start() as app:
             app.wait_for_window("wizard")
@@ -570,6 +574,36 @@ def test_auto_select():
             app.wait_for_window_closed("wizard")
             quit_and_check_log(app)
 
+    # A receive-only setup with no radio input at all: the radio that's there
+    # is found, and the wizard stops treating it as receive only.
+    with VirtualAudioDevices(SPEAKER,
+                             inputs={codec_in: "USB Audio CODEC"},
+                             outputs={codec_out: "USB Audio CODEC"}):
+        with freedvtest.start(settings={
+                "/Audio/soundCard1InDeviceName": "none",
+                "/Audio/soundCard1OutDeviceName": SPEAKER,
+                "/Audio/soundCard2InDeviceName": "none",
+                "/Audio/soundCard2OutDeviceName": "none"}) as app:
+            app.wait_for_window("main")
+            reopen_wizard(app)
+            check_equal(app.get("wizard.cbRadioIn")["data"], codec_in,
+                        "Radio input found for a setup with none")
+            check_equal(app.get("wizard.cbRadioOut")["data"], codec_out, "Radio output found with it")
+            go_to_page(app, 1)
+            check_values(app, {"ckReceiveOnly": False})
+            app.click("wizard.btnCancel")
+            app.wait_for_window_closed("wizard")
+            quit_and_check_log(app)
+
+
+def other_serial_ports():
+    """The serial ports FreeDV finds on Linux by name rather than through
+    /sys/class/tty (USB adapters by their ID, and Bluetooth ones): what a
+    port list should offer besides those."""
+    if not sys.platform.startswith("linux"):
+        return []
+    return sorted(glob.glob("/dev/serial/by-id/*") + glob.glob("/dev/rfcomm*"))
+
 
 def test_radio_control():
     """The Radio Control page: CAT control via Hamlib and serial port PTT."""
@@ -578,6 +612,12 @@ def test_radio_control():
         go_to_page(app, 2)
         rig = find_rig(app, "Icom IC-7300")
         other_rig = find_rig(app, "Yaesu FT-991")
+
+        # Every list of serial ports offers the ones found by name too.
+        for control in ["cbSerialPort", "cbPttSerialPort", "cbCtlDevicePath"]:
+            listed = [item["label"] for item in app.get("wizard." + control)["items"]]
+            check_equal([port for port in other_serial_ports() if port not in listed], [],
+                        "Serial ports missing from %s" % control)
 
         # Nothing's usable until the way of keying the radio is chosen.
         check_values(app, {"ckHamlib": False, "ckSerialPTT": False})
@@ -637,6 +677,16 @@ def test_radio_control():
         app.set_value("wizard.cbRigName", rig)
         check_values(app, {"cbSerialRate": "19200"})
 
+        # A rig that says nothing about its rates has all of them on offer.
+        unlimited = find_rig(app, "Hamlib NET rigctl")
+        app.set_value("wizard.cbRigName", unlimited)
+        unlimited_rates = rates()
+        check("300" in unlimited_rates and "2000000" in unlimited_rates,
+              "Serial rates offered for %s are %r" % (unlimited, unlimited_rates))
+        check_equal(len(unlimited_rates), len(all_rates), "Serial rates offered for %s" % unlimited)
+        app.set_value("wizard.cbRigName", rig)
+        check_values(app, {"cbSerialRate": "19200"})
+
         # Serial devices can be typed in as well as chosen.
         app.set_value("wizard.cbSerialPort", "/dev/ttyFreeDVTest0")
         app.set_value("wizard.cbPttSerialPort", "/dev/ttyFreeDVTest1")
@@ -691,10 +741,12 @@ def test_radio_control():
         finish_wizard(app)
         check_config(app, "rigControl", {"hamlibSerialRate": 0, "hamlibPTTType": PTT_VIA_CAT})
 
-        # Now serial port PTT instead.
+        # Now serial port PTT instead, with a serial rate typed in that isn't
+        # one: it's saved as Hamlib's own rather than as some other number.
         reopen_wizard(app)
         go_to_page(app, 2)
         check_values(app, {"cbSerialRate": "default", "cbPttMethod": "CAT"})
+        app.set_value("wizard.cbSerialRate", "fast")
         app.set_value("wizard.ckSerialPTT", True)
         app.set_value("wizard.cbCtlDevicePath", "/dev/ttyFreeDVTest2")
         app.click("wizard.rbUseDTR")
@@ -713,6 +765,7 @@ def test_radio_control():
         finish_wizard(app)
         check_config(app, "rigControl", {
             "hamlibUseForPTT": False,
+            "hamlibSerialRate": 0,
             "useSerialPTT": True,
             "serialPTTPort": "/dev/ttyFreeDVTest2",
             "serialPTTUseRTS": False,
@@ -981,7 +1034,12 @@ def test_import():
 
 def test_import_more():
     """The less usual things that WSJT-X's settings can say."""
-    with VirtualAudioDevices(RADIO_RX, RADIO_TX, SPEAKER):
+    # An output whose description isn't its name, for matching a device by
+    # what it's shown as. (Only where devices with descriptions of their own
+    # can be created, as they can't on macOS and Windows.)
+    dax = "FreeDVGuiTest_Import_Dax_Out"
+    extra = {} if freedvtest.audio.FIXED_DEVICES else {dax: "FlexRadio DAX Audio TX"}
+    with VirtualAudioDevices(RADIO_RX, RADIO_TX, SPEAKER, outputs=extra):
         with freedvtest.start(user_config_files={"WSJT-X.ini": ""}) as app:
             def import_wsjtx(**settings):
                 with open(app.user_config_path("WSJT-X.ini"), "w") as f:
@@ -1090,9 +1148,41 @@ def test_import_more():
                         "Import result")
             check_equal(app.get("wizard.cbRadioOut")["data"], RADIO_TX, "Radio output")
 
+            # A device found from part of the description it's shown as.
+            if not freedvtest.audio.FIXED_DEVICES:
+                dax_shown = [item["label"] for item in app.get("wizard.cbRadioOut")["items"]
+                             if item.get("data") == dax][0]
+                check_equal(import_wsjtx(SoundOutName=dax_shown[:-4]),
+                            "Imported: radio audio devices. Review each page before clicking Finish.",
+                            "Import result")
+                check_equal(app.get("wizard.cbRadioOut")["data"], dax, "Radio output")
+
+            # A value that's nothing but a quote isn't taken as a quoted one.
+            check_equal(import_wsjtx(SoundInName='"'),
+                        "No usable settings were found in WSJT-X. Not imported: radio audio devices (not "
+                        "currently connected). Review each page before clicking Finish.", "Import result")
+
             app.click("wizard.btnCancel")
             app.wait_for_window_closed("wizard")
             quit_and_check_log(app)
+
+    # With XDG_CONFIG_HOME set to nothing, other programs' settings are
+    # looked for where they've always gone: the home folder's .config.
+    home = tempfile.mkdtemp(prefix="freedvtest-home-")
+    try:
+        with freedvtest.start(home=home, env={"XDG_CONFIG_HOME": ""},
+                              user_config_files={"WSJT-X.ini": wsjtx_settings(MyCall="ZZ0ZZZ")}) as app:
+            app.wait_for_window("wizard")
+            check_equal([item["label"] for item in app.get("wizard.chImportSource")["items"]],
+                        ["WSJT-X"], "Programs to import from")
+            app.click("wizard.btnImport")
+            check_equal(import_status(app),
+                        "Imported: callsign. Review each page before clicking Finish.", "Import result")
+            app.click("wizard.btnCancel")
+            app.wait_for_window_closed("wizard")
+            quit_and_check_log(app)
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
 
 
 SCENARIOS = {
