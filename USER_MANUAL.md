@@ -930,6 +930,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Settings: remove the txRxThreadPriority, txRxDumpTiming and APiVerbose debugging options, which had no effect. (PR #1632)
     * Add tests of audio device and engine thread safety, re-recording a voice keyer message, and Settings' Test PTT. (PR #1625)
     * Add new FreeDV application icon. (PR #1641)
+    * Add tests covering more of FreeDV Reporter, Settings, the Setup Wizard, the main window and the configuration code, and remove unused plot and main window code. (PR #1646)
 
 *Note: Legacy FreeDV modes (700D/700E/1600) have been removed due to low use. FreeDV 2.4.x is still available if one wishes to operate these modes.*
 
