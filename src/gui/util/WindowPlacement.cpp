@@ -22,25 +22,8 @@
 
 #include "WindowPlacement.h"
 
-#include <algorithm>
 #include <wx/display.h>
 #include <wx/window.h>
-
-namespace
-{
-
-// Reduces `length` to `available` if it's bigger, leaving one that isn't
-// positive (i.e. "as it is now") alone.
-int fitWithin_(int length, int available)
-{
-    if (length > 0 && length > available)
-    {
-        return std::max(available, 1);
-    }
-    return length;
-}
-
-} // namespace
 
 wxRect PlaceWindowOnDisplays(const wxRect& saved, const std::vector<wxRect>& displayAreas, const WindowPlacementLimits& limits)
 {
@@ -54,38 +37,20 @@ wxRect PlaceWindowOnDisplays(const wxRect& saved, const std::vector<wxRect>& dis
     int titleBarWidth = (saved.width > 0) ? saved.width : limits.minimumVisible.GetWidth();
     wxRect titleBar(saved.x, saved.y, titleBarWidth, limits.titleBarHeight);
 
-    // The display with the most of the title bar on it.
-    const wxRect* bestArea = nullptr;
-    long bestOverlap = 0;
     for (const auto& area : displayAreas)
     {
         // (Intersect() changes the rectangle it's called on.)
         wxRect overlap = titleBar;
         overlap.Intersect(area);
         if (overlap.width >= limits.minimumVisible.GetWidth() &&
-            overlap.height >= limits.minimumVisible.GetHeight() &&
-            (long)overlap.width * overlap.height > bestOverlap)
+            overlap.height >= limits.minimumVisible.GetHeight())
         {
-            bestArea = &area;
-            bestOverlap = (long)overlap.width * overlap.height;
+            return saved;
         }
     }
 
-    wxRect result = saved;
-    if (bestArea != nullptr)
-    {
-        result.width = fitWithin_(saved.width, bestArea->width);
-        result.height = fitWithin_(saved.height, bestArea->height);
-    }
-    else
-    {
-        const wxRect& primary = displayAreas.front();
-        result.x = primary.x + limits.margin;
-        result.y = primary.y + limits.margin;
-        result.width = fitWithin_(saved.width, primary.width - 2 * limits.margin);
-        result.height = fitWithin_(saved.height, primary.height - 2 * limits.margin);
-    }
-    return result;
+    const wxRect& primary = displayAreas.front();
+    return wxRect(primary.x + limits.margin, primary.y + limits.margin, saved.width, saved.height);
 }
 
 wxRect PlaceWindowOnScreen(wxWindow* window, const wxRect& saved)

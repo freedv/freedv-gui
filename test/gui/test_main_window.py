@@ -2639,7 +2639,7 @@ def test_window_position():
     display: even further right or down than 2048 pixels, as on a 4K display
     or one to the right of another. Where too little of its title bar would
     be on the display to drag it by, it's brought back onto the display
-    instead, and it's made no bigger than the display.
+    instead.
 
     On a 3840x2160 display of its own with no window manager, so that the
     window goes exactly where FreeDV puts it. (A display above or to the
@@ -2667,7 +2667,6 @@ def test_window_position():
         check_equal(saved_geometry(-3000, 100), (20, 20, 900, 700), "Window left of the display")
         check_equal(saved_geometry(100, -500), (20, 20, 900, 700), "Window above the display")
         check_equal(saved_geometry(100, 2150), (20, 20, 900, 700), "Window below the display")
-        check_equal(saved_geometry(100, 100, 5000, 3000), (100, 100, 3840, 2160), "Window bigger than the display")
 
 
 def test_receive_reports():

@@ -48,11 +48,11 @@ struct WindowPlacementLimits
 // to the left of the primary one has them.
 //
 // The saved position is kept if enough of the window's title bar is on one
-// of the displays, and the size is reduced to fit that display if it's
-// bigger. Otherwise, e.g. because the display it was on has been
+// of the displays. Otherwise, e.g. because the display it was on has been
 // disconnected, the window goes `margin` in from the top left of the
-// primary display, reduced to fit within it. A width or height that isn't
-// positive is left as it is (wxWidgets takes it as "as it is now").
+// primary display. The size is never changed: a width or height that isn't
+// positive (wxWidgets takes it as "as it is now") only means that just
+// `minimumVisible`'s width of the title bar is checked.
 wxRect PlaceWindowOnDisplays(const wxRect& saved, const std::vector<wxRect>& displayAreas, const WindowPlacementLimits& limits);
 
 // PlaceWindowOnDisplays() with the displays connected now, and limits scaled

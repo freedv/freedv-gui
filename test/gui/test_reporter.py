@@ -2539,7 +2539,6 @@ def test_window_position():
             check_equal(saved_geometry(3791, 100), (20, 20, 1200, 500),
                         "Window with 49 pixels of its title bar on the display")
             check_equal(saved_geometry(100, -500), (20, 20, 1200, 500), "Window above the display")
-            check_equal(saved_geometry(100, 100, 5000, 3000), (100, 100, 3840, 2160), "Window bigger than the display")
 
 
 def test_window():

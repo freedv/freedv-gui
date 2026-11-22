@@ -1120,8 +1120,8 @@ void MainFrame::loadConfiguration_()
     int w = wxGetApp().appConfiguration.mainWindowWidth;
     int h = wxGetApp().appConfiguration.mainWindowHeight;
 
-    // No size that's too small to be of use (macOS, unlike Linux's window
-    // managers, makes the window as small as it's asked to). The default,
+    // No size that's too big, nor too small to be of use (macOS, unlike
+    // Linux's window managers, makes the window as small as it's asked to). The default,
     // for when none has been saved, and that limit are scaled to suit the
     // display: on Windows, sizes are in the screen's own pixels, and 800 of
     // those at 200% are only as wide as 400 elsewhere, leaving no room for
@@ -1134,8 +1134,8 @@ void MainFrame::loadConfiguration_()
     wxSize defaultSize(800, 780);
     wxSize smallestSize(300, 200);
 #endif // wxCHECK_VERSION(3,1,0)
-    if (w < smallestSize.GetWidth()) w = defaultSize.GetWidth();
-    if (h < smallestSize.GetHeight()) h = defaultSize.GetHeight();
+    if (w < smallestSize.GetWidth() || w > 2048) w = defaultSize.GetWidth();
+    if (h < smallestSize.GetHeight() || h > 2048) h = defaultSize.GetHeight();
     
     wxSize size = GetMinSize();
 
@@ -1144,13 +1144,10 @@ void MainFrame::loadConfiguration_()
 
     // Keep the saved position if it's still on one of the displays (which
     // may be above or to the left of the primary one, where coordinates are
-    // negative), and no bigger than that display; otherwise, bring the
-    // window back onto the primary display.
-    wxRect placed = PlaceWindowOnScreen(this, wxRect(x, y, w, h));
+    // negative); otherwise, bring the window back onto the primary display.
+    wxPoint placed = PlaceWindowOnScreen(this, wxRect(x, y, w, h)).GetPosition();
     x = placed.x;
     y = placed.y;
-    w = placed.width;
-    h = placed.height;
 
     RestoreWindowPosition(this, x, y);
 
