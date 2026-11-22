@@ -14,6 +14,7 @@ import contextlib
 import glob
 import os
 import shutil
+import tempfile
 import sys
 import tempfile
 import time
@@ -1035,6 +1036,60 @@ def test_frequency_list():
         quit_and_check_log(app)
 
 
+def test_frequency_list_migration():
+    """The first run of a build with centre frequencies makes the list it
+    shows from the old dial-frequency list, which stays as it was for older
+    builds to use."""
+    # The centred list FreeDV starts with (ReportingConfiguration.cpp).
+    centred_defaults = ["1.8685", "3.6235", "3.6415", "3.6915", "3.6955", "3.8015", "5.4050", "5.3700",
+                        "7.1755", "7.1955", "14.2375", "14.2415", "18.1195", "21.3145", "24.9345",
+                        "28.3315", "28.7215", "10489.6415"]
+    # Defaults (3.625 and 7.177 on LSB below 10MHz, 14.236 on USB) and two
+    # frequencies of the user's own: 7.180 below 10MHz, 14.250 above it.
+    old_list = "3.625000,7.177000,7.180000,14.236000,14.250000"
+
+    def frequencies(app):
+        return [item["label"].replace(",", "") for item in app.get(name("freqList"))["items"]]
+
+    def offered(app):
+        return [item["label"].replace(",", "") for item in app.get("main.lbReportFrequencies")["items"]]
+
+    def check_list(listed, expected, description):
+        check_equal(len(listed), len(set(listed)), description + ": no frequency listed twice")
+        check_equal(sorted(listed, key=float), sorted(expected, key=float), description)
+
+    with tempfile.TemporaryDirectory(prefix="freedvtest-migration-") as folder:
+        config = os.path.join(folder, "freedv.conf")
+        freedvtest.write_config(config, {"/Reporting/FrequencyList": old_list})
+
+        # The defaults are listed once each; the user's own come over as
+        # centre frequencies, 1.5kHz below the old LSB dial frequency and
+        # 1.5kHz above the USB one.
+        migrated = centred_defaults + ["7.1785", "14.2515"]
+        with freedvtest.start(config=config) as app:
+            check_list(offered(app), migrated, "Frequencies offered in the main window")
+            open_settings(app, "Rig Control")
+            check_list(frequencies(app), migrated, "Frequencies listed")
+
+            # A change made to the new list...
+            set_value(app, "freqList", "14.2515")
+            app.click(name("freqListRemove"))
+            press_ok(app)
+            quit_and_check_log(app)
+        settings = freedvtest.read_config(config)
+        check_equal(settings.get("/Reporting/FrequencyList"), old_list, "Old frequency list saved")
+
+        # ...is kept: the list isn't made again from the old one.
+        changed = centred_defaults + ["7.1785"]
+        with freedvtest.start(config=config) as app:
+            open_settings(app, "Rig Control")
+            check_list(frequencies(app), changed, "Frequencies listed next time")
+            press_cancel(app)
+            quit_and_check_log(app)
+        settings = freedvtest.read_config(config)
+        check_equal(settings.get("/Reporting/FrequencyList"), old_list, "Old frequency list saved next time")
+
+
 def test_frequency_list_from_main_window():
     """The predefined frequencies can be added to and deleted from the main
     window's frequency box."""
@@ -1845,6 +1900,7 @@ SCENARIOS = {
     "ptt_test": test_ptt_test,
     "rig_control": test_rig_control,
     "frequency_list": test_frequency_list,
+    "frequency_list_migration": test_frequency_list_migration,
     "frequency_list_from_main_window": test_frequency_list_from_main_window,
     "reporting": test_reporting,
     "voice_keyer": test_voice_keyer,
