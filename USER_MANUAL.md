@@ -149,7 +149,16 @@ Another solution is to re-start FreeDV and check Tools/Audio Config again after 
 
 On Linux, the sound server (PipeWire or PulseAudio) can move FreeDV's audio to another device while FreeDV is running. It does this when a device is unplugged or stops working, including when a USB device can't start because there isn't enough USB bandwidth for it. You can also move FreeDV's audio yourself with a tool like pavucontrol. FreeDV follows these moves and saves the new devices in its settings, so it'll use them the next time it starts too. When this happens, FreeDV shows which of its audio streams were moved and to which devices.
 
-If you didn't expect the move, select the correct devices again in Tools/Audio Config. If moves keep happening, check whether your USB audio devices (e.g. your radio's built-in sound card and a USB headset, microphone or speakers) are plugged into the same USB hub. Many hubs share one 12 Mbit/s link among all of the older "full speed" devices plugged into them, which isn't always enough for several audio devices at once. Messages containing "Not enough bandwidth" in the output of `sudo dmesg` confirm this. Plugging your radio directly into the computer, with the other audio devices on a different port, normally fixes it.
+If you didn't expect the move, select the correct devices again in Tools/Audio Config. If moves keep happening with USB audio devices, see Several USB Audio Devices on One Hub below.
+
+#### Several USB Audio Devices on One Hub
+
+If your radio's built-in sound card and other USB audio devices (e.g. a USB headset, microphone or speakers) are plugged into the same USB hub, there may not be enough USB bandwidth for all of them at once. Many hubs share one 12 Mbit/s link among all of the older "full speed" devices plugged into them, and FreeDV can have up to four audio streams open at the same time. When there isn't enough bandwidth, a device fails to start or stops partway through:
+
+* On Windows, FreeDV reports an audio error, for example error -2004287484 (the device is no longer available).
+* On Linux, the sound server moves FreeDV's audio to another device (see above). Messages containing "Not enough bandwidth" in the output of `sudo dmesg` confirm the cause.
+
+Plugging your radio directly into the computer, with the other audio devices on a different port, normally fixes it. A hub with a transaction translator for each port (often described as "multi-TT") also helps.
 
 ### CAT/PTT Configuration
 
@@ -982,7 +991,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Linux: warn when the sound server moves FreeDV's audio to another device. (PR #1652)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
-    * User manual: Explain why the sound server can move FreeDV's audio on Linux, and what to do about it. (PR #1652)
+    * User manual: Explain why the sound server can move FreeDV's audio on Linux, and the audio problems caused by several USB audio devices sharing a hub. (PR #1652)
 3. Build system:
     * Build the macOS DMG as ULFO. (PR #1639)
 
