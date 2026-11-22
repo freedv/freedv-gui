@@ -26,7 +26,6 @@
 #include <algorithm>
 #include <math.h>
 #include <wx/datetime.h>
-#include <wx/display.h>
 #include <wx/clipbrd.h>
 #include <wx/wrapsizer.h>
 #include <wx/menuitem.h>
@@ -35,6 +34,7 @@
 #include "../controls/MsgListPopup.h"
 #include "../util/FrequencyOps.h"
 #include "../util/GridSquare.h"
+#include "../util/WindowPlacement.h"
 #include "../util/WindowPositionRestore.h"
 
 #if wxCHECK_VERSION(3,2,0)
@@ -490,35 +490,15 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
         wxGetApp().appConfiguration.reporterWindowLeft,
         wxGetApp().appConfiguration.reporterWindowTop));
 
-    // Make sure we didn't end up placing it off the screen in a location that can't
-    // easily be brought back.
-#if wxCHECK_VERSION(3,2,0)
-    wxDisplay currentDisplay(this);
-#else
-    auto displayNo = wxDisplay::GetFromWindow(this);
-    if (displayNo == wxNOT_FOUND)
-    {
-        displayNo = 0;
-    }
-    wxDisplay currentDisplay(displayNo);
-#endif // wxCHECK_VERSION(3,2,0)
-    
-    auto displayGeometry = currentDisplay.GetClientArea();
-    wxPoint actualPos = GetPosition();
-    wxSize actualWindowSize = GetSize();
-    if (actualPos.x < (displayGeometry.x - (0.9 * actualWindowSize.GetWidth())) ||
-        actualPos.x > (displayGeometry.x + 0.9 * displayGeometry.width))
-    {
-        actualPos.x = displayGeometry.x;
-    }
-    if (actualPos.y < displayGeometry.y ||
-        actualPos.y > (displayGeometry.y + 0.9 * displayGeometry.height))
-    {
-        actualPos.y = 0;
-    }
-    wxGetApp().appConfiguration.reporterWindowLeft = actualPos.x;
-    wxGetApp().appConfiguration.reporterWindowTop = actualPos.y;
-    RestoreWindowPosition(this, actualPos.x, actualPos.y);
+    // Keep the saved position if it's still on one of the displays (which
+    // may be above or to the left of the primary one, where coordinates are
+    // negative); otherwise, bring the window back onto the primary display.
+    wxPoint placed = PlaceWindowOnScreen(this, wxRect(
+        wxPoint(wxGetApp().appConfiguration.reporterWindowLeft, wxGetApp().appConfiguration.reporterWindowTop),
+        GetSize())).GetPosition();
+    wxGetApp().appConfiguration.reporterWindowLeft = placed.x;
+    wxGetApp().appConfiguration.reporterWindowTop = placed.y;
+    RestoreWindowPosition(this, placed.x, placed.y);
 
     // Set up timers. Highlight clear timer has a slightly longer interval
     // to reduce CPU usage.

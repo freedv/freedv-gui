@@ -32,6 +32,7 @@
 
 #include "../../main.h"
 #include "../../pipeline/ResampleStep.h"
+#include "../util/WindowPlacement.h"
 
 using namespace std::chrono_literals;
 
@@ -324,21 +325,23 @@ AudioOptsDialog::AudioOptsDialog(wxWindow* parent, wxWindowID id, const wxString
     populateParams(m_TxOutDevices);
 
     // Load previously saved window size and position
-    int l = wxGetApp().appConfiguration.audioConfigWindowLeft;
-    int t = wxGetApp().appConfiguration.audioConfigWindowTop;
-    if (l >= 0 && t >= 0)
-    {
-        Move(
-            l,
-            t);
-    }
-    
     wxSize sz = GetBestSize();
     int w = wxGetApp().appConfiguration.audioConfigWindowWidth;
     int h = wxGetApp().appConfiguration.audioConfigWindowHeight;
     if (w < sz.GetWidth()) w = sz.GetWidth();
     if (h < sz.GetHeight()) h = sz.GetHeight();
     SetClientSize(w, h);
+
+    // -1, -1 is there when no position has been saved. Any other, even a
+    // negative one (on a display above or to the left of the primary one),
+    // is kept if it's still on one of the displays; otherwise, the window's
+    // brought back onto the primary display.
+    int l = wxGetApp().appConfiguration.audioConfigWindowLeft;
+    int t = wxGetApp().appConfiguration.audioConfigWindowTop;
+    if (l != -1 || t != -1)
+    {
+        Move(PlaceWindowOnScreen(this, wxRect(wxPoint(l, t), GetSize())).GetPosition());
+    }
     
     m_listCtrlRxInDevices->Connect( wxEVT_COMMAND_LIST_ITEM_SELECTED, wxListEventHandler( AudioOptsDialog::OnRxInDeviceSelect ), NULL, this );
     m_listCtrlRxOutDevices->Connect( wxEVT_COMMAND_LIST_ITEM_SELECTED, wxListEventHandler( AudioOptsDialog::OnRxOutDeviceSelect ), NULL, this );
