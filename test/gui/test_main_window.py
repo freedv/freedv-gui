@@ -2628,10 +2628,11 @@ def test_window_geometry():
     check_sensible(saved_geometry(50000, 50000, 50000, 50000), "everything enormous")
     check_sensible(saved_geometry(30, 40, 10, 10), "a size that nothing fits in")
 
-    # One that does make sense is kept. (It has to fit on CI's 1024x768
-    # screens: Windows makes no window much taller than the screen.)
-    left, top, width, height = saved_geometry(30, 40, 900, 700)
-    check((width, height) == (900, 700), "A 900x700 window was saved as %dx%d" % (width, height))
+    # One that does make sense is kept. (It has to fit in the usable part of
+    # CI's 1024x768 screens: FreeDV makes no window bigger than that, and on
+    # macOS the menu bar and Dock leave only about 677 pixels of height.)
+    left, top, width, height = saved_geometry(30, 40, 800, 600)
+    check((width, height) == (800, 600), "An 800x600 window was saved as %dx%d" % (width, height))
 
 
 def test_window_position():
