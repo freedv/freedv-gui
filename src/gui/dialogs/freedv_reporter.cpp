@@ -492,18 +492,13 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
 
     // Keep the saved position if it's still on one of the displays (which
     // may be above or to the left of the primary one, where coordinates are
-    // negative); otherwise, bring the window back onto the primary display.
-    // A saved size is reduced to fit the display if it's bigger. With no
-    // saved size (-1), the window stays at the size its contents need.
-    wxSize savedSize(
-        wxGetApp().appConfiguration.reporterWindowWidth,
-        wxGetApp().appConfiguration.reporterWindowHeight);
+    // negative), and no bigger than that display; otherwise, bring the
+    // window back onto the primary display.
     wxRect placed = PlaceWindowOnScreen(this, wxRect(
         wxPoint(wxGetApp().appConfiguration.reporterWindowLeft, wxGetApp().appConfiguration.reporterWindowTop),
-        savedSize));
-    if (placed.GetSize() != savedSize)
+        GetSize()));
+    if (placed.GetSize() != GetSize())
     {
-        // (A width or height of -1 leaves that one as it is.)
         SetSize(placed.GetSize());
     }
     wxGetApp().appConfiguration.reporterWindowLeft = placed.x;
