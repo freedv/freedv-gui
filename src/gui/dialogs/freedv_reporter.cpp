@@ -492,15 +492,10 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
 
     // Keep the saved position if it's still on one of the displays (which
     // may be above or to the left of the primary one, where coordinates are
-    // negative), and no bigger than that display; otherwise, bring the
-    // window back onto the primary display.
-    wxRect placed = PlaceWindowOnScreen(this, wxRect(
+    // negative); otherwise, bring the window back onto the primary display.
+    wxPoint placed = PlaceWindowOnScreen(this, wxRect(
         wxPoint(wxGetApp().appConfiguration.reporterWindowLeft, wxGetApp().appConfiguration.reporterWindowTop),
-        GetSize()));
-    if (placed.GetSize() != GetSize())
-    {
-        SetSize(placed.GetSize());
-    }
+        GetSize())).GetPosition();
     wxGetApp().appConfiguration.reporterWindowLeft = placed.x;
     wxGetApp().appConfiguration.reporterWindowTop = placed.y;
     RestoreWindowPosition(this, placed.x, placed.y);

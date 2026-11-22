@@ -340,12 +340,7 @@ AudioOptsDialog::AudioOptsDialog(wxWindow* parent, wxWindowID id, const wxString
     int t = wxGetApp().appConfiguration.audioConfigWindowTop;
     if (l != -1 || t != -1)
     {
-        wxRect placed = PlaceWindowOnScreen(this, wxRect(wxPoint(l, t), GetSize()));
-        if (placed.GetSize() != GetSize())
-        {
-            SetSize(placed.GetSize());
-        }
-        Move(placed.GetPosition());
+        Move(PlaceWindowOnScreen(this, wxRect(wxPoint(l, t), GetSize())).GetPosition());
     }
     
     m_listCtrlRxInDevices->Connect( wxEVT_COMMAND_LIST_ITEM_SELECTED, wxListEventHandler( AudioOptsDialog::OnRxInDeviceSelect ), NULL, this );

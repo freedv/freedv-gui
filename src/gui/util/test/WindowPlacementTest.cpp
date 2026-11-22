@@ -117,19 +117,13 @@ bool bringsBackAWindowOntoThePrimaryDisplayWhereverItIs()
     return placedAt("off every display", wxRect(-3000, 100, 800, 780), displays, wxRect(1940, 20, 800, 780));
 }
 
-bool shrinksAWindowToFitItsDisplay()
+bool keepsTheSavedSize()
 {
     bool result = true;
-    result &= placedAt("bigger than the display above", wxRect(0, -1080, 2500, 1500), { PRIMARY, ABOVE }, wxRect(0, -1080, 1920, 1040));
-    result &= placedAt("brought back and bigger than the primary display", wxRect(5000, 100, 2500, 1500), { PRIMARY }, wxRect(20, 20, 1880, 1000));
+    result &= keptAt("bigger than the display it's on", wxRect(0, -1080, 2500, 1500), { PRIMARY, ABOVE });
+    result &= keptAt("across two displays", wxRect(1500, 100, 1000, 700), { PRIMARY, RIGHT });
+    result &= placedAt("brought back and bigger than the primary display", wxRect(5000, 100, 2500, 1500), { PRIMARY }, wxRect(20, 20, 2500, 1500));
     return result;
-}
-
-bool sizesToTheDisplayWithMostOfTheTitleBar()
-{
-    // Mostly on the smaller display to the right.
-    std::vector<wxRect> displays = { wxRect(0, 0, 2560, 1400), wxRect(2560, 0, 1280, 984) };
-    return placedAt("mostly on the smaller display", wxRect(2400, 0, 1500, 1200), displays, wxRect(2400, 0, 1280, 984));
 }
 
 bool leavesASizeThatWasNotSavedAlone()
@@ -164,8 +158,7 @@ int main()
     executeTestCase("bringsBackAWindowOnADisplayThatIsNoLongerConnected", bringsBackAWindowOnADisplayThatIsNoLongerConnected);
     executeTestCase("bringsBackAWindowWithTooLittleOfItsTitleBarVisible", bringsBackAWindowWithTooLittleOfItsTitleBarVisible);
     executeTestCase("bringsBackAWindowOntoThePrimaryDisplayWhereverItIs", bringsBackAWindowOntoThePrimaryDisplayWhereverItIs);
-    executeTestCase("shrinksAWindowToFitItsDisplay", shrinksAWindowToFitItsDisplay);
-    executeTestCase("sizesToTheDisplayWithMostOfTheTitleBar", sizesToTheDisplayWithMostOfTheTitleBar);
+    executeTestCase("keepsTheSavedSize", keepsTheSavedSize);
     executeTestCase("leavesASizeThatWasNotSavedAlone", leavesASizeThatWasNotSavedAlone);
     executeTestCase("leavesEverythingAloneWithNoDisplays", leavesEverythingAloneWithNoDisplays);
 
