@@ -954,15 +954,15 @@ def test_frequency_list():
             set_value(app, "txtCtrlNewFrequency", text)
             check_buttons(app, False, True)
         app.click(name("freqListRemove"))
-        check_equal(frequencies(app), ["3.6250", "7.1770", "14.2360", "28.3300"],
+        check_equal(frequencies(app), ["3.6235", "7.1755", "14.2375", "28.3300"],
                     "Frequencies listed with 10.1360 removed")
         check_values(app, {"txtCtrlNewFrequency": ""})
         # One that only comes close is a different frequency.
-        set_value(app, "txtCtrlNewFrequency", "14.2361")
+        set_value(app, "txtCtrlNewFrequency", "14.2376")
         check_buttons(app, True, False)
         set_value(app, "txtCtrlNewFrequency", "10.136")
         app.click(name("freqListAdd"))
-        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "14.2360", "28.3300"],
+        check_equal(frequencies(app), ["3.6235", "7.1755", "10.1360", "14.2375", "28.3300"],
                     "Frequencies listed")
 
         # One that's already listed can be removed, whether it's typed in...
@@ -1022,12 +1022,12 @@ def test_frequency_list():
 
     # What's read as the window is first built: the units of the frequency
     # list, and which waterfall colours were chosen.
-    with freedvtest.start(settings={"/Reporting/FrequencyList": "3.625000,14.236000",
+    with freedvtest.start(settings={"/Reporting/FrequencyListCentred": "3.623500,14.237500",
                                     "/Reporting/FrequencyAsKHz": True,
                                     "/Waterfall/Color": 2}) as app:
         open_settings(app, "Rig Control")
         check_equal(label(app, "labelEnterFreq"), "Enter frequency (kHz):", "Frequency entry label")
-        check_equal(frequencies(app), ["3625.0", "14236.0"], "Frequencies listed")
+        check_equal(frequencies(app), ["3623.5", "14237.5"], "Frequencies listed")
         go_to_tab(app, "Display")
         check_values(app, {"waterfallColorScheme1": False, "waterfallColorScheme2": False,
                            "waterfallColorScheme3": True})
