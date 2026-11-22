@@ -899,12 +899,21 @@ endforeach(scenario)
 # These also need a window manager to be running and, other than live_view
 # (which is skipped if the public FreeDV Reporter server can't be reached), the
 # Python packages listed in test/gui/freedvtest/reporter.py.
-foreach(scenario live_view stations sorting sorted_updates updates_while_sorted display_options damaged_layout sort_every_column band_filter column_filters numeric_filters idle_filter columns status_message status_message_flags text_filters saved_filters selection qsy qsy_with_radio row_actions turn_off off_at_start settings_while_running new_callsign window connection_burst frequency_in_khz sideband sideband_follow sideband_manual)
+foreach(scenario live_view stations sorting sorted_updates updates_while_sorted display_options damaged_layout sort_every_column tied_and_missing_times band_filter column_filters numeric_filters idle_filter columns status_message status_message_flags text_filters saved_filters selection qsy qsy_with_radio row_actions selected_row_then_removed turn_off off_at_start settings_while_running new_callsign window connection_burst frequency_in_khz sideband sideband_follow sideband_manual)
     add_test(NAME gui_reporter_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_reporter.py ${scenario})
     set_tests_properties(gui_reporter_${scenario} PROPERTIES LABELS gui SKIP_RETURN_CODE 77)
     freedv_set_test_pass_criteria(gui_reporter_${scenario})
 endforeach(scenario)
+
+# GTK only: it's GTK_THEME that turns the window dark here, which does
+# nothing on macOS.
+if(LINUX)
+    add_test(NAME gui_reporter_dark_appearance
+             COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_reporter.py dark_appearance)
+    set_tests_properties(gui_reporter_dark_appearance PROPERTIES LABELS gui SKIP_RETURN_CODE 77)
+    freedv_set_test_pass_criteria(gui_reporter_dark_appearance)
+endif(LINUX)
 
 foreach(scenario buttons audio audio_tests radio ptt_test rig_control frequency_list frequency_list_from_main_window reporting voice_keyer display modem_and_debugging invalid_numbers out_of_range_config ptt_key_names auto_start while_running opened_while_running)
     add_test(NAME gui_settings_${scenario}
@@ -915,7 +924,7 @@ endforeach(scenario)
 
 # These measure what FreeDV plays and records, so they're kept from running
 # alongside anything else.
-foreach(scenario transmit ptt_key ptt_key_elsewhere tx_level receive analog play_file play_file_loop voice_keyer voice_keyer_reply voice_keyer_files voice_keyer_re_record voice_keyer_re_record_same_file recording recording_options unwritable_files monitor_volume mouse_controls tune_level_per_band frequency_units time_out_timer voice_keyer_time_out ptt_key_time_out menus help_and_restore default_config config_migration_failure exit_menu reporting_without_callsign band_names appearance_change tab_layout heard_list window_geometry receive_reports test_tone duplex_while_running audio_while_running exit_while_tuning old_settings bad_command_line invalid_frequency restart_cycles stop_while_playing_file flapping_transmit stop_while_recording voice_keyer_recording_stop voice_keyer_recording_while_running)
+foreach(scenario transmit ptt_key ptt_key_elsewhere tx_level receive analog play_file play_file_loop voice_keyer voice_keyer_reply voice_keyer_files voice_keyer_re_record voice_keyer_re_record_same_file recording recording_options unwritable_files monitor_volume mouse_controls tune_level_per_band frequency_units time_out_timer voice_keyer_time_out ptt_key_time_out menus help_and_restore default_config config_migration_failure exit_menu reporting_without_callsign band_names appearance_change tab_layout heard_list window_geometry receive_reports test_tone duplex_while_running audio_while_running exit_while_tuning old_settings bad_command_line invalid_frequency restart_cycles stop_while_playing_file flapping_transmit stop_while_recording voice_keyer_recording_stop voice_keyer_recording_while_running exit_during_on_off udp_reporting_while_running window_icon)
     add_test(NAME gui_main_window_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_main_window.py ${scenario})
     set_tests_properties(gui_main_window_${scenario} PROPERTIES LABELS gui RUN_SERIAL TRUE SKIP_RETURN_CODE 77)
@@ -977,6 +986,12 @@ foreach(scenario control frequency_only save_restore_frequency mode_display anal
     set_tests_properties(gui_rig_control_${scenario} PROPERTIES LABELS gui SKIP_RETURN_CODE 77)
     freedv_set_test_pass_criteria(gui_rig_control_${scenario})
 endforeach(scenario)
+
+# How FreeDV's test agent answers what it can't carry out (src/test_agent.cpp).
+add_test(NAME gui_agent_errors
+         COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_agent.py errors)
+set_tests_properties(gui_agent_errors PROPERTIES LABELS gui SKIP_RETURN_CODE 77)
+freedv_set_test_pass_criteria(gui_agent_errors)
 endif(LINUX OR APPLE)
 
 # Small libraries the GUI tests load into FreeDV (see test/gui/freedvtest),

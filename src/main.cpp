@@ -51,6 +51,21 @@
 #include "freedv_interface.h"
 #if defined(ENABLE_TEST_AGENT)
 #include "test_agent.h"
+
+// Set by the test agent's hold_on_off, so that a GUI test can act while
+// Start or Stop Modem is still being carried out: the worker waits here
+// while it's set (for 30 seconds at most, so that a test that forgets to
+// let go doesn't hang FreeDV).
+std::atomic<bool> g_testAgentHoldOnOff(false);
+
+static void waitWhileTestAgentHoldsOnOff_()
+{
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (g_testAgentHoldOnOff.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+}
 #endif // defined(ENABLE_TEST_AGENT)
 #include "audio/AudioEngineFactory.h"
 #include "pipeline/TxRxThread.h"
@@ -1491,23 +1506,23 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, wxT("FreeDV 
     m_auiNbookCtrl->AddPage(m_panelSpectrum, _("Spectrum"), false, wxNullBitmap);
 
     // Add Demod Input window
-    m_panelDemodIn = new PlotScalar(m_auiNbookCtrl, WAVEFORM_PLOT_TIME, 1.0/WAVEFORM_PLOT_FS, -1, 1, 1, 0.2, "%2.1f", 0);
+    m_panelDemodIn = new PlotScalar(m_auiNbookCtrl, WAVEFORM_PLOT_TIME, 1.0/WAVEFORM_PLOT_FS, -1, 1, 1, 0.2, "%2.1f");
     m_auiNbookCtrl->AddPage(m_panelDemodIn, _("Frm Radio"), false, wxNullBitmap);
 
     // Add Speech Input window
-    m_panelSpeechIn = new PlotScalar(m_auiNbookCtrl, WAVEFORM_PLOT_TIME, 1.0/WAVEFORM_PLOT_FS, -1, 1, 1, 0.2, "%2.1f", 0);
+    m_panelSpeechIn = new PlotScalar(m_auiNbookCtrl, WAVEFORM_PLOT_TIME, 1.0/WAVEFORM_PLOT_FS, -1, 1, 1, 0.2, "%2.1f");
     m_auiNbookCtrl->AddPage(m_panelSpeechIn, _("Frm Mic"), false, wxNullBitmap);
 
     // Add Speech Output window
-    m_panelSpeechOut = new PlotScalar(m_auiNbookCtrl, WAVEFORM_PLOT_TIME, 1.0/WAVEFORM_PLOT_FS, -1, 1, 1, 0.2, "%2.1f", 0);
+    m_panelSpeechOut = new PlotScalar(m_auiNbookCtrl, WAVEFORM_PLOT_TIME, 1.0/WAVEFORM_PLOT_FS, -1, 1, 1, 0.2, "%2.1f");
     m_auiNbookCtrl->AddPage(m_panelSpeechOut, _("Frm Decoder"), false, wxNullBitmap);
 
     // Add SNR window
-    m_panelSNR = new PlotScalar(m_auiNbookCtrl, SNR_PLOT_SECONDS, DT, NO_SNR_VAL, MAX_SNR_VAL, SNR_PLOT_SECONDS / SNR_PLOT_SECOND_SEGMENTS, 5, "%.0f", 0, "", true, NO_SNR_VAL, false);
+    m_panelSNR = new PlotScalar(m_auiNbookCtrl, SNR_PLOT_SECONDS, DT, NO_SNR_VAL, MAX_SNR_VAL, SNR_PLOT_SECONDS / SNR_PLOT_SECOND_SEGMENTS, 5, "%.0f", "", true, NO_SNR_VAL);
     m_auiNbookCtrl->AddPage(m_panelSNR, _("SNR"), false, wxNullBitmap);
 
     // AGC gain plot -- evaluation aid only, see AGC_GAIN_PLOT_* in defines.h.
-    m_panelAgcGain = new PlotScalar(m_auiNbookCtrl, AGC_GAIN_PLOT_SECONDS, LEVEL_METER_TX_REFRESH_PERIOD_SEC, MIN_AGC_GAIN_PLOT_VAL, MAX_AGC_GAIN_PLOT_VAL, AGC_GAIN_PLOT_SECONDS / AGC_GAIN_PLOT_SECOND_SEGMENTS, 3, "%.1f", 0, "", true, 0, false);
+    m_panelAgcGain = new PlotScalar(m_auiNbookCtrl, AGC_GAIN_PLOT_SECONDS, LEVEL_METER_TX_REFRESH_PERIOD_SEC, MIN_AGC_GAIN_PLOT_VAL, MAX_AGC_GAIN_PLOT_VAL, AGC_GAIN_PLOT_SECONDS / AGC_GAIN_PLOT_SECOND_SEGMENTS, 3, "%.1f", "", true, 0);
     m_panelAgcGain->setLineWidth(2); // easier to see on the dark background
     m_auiNbookCtrl->AddPage(m_panelAgcGain, _("AGC dB"), false, wxNullBitmap);
 
@@ -1621,9 +1636,6 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, wxT("FreeDV 
     m_rxThread = nullptr;
     wxGetApp().linkStep = nullptr;
     
-#ifdef _USE_ONIDLE
-    Connect(wxEVT_IDLE, wxIdleEventHandler(MainFrame::OnIdle), NULL, this);
-#endif //_USE_ONIDLE
 
     g_sfPlayFile.store(NULL, std::memory_order_release);
     g_playFileToMicIn.store(false, std::memory_order_release);
@@ -1981,9 +1993,6 @@ MainFrame::~MainFrame()
     }
 #endif //_USE_TIMER
 
-#ifdef _USE_ONIDLE
-    Disconnect(wxEVT_IDLE, wxIdleEventHandler(MainFrame::OnIdle), NULL, this);
-#endif // _USE_ONIDLE
 
     if (optionsDlg != NULL) {
         delete optionsDlg;
@@ -2003,10 +2012,6 @@ MainFrame::~MainFrame()
 }
 
 
-#ifdef _USE_ONIDLE
-void MainFrame::OnIdle(wxIdleEvent &) {
-}
-#endif
 
 int MainFrame::getIdealStationsHeardColumnLength_(int col)
 {
@@ -3543,6 +3548,9 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
         std::thread onOffExec([this]() 
         {
             SetThreadName("TurningOn");
+#if defined(ENABLE_TEST_AGENT)
+            waitWhileTestAgentHoldsOnOff_();
+#endif // defined(ENABLE_TEST_AGENT)
 
             // Anything a start that threw left running comes down with it, as
             // it would on any other failed start, whatever it threw.
@@ -3619,6 +3627,9 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
         std::thread onOffExec([this]() 
         {
             SetThreadName("TurningOff");
+#if defined(ENABLE_TEST_AGENT)
+            waitWhileTestAgentHoldsOnOff_();
+#endif // defined(ENABLE_TEST_AGENT)
 
             try
             {

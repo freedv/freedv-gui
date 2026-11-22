@@ -1215,6 +1215,9 @@ and show other stations’ after their frequencies. (PR #1644)</li>
 transmission, and holes in the signal at its start. (PR #1562)</li>
 <li>Hamlib/OmniRig: fix the radio sometimes being put back on FreeDV’s
 frequency after being tuned elsewhere just after Start. (PR #1632)</li>
+<li>Settings: recognise a frequency that’s already in the Predefined
+Frequencies list however it’s typed (e.g. 10.136 for 10.1360), so that
+it isn’t added a second time and can be removed. (PR #1646)</li>
 </ul></li>
 <li>Build system:
 <ul>
@@ -1251,6 +1254,9 @@ APiVerbose debugging options, which had no effect. (PR #1632)</li>
 <li>Add tests of audio device and engine thread safety, re-recording a
 voice keyer message, and Settings’ Test PTT. (PR #1625)</li>
 <li>Add new FreeDV application icon. (PR #1641)</li>
+<li>Add tests covering more of FreeDV Reporter, Settings, the Setup
+Wizard, the main window and the configuration code, and remove unused
+plot and main window code. (PR #1646)</li>
 </ul></li>
 </ol>
 <p><em>Note: Legacy FreeDV modes (700D/700E/1600) have been removed due

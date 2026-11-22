@@ -1470,6 +1470,9 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
         {
             if (item.second->isPendingDelete)
             {
+                // GCOVR_EXCL_START: every place that sets isPendingDelete
+                // clears isVisible in the same handler, so no row is ever
+                // both; the removal below has already happened by then.
                 if (item.second->isVisible)
                 {
                     setColumnAutosize_(false);
@@ -1488,6 +1491,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
                         selectionRemoved = true;
                     }
                 }
+                // GCOVR_EXCL_STOP
                 continue;
             }
             auto reportData = item.second;
@@ -3000,6 +3004,12 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::clearAllEntries_()
 
     columnsNeedWidthCheck_ = true;
 
+    // Every row is about to go, so a selection can't survive this either.
+    if (parent_->m_listSpots->GetSelection().IsOk())
+    {
+        parent_->CallAfter([this]() { parent_->DeselectItem(); });
+    }
+
     for (auto& row : allReporterData_)
     {
         if (row.second->isVisible)
@@ -3730,6 +3740,9 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onUserDisconnectFn_(std::str
             auto item = iter->second;
             if (item->isVisible)
             {
+                wxDataViewItem dvi(item);
+                bool wasSelected = parent_->m_listSpots->GetSelection().GetID() == dvi.GetID();
+
 #if !defined(__linux__)
                 // For non-Linux/GTK, isVisible must be set to false prior to removal
                 // to avoid referencing deallocated memory during table updates (i.e.
@@ -3737,7 +3750,6 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onUserDisconnectFn_(std::str
                 item->isVisible = false;
 #endif // !defined(__linux__)
                 
-                wxDataViewItem dvi(item);
                 ItemDeleted(wxDataViewItem(nullptr), dvi);
                 
 #if defined(__linux__)
@@ -3748,6 +3760,14 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onUserDisconnectFn_(std::str
 #endif // defined(__linux__)
 
                 columnsNeedWidthCheck_ = true;
+
+                if (wasSelected)
+                {
+                    // As in updateHighlights(): leave nothing selected rather
+                    // than whatever row macOS moves the selection on to, and
+                    // turn off Request QSY with it.
+                    parent_->CallAfter([this]() { parent_->DeselectItem(); });
+                }
             }
             item->isPendingDelete = true;
             item->deleteTime = wxDateTime::Now();

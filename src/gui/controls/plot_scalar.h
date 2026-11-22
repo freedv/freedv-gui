@@ -41,11 +41,9 @@ class PlotScalar: public PlotPanel
                float graticule_t_step,   
                float graticule_a_step,
                const char  a_fmt[],
-               int   mini,
                const char* plotName = "",
                bool halfPlot = false,
-               float defaultVal = 0,
-               bool disableFirstLastLabels = false
+               float defaultVal = 0
                );
         ~PlotScalar();
          void add_new_sample(float sample);
@@ -74,14 +72,12 @@ class PlotScalar: public PlotPanel
          float    m_graticule_t_step;   
          float    m_graticule_a_step;
          char     m_a_fmt[15];
-         int      m_mini;
          int      m_samples;
          float   *m_mem;   
          int      leftOffset_;
          int      bottomOffset_;
          bool halfPlot_;
          int lineWidth_;
-         bool disableFirstLastLabels_;
 
          wxBitmap* plotArea_;
          wxBitmap* plotLines_;

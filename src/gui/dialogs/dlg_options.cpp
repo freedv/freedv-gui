@@ -2409,6 +2409,12 @@ void OptionsDlg::DisplayFifoPACounters() {
     }
 }
 
+// A frequency written as the frequency list shows it.
+static wxString ShownFrequency(uint64_t hz, bool asKhz)
+{
+    return asKhz ? wxNumberFormatter::ToString(hz / 1000.0, 1) : wxNumberFormatter::ToString(hz / 1000000.0, 4);
+}
+
 void OptionsDlg::OnReportingFreqSelectionChange(wxCommandEvent&)
 {
     auto sel = m_freqList->GetSelection();
@@ -2429,7 +2435,7 @@ void OptionsDlg::OnReportingFreqTextChange(wxCommandEvent&)
     bool validFrequency = ReportingConfiguration::DisplayedFrequencyToHz(
         m_txtCtrlNewFrequency->GetValue(), wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz) > 0;
 
-    auto idx = m_freqList->FindString(m_txtCtrlNewFrequency->GetValue());
+    auto idx = findFrequency_(m_txtCtrlNewFrequency->GetValue());
     if (idx != wxNOT_FOUND)
     {
         m_freqListAdd->Enable(false);
@@ -2460,7 +2466,7 @@ void OptionsDlg::OnReportingFreqAdd(wxCommandEvent&)
     }
 
     double dVal = asKhz ? hz / 1000.0 : hz / 1000000.0;
-    val = wxNumberFormatter::ToString(dVal, asKhz ? 1 : 4);
+    val = ShownFrequency(hz, asKhz);
     // Keep the list in ascending order: a new entry goes straight into its
     // place rather than at the end.
     auto strings = m_freqList->GetStrings();
@@ -2469,9 +2475,24 @@ void OptionsDlg::OnReportingFreqAdd(wxCommandEvent&)
     m_txtCtrlNewFrequency->SetValue("");
 }
 
+int OptionsDlg::findFrequency_(wxString const& text) const
+{
+    // By its value, written as Add would list it: everything in the list is
+    // written that way (by Add, or by the configuration as it loads the
+    // list), so "10.136" finds the "10.1360" there -- as does "10.13604",
+    // which would be listed as that too.
+    bool asKhz = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz;
+    uint64_t hz = ReportingConfiguration::DisplayedFrequencyToHz(text, asKhz);
+    if (hz == 0)
+    {
+        return wxNOT_FOUND;
+    }
+    return m_freqList->FindString(ShownFrequency(hz, asKhz));
+}
+
 void OptionsDlg::OnReportingFreqRemove(wxCommandEvent&)
 {
-    auto idx = m_freqList->FindString(m_txtCtrlNewFrequency->GetValue());
+    auto idx = findFrequency_(m_txtCtrlNewFrequency->GetValue());
     if (idx >= 0)
     {
         m_freqList->Delete(idx);
@@ -2565,23 +2586,25 @@ void OptionsDlg::populatePortList()
     }
 #else
     glob_t gl;
-    if (glob("/sys/class/tty/*/device/driver", GLOB_MARK, NULL, &gl) == 0) // NOLINT
+    // The GCOVR_EXCL_BR_LINE below: whether these entries exist is a property
+    // of the machine, and the coverage job makes sure two of them do.
+    if (glob("/sys/class/tty/*/device/driver", GLOB_MARK, NULL, &gl) == 0) // NOLINT GCOVR_EXCL_BR_LINE
     {
         wxRegEx pathRegex("/sys/class/tty/([^/]+)");
         for (unsigned int i = 0; i < gl.gl_pathc; i++) {
             wxString path = gl.gl_pathv[i];
-            if (pathRegex.Matches(path))
+            if (pathRegex.Matches(path)) // GCOVR_EXCL_BR_LINE: see the globs above
                 portList.push_back("/dev/" + pathRegex.GetMatch(path, 1));
         }
         globfree(&gl);
     }
-    if (glob("/dev/serial/by-id/*", GLOB_MARK, NULL, &gl) == 0) // NOLINT
+    if (glob("/dev/serial/by-id/*", GLOB_MARK, NULL, &gl) == 0) // NOLINT GCOVR_EXCL_BR_LINE
     {
         for (unsigned int i = 0; i < gl.gl_pathc; i++)
             portList.push_back(gl.gl_pathv[i]);
         globfree(&gl);
     }
-    if (glob("/dev/rfcomm*", GLOB_MARK, NULL, &gl) == 0) // NOLINT
+    if (glob("/dev/rfcomm*", GLOB_MARK, NULL, &gl) == 0) // NOLINT GCOVR_EXCL_BR_LINE
     {
         for (unsigned int i = 0; i < gl.gl_pathc; i++)
             portList.push_back(gl.gl_pathv[i]);
