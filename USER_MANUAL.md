@@ -989,6 +989,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * FreeDV Reporter (macOS): leave no station selected when the selected one's row is hidden by a filter or removed, rather than selecting the station below it. (PR #1647)
     * FreeDV Reporter: fix a crash when the server reports a station that's already connected. (PR #1645)
     * Linux: warn when the sound server moves FreeDV's audio to another device. (PR #1652)
+    * Keep windows where they were left on displays above or to the left of the main one, or further right than 2048 pixels, while still bringing back any that are no longer on a display. (PR #1650)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
     * User manual: Explain why the sound server can move FreeDV's audio on Linux, and the audio problems caused by several USB audio devices sharing a hub. (PR #1652)

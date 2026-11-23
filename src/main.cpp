@@ -62,6 +62,7 @@
 #include "gui/dialogs/dlg_filter.h"
 #include "gui/dialogs/dlg_easy_setup.h"
 #include "gui/dialogs/freedv_reporter.h"
+#include "gui/util/WindowPlacement.h"
 #include "gui/util/WindowPositionRestore.h"
 #include "gui/util/TabLayoutSerializer.h"
 
@@ -1040,12 +1041,8 @@ void MainFrame::loadConfiguration_()
     int w = wxGetApp().appConfiguration.mainWindowWidth;
     int h = wxGetApp().appConfiguration.mainWindowHeight;
 
-    // sanitise frame position as a first pass at Win32 registry bug
-
-    if (x < 0 || x > 2048) x = 20;
-    if (y < 0 || y > 2048) y = 20;
-    // (Nor anything too small to be of use: macOS, unlike Linux's window
-    // managers, makes the window as small as it's asked to.) The default,
+    // No size that's too big, nor too small to be of use (macOS, unlike
+    // Linux's window managers, makes the window as small as it's asked to). The default,
     // for when none has been saved, and that limit are scaled to suit the
     // display: on Windows, sizes are in the screen's own pixels, and 800 of
     // those at 200% are only as wide as 400 elsewhere, leaving no room for
@@ -1068,6 +1065,13 @@ void MainFrame::loadConfiguration_()
 
     if (w < size.GetWidth()) w = size.GetWidth();
     if (h < size.GetHeight()) h = size.GetHeight();
+
+    // Keep the saved position if it's still on one of the displays (which
+    // may be above or to the left of the primary one, where coordinates are
+    // negative); otherwise, bring the window back onto the primary display.
+    wxPoint placed = PlaceWindowOnScreen(this, wxRect(x, y, w, h)).GetPosition();
+    x = placed.x;
+    y = placed.y;
 
     RestoreWindowPosition(this, x, y);
 
