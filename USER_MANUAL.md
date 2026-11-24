@@ -147,9 +147,9 @@ Another solution is to re-start FreeDV and check Tools/Audio Config again after 
 
 #### Devices Moved by the Sound Server (Linux)
 
-On Linux, the sound server (PipeWire or PulseAudio) can move FreeDV's audio to another device while FreeDV is running. It does this when a device is unplugged or stops working, including when a USB device can't start because there isn't enough USB bandwidth for it. You can also move FreeDV's audio yourself with a tool like pavucontrol. FreeDV follows these moves and saves the new devices in its settings, so it'll use them the next time it starts too. When this happens, FreeDV shows which of its audio streams were moved and to which devices.
+On Linux, the sound server (PipeWire or PulseAudio) can move FreeDV's audio to another device while FreeDV is running. It does this when a device is unplugged or stops working, including when a USB device can't start because there isn't enough USB bandwidth available. You can also move FreeDV's audio yourself with an audio mixer such as pavucontrol. FreeDV follows these moves and saves the new devices in its settings, so it'll use them the next time it starts. When this happens, FreeDV shows which of its audio streams were moved and to which devices.
 
-If you didn't expect the move, select the correct devices again in Tools/Audio Config. If moves keep happening with USB audio devices, see Several USB Audio Devices on One Hub below.
+If you didn't request the move, select the correct devices again in Tools/Audio Config. If moves keep happening with USB audio devices, see [Several USB Audio Devices on One Hub](#several-usb-audio-devices-on-one-hub) below.
 
 #### Several USB Audio Devices on One Hub
 
