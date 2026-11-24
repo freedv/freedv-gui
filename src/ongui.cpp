@@ -1958,6 +1958,15 @@ void MainFrame::OnTogBtnAnalogClick (wxCommandEvent& event)
             wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency = 
                 wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency - LSB_USB_FREQ_SHIFT_HZ;
             rigController->setFrequency(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+
+            // Report analog change to registered reporters
+            for (auto& obj : wxGetApp().m_reporters)
+            {
+                if (obj != wxGetApp().m_sharedReporterObject || !m_reporterHidden->GetValue())
+                {
+                    obj->freqChange(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency);
+                }
+            }
         }
 
         rigController->setMode(currentMode);

@@ -907,7 +907,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
 ## V3.0.0 TBD 2026
 
 1. Enhancements:
-    * RADEV2: Standardize mode as USB. (PR #1397, #1454) - thanks @barjac!
+    * RADEV2: Standardize mode as USB. (PR #1397, #1454, #1654) - thanks @barjac!
     * Combine all configuration into Settings->Edit Settings. (PR #1418, #1511)
     * Rework Easy Setup window into new Setup Wizard. (PR #1418, #1432, #1513)
     * Add ability to record both the raw and decoded RX audio. (PR #1501)
