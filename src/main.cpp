@@ -409,30 +409,83 @@ class UlogLogTarget : public wxLog
 template<int soundCardId, bool isOut>
 void MainFrame::handleAudioDeviceChange_(std::string const& newDeviceName)
 {
+    auto& audioConfig = wxGetApp().appConfiguration.audioConfiguration;
+    ConfigurationDataElement<wxString>* deviceSetting = nullptr;
+    wxString description;
+    if constexpr (soundCardId == 1 && !isOut)
+    {
+        deviceSetting = &audioConfig.soundCard1In.deviceName;
+        description = "Radio to FreeDV";
+    }
+    else if constexpr (soundCardId == 1 && isOut)
+    {
+        deviceSetting = &audioConfig.soundCard1Out.deviceName;
+        description = (g_nSoundCards.load(std::memory_order_acquire) == 1) ? "FreeDV to Speaker" : "FreeDV to Radio";
+    }
+    else if constexpr (soundCardId == 2 && !isOut)
+    {
+        deviceSetting = &audioConfig.soundCard2In.deviceName;
+        description = "Mic to FreeDV";
+    }
+    else
+    {
+        deviceSetting = &audioConfig.soundCard2Out.deviceName;
+        description = "FreeDV to Speaker";
+    }
+
+    wxString oldDevName = deviceSetting->get();
     wxString devName = wxString::FromUTF8(newDeviceName.c_str());
-    if (soundCardId == 1)
-    {
-        if (isOut)
-        {
-            wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.deviceName = devName;
-        }
-        else
-        {
-            wxGetApp().appConfiguration.audioConfiguration.soundCard1In.deviceName = devName;
-        }
-    }
-    else if (soundCardId == 2)
-    {
-        if (isOut)
-        {
-            wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.deviceName = devName;
-        }
-        else
-        {
-            wxGetApp().appConfiguration.audioConfiguration.soundCard2In.deviceName = devName;
-        }
-    }
+    *deviceSetting = devName;
     wxGetApp().appConfiguration.save(pConfig);
+
+    if (oldDevName == devName)
+    {
+        return;
+    }
+
+    // The sound server usually moves a stream because its device was
+    // unplugged or failed (e.g. there wasn't enough USB bandwidth for it), so
+    // the user is told rather than finding out the next time they transmit.
+    // Tests don't stop for dialogs.
+    if (testName != "")
+    {
+        return;
+    }
+    pendingAudioDeviceMoves_.push_back(wxString::Format("%s: now %s (was %s)", description, devName, oldDevName));
+    if (!showingAudioDeviceMoves_ && !audioDeviceMovedTimer_.IsRunning())
+    {
+        audioDeviceMovedTimer_.StartOnce(1000);
+    }
+}
+
+void MainFrame::onAudioDeviceMovedTimer_(wxTimerEvent&)
+{
+    if (pendingAudioDeviceMoves_.empty())
+    {
+        return;
+    }
+
+    std::vector<wxString> moves;
+    moves.swap(pendingAudioDeviceMoves_);
+
+    wxString message = "The sound server moved FreeDV's audio to other devices:\n\n";
+    for (auto& move : moves)
+    {
+        message += move + "\n";
+    }
+    message += "\nThis usually means a device was unplugged or stopped working. "
+        "FreeDV will use the new devices from now on. If you didn't expect this, "
+        "check the devices in Tools > Audio Config.";
+
+    // Moves while the dialog is open are shown after it's closed.
+    showingAudioDeviceMoves_ = true;
+    wxMessageBox(message, wxT("Audio Devices Moved"), wxOK | wxICON_WARNING, this);
+    showingAudioDeviceMoves_ = false;
+
+    if (!pendingAudioDeviceMoves_.empty())
+    {
+        audioDeviceMovedTimer_.StartOnce(1000);
+    }
 }
 
 void MainApp::UnitTest_()
@@ -1572,6 +1625,9 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, wxT("FreeDV 
         onSettingsChanged_(effects);
     };
 
+    audioDeviceMovedTimer_.SetOwner(this, ID_TIMER_AUDIO_DEVICE_MOVED);
+    Bind(wxEVT_TIMER, &MainFrame::onAudioDeviceMovedTimer_, this, ID_TIMER_AUDIO_DEVICE_MOVED);
+
     m_pttKeyPollTimer.SetOwner(this, ID_TIMER_PTT_KEY_POLL);
     Bind(wxEVT_TIMER, &MainFrame::OnPttKeyPollTimer, this, ID_TIMER_PTT_KEY_POLL);
 #endif
@@ -1978,6 +2034,7 @@ MainFrame::~MainFrame()
             sf_close(recordFile);
         }
     }
+    audioDeviceMovedTimer_.Stop();
 #ifdef _USE_TIMER
     if(m_pskReporterTimer.IsRunning())
     {
