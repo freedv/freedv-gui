@@ -51,6 +51,21 @@
 #include "freedv_interface.h"
 #if defined(ENABLE_TEST_AGENT)
 #include "test_agent.h"
+
+// Set by the test agent's hold_on_off, so that a GUI test can act while
+// Start or Stop Modem is still being carried out: the worker waits here
+// while it's set (for 30 seconds at most, so that a test that forgets to
+// let go doesn't hang FreeDV).
+std::atomic<bool> g_testAgentHoldOnOff(false);
+
+static void waitWhileTestAgentHoldsOnOff_()
+{
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (g_testAgentHoldOnOff.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+}
 #endif // defined(ENABLE_TEST_AGENT)
 #include "audio/AudioEngineFactory.h"
 #include "pipeline/TxRxThread.h"
@@ -66,6 +81,7 @@
 #include "gui/dialogs/dlg_setup_wizard.h"
 #include "gui/dialogs/dlg_filter.h"
 #include "gui/dialogs/freedv_reporter.h"
+#include "gui/util/WindowPlacement.h"
 #include "gui/util/WindowPositionRestore.h"
 #include "gui/util/TabLayoutSerializer.h"
 
@@ -396,30 +412,83 @@ class UlogLogTarget : public wxLog
 template<int soundCardId, bool isOut>
 void MainFrame::handleAudioDeviceChange_(std::string const& newDeviceName)
 {
+    auto& audioConfig = wxGetApp().appConfiguration.audioConfiguration;
+    ConfigurationDataElement<wxString>* deviceSetting = nullptr;
+    wxString description;
+    if constexpr (soundCardId == 1 && !isOut)
+    {
+        deviceSetting = &audioConfig.soundCard1In.deviceName;
+        description = "Radio to FreeDV";
+    }
+    else if constexpr (soundCardId == 1 && isOut)
+    {
+        deviceSetting = &audioConfig.soundCard1Out.deviceName;
+        description = (g_nSoundCards.load(std::memory_order_acquire) == 1) ? "FreeDV to Speaker" : "FreeDV to Radio";
+    }
+    else if constexpr (soundCardId == 2 && !isOut)
+    {
+        deviceSetting = &audioConfig.soundCard2In.deviceName;
+        description = "Mic to FreeDV";
+    }
+    else
+    {
+        deviceSetting = &audioConfig.soundCard2Out.deviceName;
+        description = "FreeDV to Speaker";
+    }
+
+    wxString oldDevName = deviceSetting->get();
     wxString devName = wxString::FromUTF8(newDeviceName.c_str());
-    if (soundCardId == 1)
-    {
-        if (isOut)
-        {
-            wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.deviceName = devName;
-        }
-        else
-        {
-            wxGetApp().appConfiguration.audioConfiguration.soundCard1In.deviceName = devName;
-        }
-    }
-    else if (soundCardId == 2)
-    {
-        if (isOut)
-        {
-            wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.deviceName = devName;
-        }
-        else
-        {
-            wxGetApp().appConfiguration.audioConfiguration.soundCard2In.deviceName = devName;
-        }
-    }
+    *deviceSetting = devName;
     wxGetApp().appConfiguration.save(pConfig);
+
+    if (oldDevName == devName)
+    {
+        return;
+    }
+
+    // The sound server usually moves a stream because its device was
+    // unplugged or failed (e.g. there wasn't enough USB bandwidth for it), so
+    // the user is told rather than finding out the next time they transmit.
+    // Tests don't stop for dialogs.
+    if (testName != "")
+    {
+        return;
+    }
+    pendingAudioDeviceMoves_.push_back(wxString::Format("%s: now %s (was %s)", description, devName, oldDevName));
+    if (!showingAudioDeviceMoves_ && !audioDeviceMovedTimer_.IsRunning())
+    {
+        audioDeviceMovedTimer_.StartOnce(1000);
+    }
+}
+
+void MainFrame::onAudioDeviceMovedTimer_(wxTimerEvent&)
+{
+    if (pendingAudioDeviceMoves_.empty())
+    {
+        return;
+    }
+
+    std::vector<wxString> moves;
+    moves.swap(pendingAudioDeviceMoves_);
+
+    wxString message = "The sound server moved FreeDV's audio to other devices:\n\n";
+    for (auto& move : moves)
+    {
+        message += move + "\n";
+    }
+    message += "\nThis usually means a device was unplugged or stopped working. "
+        "FreeDV will use the new devices from now on. If you didn't expect this, "
+        "check the devices in Tools > Audio Config.";
+
+    // Moves while the dialog is open are shown after it's closed.
+    showingAudioDeviceMoves_ = true;
+    wxMessageBox(message, wxT("Audio Devices Moved"), wxOK | wxICON_WARNING, this);
+    showingAudioDeviceMoves_ = false;
+
+    if (!pendingAudioDeviceMoves_.empty())
+    {
+        audioDeviceMovedTimer_.StartOnce(1000);
+    }
 }
 
 void MainApp::UnitTest_()
@@ -1115,12 +1184,8 @@ void MainFrame::loadConfiguration_()
     int w = wxGetApp().appConfiguration.mainWindowWidth;
     int h = wxGetApp().appConfiguration.mainWindowHeight;
 
-    // sanitise frame position as a first pass at Win32 registry bug
-
-    if (x < 0 || x > 2048) x = 20;
-    if (y < 0 || y > 2048) y = 20;
-    // (Nor anything too small to be of use: macOS, unlike Linux's window
-    // managers, makes the window as small as it's asked to.) The default,
+    // No size that's too big, nor too small to be of use (macOS, unlike
+    // Linux's window managers, makes the window as small as it's asked to). The default,
     // for when none has been saved, and that limit are scaled to suit the
     // display: on Windows, sizes are in the screen's own pixels, and 800 of
     // those at 200% are only as wide as 400 elsewhere, leaving no room for
@@ -1140,6 +1205,13 @@ void MainFrame::loadConfiguration_()
 
     if (w < size.GetWidth()) w = size.GetWidth();
     if (h < size.GetHeight()) h = size.GetHeight();
+
+    // Keep the saved position if it's still on one of the displays (which
+    // may be above or to the left of the primary one, where coordinates are
+    // negative); otherwise, bring the window back onto the primary display.
+    wxPoint placed = PlaceWindowOnScreen(this, wxRect(x, y, w, h)).GetPosition();
+    x = placed.x;
+    y = placed.y;
 
     RestoreWindowPosition(this, x, y);
 
@@ -1502,23 +1574,23 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, wxT("FreeDV 
     m_auiNbookCtrl->AddPage(m_panelSpectrum, _("Spectrum"), false, wxNullBitmap);
 
     // Add Demod Input window
-    m_panelDemodIn = new PlotScalar(m_auiNbookCtrl, WAVEFORM_PLOT_TIME, 1.0/WAVEFORM_PLOT_FS, -1, 1, 1, 0.2, "%2.1f", 0);
+    m_panelDemodIn = new PlotScalar(m_auiNbookCtrl, WAVEFORM_PLOT_TIME, 1.0/WAVEFORM_PLOT_FS, -1, 1, 1, 0.2, "%2.1f");
     m_auiNbookCtrl->AddPage(m_panelDemodIn, _("Frm Radio"), false, wxNullBitmap);
 
     // Add Speech Input window
-    m_panelSpeechIn = new PlotScalar(m_auiNbookCtrl, WAVEFORM_PLOT_TIME, 1.0/WAVEFORM_PLOT_FS, -1, 1, 1, 0.2, "%2.1f", 0);
+    m_panelSpeechIn = new PlotScalar(m_auiNbookCtrl, WAVEFORM_PLOT_TIME, 1.0/WAVEFORM_PLOT_FS, -1, 1, 1, 0.2, "%2.1f");
     m_auiNbookCtrl->AddPage(m_panelSpeechIn, _("Frm Mic"), false, wxNullBitmap);
 
     // Add Speech Output window
-    m_panelSpeechOut = new PlotScalar(m_auiNbookCtrl, WAVEFORM_PLOT_TIME, 1.0/WAVEFORM_PLOT_FS, -1, 1, 1, 0.2, "%2.1f", 0);
+    m_panelSpeechOut = new PlotScalar(m_auiNbookCtrl, WAVEFORM_PLOT_TIME, 1.0/WAVEFORM_PLOT_FS, -1, 1, 1, 0.2, "%2.1f");
     m_auiNbookCtrl->AddPage(m_panelSpeechOut, _("Frm Decoder"), false, wxNullBitmap);
 
     // Add SNR window
-    m_panelSNR = new PlotScalar(m_auiNbookCtrl, SNR_PLOT_SECONDS, DT, NO_SNR_VAL, MAX_SNR_VAL, SNR_PLOT_SECONDS / SNR_PLOT_SECOND_SEGMENTS, 5, "%.0f", 0, "", true, NO_SNR_VAL, false);
+    m_panelSNR = new PlotScalar(m_auiNbookCtrl, SNR_PLOT_SECONDS, DT, NO_SNR_VAL, MAX_SNR_VAL, SNR_PLOT_SECONDS / SNR_PLOT_SECOND_SEGMENTS, 5, "%.0f", "", true, NO_SNR_VAL);
     m_auiNbookCtrl->AddPage(m_panelSNR, _("SNR"), false, wxNullBitmap);
 
     // AGC gain plot -- evaluation aid only, see AGC_GAIN_PLOT_* in defines.h.
-    m_panelAgcGain = new PlotScalar(m_auiNbookCtrl, AGC_GAIN_PLOT_SECONDS, LEVEL_METER_TX_REFRESH_PERIOD_SEC, MIN_AGC_GAIN_PLOT_VAL, MAX_AGC_GAIN_PLOT_VAL, AGC_GAIN_PLOT_SECONDS / AGC_GAIN_PLOT_SECOND_SEGMENTS, 3, "%.1f", 0, "", true, 0, false);
+    m_panelAgcGain = new PlotScalar(m_auiNbookCtrl, AGC_GAIN_PLOT_SECONDS, LEVEL_METER_TX_REFRESH_PERIOD_SEC, MIN_AGC_GAIN_PLOT_VAL, MAX_AGC_GAIN_PLOT_VAL, AGC_GAIN_PLOT_SECONDS / AGC_GAIN_PLOT_SECOND_SEGMENTS, 3, "%.1f", "", true, 0);
     m_panelAgcGain->setLineWidth(2); // easier to see on the dark background
     m_auiNbookCtrl->AddPage(m_panelAgcGain, _("AGC dB"), false, wxNullBitmap);
 
@@ -1563,6 +1635,9 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, wxT("FreeDV 
     wxGetApp().appConfiguration.onChanged += [this](uint32_t effects) {
         onSettingsChanged_(effects);
     };
+
+    audioDeviceMovedTimer_.SetOwner(this, ID_TIMER_AUDIO_DEVICE_MOVED);
+    Bind(wxEVT_TIMER, &MainFrame::onAudioDeviceMovedTimer_, this, ID_TIMER_AUDIO_DEVICE_MOVED);
 
     m_pttKeyPollTimer.SetOwner(this, ID_TIMER_PTT_KEY_POLL);
     Bind(wxEVT_TIMER, &MainFrame::OnPttKeyPollTimer, this, ID_TIMER_PTT_KEY_POLL);
@@ -1632,9 +1707,6 @@ MainFrame::MainFrame(wxWindow *parent) : TopFrame(parent, wxID_ANY, wxT("FreeDV 
     m_rxThread = nullptr;
     wxGetApp().linkStep = nullptr;
     
-#ifdef _USE_ONIDLE
-    Connect(wxEVT_IDLE, wxIdleEventHandler(MainFrame::OnIdle), NULL, this);
-#endif //_USE_ONIDLE
 
     g_sfPlayFile.store(NULL, std::memory_order_release);
     g_playFileToMicIn.store(false, std::memory_order_release);
@@ -1973,6 +2045,7 @@ MainFrame::~MainFrame()
             sf_close(recordFile);
         }
     }
+    audioDeviceMovedTimer_.Stop();
 #ifdef _USE_TIMER
     if(m_pskReporterTimer.IsRunning())
     {
@@ -1992,9 +2065,6 @@ MainFrame::~MainFrame()
     }
 #endif //_USE_TIMER
 
-#ifdef _USE_ONIDLE
-    Disconnect(wxEVT_IDLE, wxIdleEventHandler(MainFrame::OnIdle), NULL, this);
-#endif // _USE_ONIDLE
 
     if (optionsDlg != NULL) {
         delete optionsDlg;
@@ -2014,10 +2084,6 @@ MainFrame::~MainFrame()
 }
 
 
-#ifdef _USE_ONIDLE
-void MainFrame::OnIdle(wxIdleEvent &) {
-}
-#endif
 
 int MainFrame::getIdealStationsHeardColumnLength_(int col)
 {
@@ -3571,6 +3637,9 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
         std::thread onOffExec([this]() 
         {
             SetThreadName("TurningOn");
+#if defined(ENABLE_TEST_AGENT)
+            waitWhileTestAgentHoldsOnOff_();
+#endif // defined(ENABLE_TEST_AGENT)
 
             // Anything a start that threw left running comes down with it, as
             // it would on any other failed start, whatever it threw.
@@ -3647,6 +3716,9 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent&)
         std::thread onOffExec([this]() 
         {
             SetThreadName("TurningOff");
+#if defined(ENABLE_TEST_AGENT)
+            waitWhileTestAgentHoldsOnOff_();
+#endif // defined(ENABLE_TEST_AGENT)
 
             try
             {

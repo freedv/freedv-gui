@@ -100,7 +100,6 @@
 #include "voicekeyer_cache.h"
 
 #define _USE_TIMER              1
-#define _USE_ONIDLE             1
 #define _DUMMY_DATA             1
 //#define _AUDIO_PASSTHROUGH    1
 #define _REFRESH_TIMER_PERIOD   (DT*1000)
@@ -126,6 +125,7 @@ enum {
         ID_TIMER_TOT,           // Time-Out Timer
         ID_TIMER_TOT_WARNING,   // Polls remaining TOT time to show warning
         ID_TIMER_PTT_KEY_POLL,  // Polls physical PTT key state after a forced TX stop
+        ID_TIMER_AUDIO_DEVICE_MOVED, // Waits for the rest of a group of audio device moves
      };
 
 #define EXCHANGE_DATA_IN    0
@@ -524,9 +524,6 @@ class MainFrame : public TopFrame
 #ifdef _USE_TIMER
         void OnTimer(wxTimerEvent &evt);
 #endif
-#ifdef _USE_ONIDLE
-        void OnIdle(wxIdleEvent &evt);
-#endif
 
         int VoiceKeyerStartTx(void);
         
@@ -783,6 +780,15 @@ class MainFrame : public TopFrame
         // Audio device change handling
         template<int soundCardId, bool isOut>
         void handleAudioDeviceChange_(std::string const& newDeviceName);
+
+        // Moves by the sound server that haven't been shown to the user yet.
+        // The timer waits for the rest of a group of moves (e.g. all of a
+        // USB device's streams when it's unplugged), so that they're all
+        // shown at once.
+        std::vector<wxString> pendingAudioDeviceMoves_;
+        wxTimer audioDeviceMovedTimer_;
+        bool showingAudioDeviceMoves_ = false;
+        void onAudioDeviceMovedTimer_(wxTimerEvent& evt);
 
         // Audio device data handlers
         static void OnTxInAudioData_(IAudioDevice& dev, void* data, size_t size, void* state) FREEDV_NONBLOCKING;

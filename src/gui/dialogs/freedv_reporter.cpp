@@ -26,7 +26,6 @@
 #include <algorithm>
 #include <math.h>
 #include <wx/datetime.h>
-#include <wx/display.h>
 #include <wx/clipbrd.h>
 #include <wx/wrapsizer.h>
 #include <wx/menuitem.h>
@@ -36,6 +35,7 @@
 #include "../util/FrequencyOps.h"
 #include "../util/AppIcon.h"
 #include "../util/GridSquare.h"
+#include "../util/WindowPlacement.h"
 #include "../util/WindowPositionRestore.h"
 
 #if wxCHECK_VERSION(3,2,0)
@@ -512,35 +512,15 @@ FreeDVReporterDialog::FreeDVReporterDialog(wxWindow* parent, wxWindowID id, cons
         wxGetApp().appConfiguration.reporterWindowLeft,
         wxGetApp().appConfiguration.reporterWindowTop));
 
-    // Make sure we didn't end up placing it off the screen in a location that can't
-    // easily be brought back.
-#if wxCHECK_VERSION(3,2,0)
-    wxDisplay currentDisplay(this);
-#else
-    auto displayNo = wxDisplay::GetFromWindow(this);
-    if (displayNo == wxNOT_FOUND)
-    {
-        displayNo = 0;
-    }
-    wxDisplay currentDisplay(displayNo);
-#endif // wxCHECK_VERSION(3,2,0)
-    
-    auto displayGeometry = currentDisplay.GetClientArea();
-    wxPoint actualPos = GetPosition();
-    wxSize actualWindowSize = GetSize();
-    if (actualPos.x < (displayGeometry.x - (0.9 * actualWindowSize.GetWidth())) ||
-        actualPos.x > (displayGeometry.x + 0.9 * displayGeometry.width))
-    {
-        actualPos.x = displayGeometry.x;
-    }
-    if (actualPos.y < displayGeometry.y ||
-        actualPos.y > (displayGeometry.y + 0.9 * displayGeometry.height))
-    {
-        actualPos.y = 0;
-    }
-    wxGetApp().appConfiguration.reporterWindowLeft = actualPos.x;
-    wxGetApp().appConfiguration.reporterWindowTop = actualPos.y;
-    RestoreWindowPosition(this, actualPos.x, actualPos.y);
+    // Keep the saved position if it's still on one of the displays (which
+    // may be above or to the left of the primary one, where coordinates are
+    // negative); otherwise, bring the window back onto the primary display.
+    wxPoint placed = PlaceWindowOnScreen(this, wxRect(
+        wxPoint(wxGetApp().appConfiguration.reporterWindowLeft, wxGetApp().appConfiguration.reporterWindowTop),
+        GetSize())).GetPosition();
+    wxGetApp().appConfiguration.reporterWindowLeft = placed.x;
+    wxGetApp().appConfiguration.reporterWindowTop = placed.y;
+    RestoreWindowPosition(this, placed.x, placed.y);
 
     // Set up timers. Highlight clear timer has a slightly longer interval
     // to reduce CPU usage.
@@ -1456,6 +1436,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
         auto curDate = wxDateTime::Now().ToUTC();
 
         wxDataViewItem currentSelection = parent_->m_listSpots->GetSelection();
+        bool selectionRemoved = false;
 
         // Looked up once per pass rather than for every row.
         const wxColour windowColor = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
@@ -1469,6 +1450,9 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
         {
             if (item.second->isPendingDelete)
             {
+                // GCOVR_EXCL_START: every place that sets isPendingDelete
+                // clears isVisible in the same handler, so no row is ever
+                // both; the removal below has already happened by then.
                 if (item.second->isVisible)
                 {
                     setColumnAutosize_(false);
@@ -1484,8 +1468,10 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
                     {
                         // Selection is no longer valid.
                         currentSelection = wxDataViewItem(nullptr);
+                        selectionRemoved = true;
                     }
                 }
+                // GCOVR_EXCL_STOP
                 continue;
             }
             auto reportData = item.second;
@@ -1565,6 +1551,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
                     {
                         // Selection no longer valid
                         currentSelection = wxDataViewItem(nullptr);
+                        selectionRemoved = true;
                     }
                 }
                 sortOnNextTimerInterval = true;
@@ -1597,6 +1584,15 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::updateHighlights()
         if (itemsChanged.size() > 0)
         {
             ItemsChanged(itemsChanged);
+        }
+
+        if (selectionRemoved)
+        {
+            // The selected row has gone. macOS moves the list's selection
+            // on to the row that took its place, which the user never
+            // chose; leave nothing selected instead, as the other
+            // platforms do.
+            parent_->CallAfter([this]() { parent_->DeselectItem(); });
         }
         
         if (contentChanged || columnsNeedWidthCheck_ || columnsNeedAutosize_)
@@ -2987,6 +2983,12 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::clearAllEntries_()
 
     columnsNeedWidthCheck_ = true;
 
+    // Every row is about to go, so a selection can't survive this either.
+    if (parent_->m_listSpots->GetSelection().IsOk())
+    {
+        parent_->CallAfter([this]() { parent_->DeselectItem(); });
+    }
+
     for (auto& row : allReporterData_)
     {
         if (row.second->isVisible)
@@ -3376,6 +3378,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::refreshAllRows()
     wxDataViewItemArray itemsAdded;
     wxDataViewItemArray itemsDeleted;
     wxDataViewItem currentSelection = parent_->m_listSpots->GetSelection();
+    bool selectionRemoved = false;
     
     for (auto& kvp : allReporterData_)
     {
@@ -3434,6 +3437,7 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::refreshAllRows()
                 {
                     // Selection no longer valid
                     currentSelection = wxDataViewItem(nullptr);
+                    selectionRemoved = true;
                 }
             }
             sortOnNextTimerInterval = true;
@@ -3454,6 +3458,12 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::refreshAllRows()
             parent_->CallAfter([&, currentSelection]() {
                 parent_->m_listSpots->Select(currentSelection);
             });
+        }
+        else if (selectionRemoved)
+        {
+            // As in updateHighlights(): don't let macOS move the selection
+            // on to a row the user never chose.
+            parent_->CallAfter([this]() { parent_->DeselectItem(); });
         }
     }
     
@@ -3709,6 +3719,9 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onUserDisconnectFn_(std::str
             auto item = iter->second;
             if (item->isVisible)
             {
+                wxDataViewItem dvi(item);
+                bool wasSelected = parent_->m_listSpots->GetSelection().GetID() == dvi.GetID();
+
 #if !defined(__linux__)
                 // For non-Linux/GTK, isVisible must be set to false prior to removal
                 // to avoid referencing deallocated memory during table updates (i.e.
@@ -3716,7 +3729,6 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onUserDisconnectFn_(std::str
                 item->isVisible = false;
 #endif // !defined(__linux__)
                 
-                wxDataViewItem dvi(item);
                 ItemDeleted(wxDataViewItem(nullptr), dvi);
                 
 #if defined(__linux__)
@@ -3727,6 +3739,14 @@ void FreeDVReporterDialog::FreeDVReporterDataModel::onUserDisconnectFn_(std::str
 #endif // defined(__linux__)
 
                 columnsNeedWidthCheck_ = true;
+
+                if (wasSelected)
+                {
+                    // As in updateHighlights(): leave nothing selected rather
+                    // than whatever row macOS moves the selection on to, and
+                    // turn off Request QSY with it.
+                    parent_->CallAfter([this]() { parent_->DeselectItem(); });
+                }
             }
             item->isPendingDelete = true;
             item->deleteTime = wxDateTime::Now();

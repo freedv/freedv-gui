@@ -6,6 +6,7 @@ add_library(fdv_gui_util STATIC
     SerialPortList.cpp
     TabLayoutSerializer.cpp
     wxListViewComboPopup.cpp
+    WindowPlacement.cpp
     WindowPositionRestore.cpp)
 
 target_compile_options(fdv_gui_util PRIVATE ${WARNINGS_AS_ERRORS_FLAGS})
@@ -47,6 +48,9 @@ FreeDVUnitTestUsesWxWidgets(GridSquareTest)
 
 DefineFreeDVUnitTest(gui_util SerialPortListTest fdv_gui_util ${FREEDV_LINK_LIBS})
 FreeDVUnitTestUsesWxWidgets(SerialPortListTest)
+
+DefineFreeDVUnitTest(gui_util WindowPlacementTest fdv_gui_util ${FREEDV_LINK_LIBS})
+FreeDVUnitTestUsesWxWidgets(WindowPlacementTest)
 
 DefineFreeDVUnitTest(gui_util TabLayoutSerializerTest fdv_gui_util ${FREEDV_LINK_LIBS})
 target_include_directories(TabLayoutSerializerTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../..)

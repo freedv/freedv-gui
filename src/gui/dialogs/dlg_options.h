@@ -300,6 +300,11 @@ class OptionsDlg : public wxDialog
         void OnReportingFreqRemove(wxCommandEvent& event);
         
      private:
+         // The row of the frequency list holding the frequency text gives, or
+         // wxNOT_FOUND: by value (to the precision the list shows), so that
+         // "10.136" finds the "10.1360" shown.
+         int findFrequency_(wxString const& text) const;
+
          void updateReportingState();
          void updateChannelNoiseState();
          void updateToneState();
@@ -326,8 +331,15 @@ class OptionsDlg : public wxDialog
 
          // Notes shown while FreeDV is running, on the pages whose settings
          // restart or reconnect something when they're applied.
-         std::vector<std::pair<wxStaticText*, wxString>> runningNotes_;
+         struct RunningNote
+         {
+             wxStaticText* note;
+             wxString text;
+             int wrappedWidth; // what the label is wrapped to now, or -1
+         };
+         std::vector<RunningNote> runningNotes_;
          wxStaticText* addRunningNote_(wxWindow* page, wxString const& text, const char* name);
+         void wrapRunningNote_(RunningNote& entry);
          bool isTesting_;
          std::thread* m_audioPlotThread;
 

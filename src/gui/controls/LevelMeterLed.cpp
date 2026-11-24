@@ -99,10 +99,12 @@ void LevelMeterLed::OnPaint(wxPaintEvent&)
     dc.SetBackground(wxBrush(background));
     dc.Clear();
 
-    static const wxColour GREEN(0, 200, 0);
-    static const wxColour AMBER(230, 160, 0);
-    static const wxColour RED(220, 30, 30);
-    static const wxColour BLUE(60, 145, 240);
+    // GCOVR_EXCL_BR_LINE: gcov counts the guard that initialises each static,
+    // not a branch in this code.
+    static const wxColour GREEN(0, 200, 0); // GCOVR_EXCL_BR_LINE
+    static const wxColour AMBER(230, 160, 0); // GCOVR_EXCL_BR_LINE
+    static const wxColour RED(220, 30, 30); // GCOVR_EXCL_BR_LINE
+    static const wxColour BLUE(60, 145, 240); // GCOVR_EXCL_BR_LINE
 
     // Each LED is outlined in its own colour, so unlit LEDs (left empty)
     // still show where they are and which zone they belong to.

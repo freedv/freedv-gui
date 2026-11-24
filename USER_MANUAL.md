@@ -127,6 +127,21 @@ Hitting **Refresh** in the lower left hand corner of the Tools/Audio Config will
 
 Another solution is to re-start FreeDV and check Tools/Audio Config again after changing any audio hardware.
 
+#### Devices Moved by the Sound Server (Linux)
+
+On Linux, the sound server (PipeWire or PulseAudio) can move FreeDV's audio to another device while FreeDV is running. It does this when a device is unplugged or stops working, including when a USB device can't start because there isn't enough USB bandwidth available. You can also move FreeDV's audio yourself with an audio mixer such as pavucontrol. FreeDV follows these moves and saves the new devices in its settings, so it'll use them the next time it starts. When this happens, FreeDV shows which of its audio streams were moved and to which devices.
+
+If you didn't request the move, select the correct devices again in Tools/Audio Config. If moves keep happening with USB audio devices, see [Several USB Audio Devices on One Hub](#several-usb-audio-devices-on-one-hub) below.
+
+#### Several USB Audio Devices on One Hub
+
+If your radio's built-in sound card and other USB audio devices (e.g. a USB headset, microphone or speakers) are plugged into the same USB hub, there may not be enough USB bandwidth for all of them at once. Many hubs share one 12 Mbit/s link among all of the older "full speed" devices plugged into them, and FreeDV can have up to four audio streams open at the same time. When there isn't enough bandwidth, a device fails to start or stops partway through:
+
+* On Windows, FreeDV reports an audio error, for example error -2004287484 (the device is no longer available).
+* On Linux, the sound server moves FreeDV's audio to another device (see above). Messages containing "Not enough bandwidth" in the output of `sudo dmesg` confirm the cause.
+
+Plugging your radio directly into the computer, with the other audio devices on a different port, normally fixes it. A hub with a transaction translator for each port (often described as "multi-TT") also helps.
+
 ### CAT/PTT Configuration
 
 The Tools->CAT and PTT Config dialog supports three different ways to control PTT on
@@ -906,11 +921,12 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Hamlib/OmniRig: add option to disable saving and restoring the radio's frequency on start and stop. (PR #1600)
     * RADE: fill in the missing high frequencies when transmitting with an 8 kHz mic (e.g. a Bluetooth headset). (PR #1614)
     * Settings: apply half duplex and the VOX tone immediately while running, allow changing the PTT key and TX/RX delay, and note which settings take effect the next time FreeDV starts. (PR #1631)
-    * Settings: apply every setting while running, restarting the audio or reconnecting to the radio and reporting services as needed, once back on receive. (PR #1632)
+    * Settings: apply every setting while running, restarting the audio or reconnecting to the radio and reporting services as needed, once back on receive. (PR #1632, #1649)
     * FreeDV Reporter: report which sideband (USB or LSB) the radio is on, and show other stations' after their frequencies. (PR #1644)
 2. Bugfixes:
     * Fix silence being mixed into the first half second of each transmission, and holes in the signal at its start. (PR #1562)
     * Hamlib/OmniRig: fix the radio sometimes being put back on FreeDV's frequency after being tuned elsewhere just after Start. (PR #1632)
+    * Settings: recognise a frequency that's already in the Predefined Frequencies list however it's typed (e.g. 10.136 for 10.1360), so that it isn't added a second time and can be removed. (PR #1646)
 3. Build system:
     * Update wxWidgets to 3.3.4. (PR #1560, #1556)
     * CI: only build with PGO, run the tests and report coverage on merges; other pushes get unsigned packages to try out. (PR #1563, #1585)
@@ -928,6 +944,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Settings: remove the txRxThreadPriority, txRxDumpTiming and APiVerbose debugging options, which had no effect. (PR #1632)
     * Add tests of audio device and engine thread safety, re-recording a voice keyer message, and Settings' Test PTT. (PR #1625)
     * Add new FreeDV application icon. (PR #1641)
+    * Add tests covering more of FreeDV Reporter, Settings, the Setup Wizard, the main window and the configuration code, and remove unused plot and main window code. (PR #1646)
 
 *Note: Legacy FreeDV modes (700D/700E/1600) have been removed due to low use. FreeDV 2.4.x is still available if one wishes to operate these modes.*
 
@@ -949,9 +966,14 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Hamlib: fix rigctld sometimes dropping FreeDV's connection when Test PTT is clicked again, Start follows Stop quickly, or another program disconnects from rigctld, just as FreeDV connects. (PR #1634)
     * Fix Test PTT becoming usable again before the radio was unkeyed and the serial port closed, when using serial port or OmniRig PTT. (PR #1636)
     * Stop the play file and any recording when the modem stops. (PR #1642)
-    * Refuse what isn't a number instead of saving stack garbage. (PR #1643)
+    * Refuse what isn't a number instead of saving stack garbage. (PR #1643, #1648)
+    * FreeDV Reporter (macOS): leave no station selected when the selected one's row is hidden by a filter or removed, rather than selecting the station below it. (PR #1647)
+    * FreeDV Reporter: fix a crash when the server reports a station that's already connected. (PR #1645)
+    * Linux: warn when the sound server moves FreeDV's audio to another device. (PR #1652)
+    * Keep windows where they were left on displays above or to the left of the main one, or further right than 2048 pixels, while still bringing back any that are no longer on a display. (PR #1650)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
+    * User manual: Explain why the sound server can move FreeDV's audio on Linux, and the audio problems caused by several USB audio devices sharing a hub. (PR #1652)
 3. Build system:
     * Build the macOS DMG as ULFO. (PR #1639)
 
