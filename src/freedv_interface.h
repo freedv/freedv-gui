@@ -64,6 +64,12 @@ class RADEReceiveStep;
 class FreeDVInterface
 {
 public:
+    enum MistuneState {
+        TOO_LOW = -1, 
+        UNKNOWN = 0, 
+        TOO_HIGH = 1
+    };
+
     FreeDVInterface();
     virtual ~FreeDVInterface();
     
@@ -82,6 +88,8 @@ public:
     int getErrorPattern(short** outputPattern);
     
     int getSync() const;
+    MistuneState getMistuneState() const;
+
     void setSync(int val) FREEDV_NONBLOCKING;
     
     void setTextCallbackFn(void (*rxFunc)(void *, char), char (*txFunc)(void *));
@@ -147,6 +155,7 @@ private:
     LPCNetEncState *lpcnetEncState_; 
     RADETransmitStep *radeTxStep_;
     std::atomic<int> sync_;
+    std::atomic<int> mistuneState_;
     std::atomic<int> radeSnr_;
     std::atomic<float> rxFreqOffset_; // published by the RX thread for the GUI
     rade_text_t radeTextPtr_;

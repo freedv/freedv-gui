@@ -251,6 +251,11 @@ int FreeDVInterface::getSync() const
     return sync_.load(std::memory_order_acquire);
 }
 
+FreeDVInterface::MistuneState FreeDVInterface::getMistuneState() const
+{
+    return (FreeDVInterface::MistuneState)mistuneState_.load(std::memory_order_acquire);
+}
+
 int FreeDVInterface::getTxModemSampleRate() const FREEDV_NONBLOCKING
 {
     return RADE_MODEM_SAMPLE_RATE;
@@ -354,6 +359,7 @@ IPipelineStep* FreeDVInterface::createReceivePipeline(
         (*step->getRxStateFn()()).store(finalSync, std::memory_order_release);
         state->sync_.store(finalSync, std::memory_order_release);
         state->radeSnr_.store(step->getSnr(), std::memory_order_release);
+        state->mistuneState_.store(step->getMistuneState(), std::memory_order_release);
 
         // Verified that rade_freq_offset() is a simple getter as of 2026-10-22.
         FREEDV_BEGIN_VERIFIED_SAFE

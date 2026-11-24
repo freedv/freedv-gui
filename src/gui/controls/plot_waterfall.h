@@ -45,6 +45,12 @@ struct WaterfallCanvas;
 class PlotWaterfall : public PlotPanel
 {
     public:
+        enum MistuneState {
+            TOO_LOW = -1,
+            UNKNOWN = 0,
+            TOO_HIGH = 1
+        };
+
         PlotWaterfall(wxWindow* parent, float *magdB, bool graticule, int colour);
         ~PlotWaterfall();
         bool checkDT(void);
@@ -64,6 +70,7 @@ class PlotWaterfall : public PlotPanel
         }
         void setFs(int fs) { m_modem_stats_max_f_hz = fs/2; }
         void setColor(int color) { m_colour = color; }
+        void setMistuneState(MistuneState state) { m_mistuneState = state; }
 
         virtual void refreshData() override;
         
@@ -86,6 +93,7 @@ class PlotWaterfall : public PlotPanel
         virtual bool repaintAll_(wxPaintEvent& evt) override;
 
     private:
+        MistuneState m_mistuneState;
         float*      m_magDb;
         float       m_dT;
         float       m_rxFreq;
