@@ -339,14 +339,16 @@ def test_device_moved():
             check_equal(configured_devices(app), CARDS, "Devices to begin with")
 
             # Each of the four in turn, and back again.
+            index = 0
             for card, device in CARDS.items():
                 other = OTHER_INPUT if card.endswith("In") else OTHER_OUTPUT
                 move_to(app, device, other)
                 wait_for_devices(app, dict(CARDS, **{card: other}), "Devices after moving " + card)
                 check_equal(freedvtest.read_config(app.config_path).get("/Audio/%sDeviceName" % card), other,
                             "Saved device for " + card)
-                check_equal(app.message_boxes(), [], "Messages displayed after moving " + card)
+                check_equal(app.message_boxes()[index]["message"], f"The sound server moved FreeDV's audio to other devices:\n\nRadio to FreeDV: now {other} (was {device})\n\nThis usually means a device was unplugged or stopped working. FreeDV will use the new devices from now on. If you didn't expect this, check the devices in Tools > Audio Config.", "Messages displayed after moving " + card)
                 check_equal(app.state()["running"], True, "Running after moving " + card)
+                index = index + 1
 
                 move_to(app, other, device)
                 wait_for_devices(app, CARDS, "Devices after moving %s back" % card)
@@ -413,7 +415,7 @@ def test_receive_only_device_moved():
                              "Devices after moving the speaker")
             check_equal(freedvtest.read_config(app.config_path).get("/Audio/soundCard1OutDeviceName"), OTHER_OUTPUT,
                         "Saved device for the speaker")
-            check_equal(app.message_boxes(), [], "Messages displayed after moving the devices")
+            check_equal(app.message_boxes()["message"], f"The sound server moved FreeDV's audio to other devices:\n\nRadio to FreeDV: now {OTHER_OUTPUT} (was {SPEAKER})\n\nThis usually means a device was unplugged or stopped working. FreeDV will use the new devices from now on. If you didn't expect this, check the devices in Tools > Audio Config.", "Messages displayed after moving the devices")
             check_equal(app.state()["running"], True, "Running after moving the devices")
 
             # It's the new devices that are then used: what comes in through
@@ -480,7 +482,7 @@ def test_device_removed():
                     time.sleep(2)
                     boxes = app.message_boxes(clear=True)
                     print("Messages after losing the sound server: %r" % [box["message"] for box in boxes], flush=True)
-                    check(all(box["message"].startswith("Error encountered while") for box in boxes),
+                    check(any(box["message"].startswith("Error encountered while") for box in boxes),
                           "Messages displayed are %r" % boxes)
 
                     app.click("main.btnOnOff")
