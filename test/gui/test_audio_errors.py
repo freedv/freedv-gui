@@ -107,6 +107,32 @@ def wait_for_devices(app, expected, what):
                     "%s (streams: %r; FreeDV was told: %r)" % (what, streams(app.pid), told))
 
 
+# What FreeDV calls each of its devices when telling the user that the sound
+# server moved one of them, and what it says.
+CARD_DESCRIPTIONS = {
+    "soundCard1In": "Radio to FreeDV",
+    "soundCard1Out": "FreeDV to Radio",
+    "soundCard2In": "Mic to FreeDV",
+    "soundCard2Out": "FreeDV to Speaker",
+}
+
+MOVE_MESSAGE = ("The sound server moved FreeDV's audio to other devices:\n\n%s\n\n"
+                "This usually means a device was unplugged or stopped working. FreeDV will use the "
+                "new devices from now on. If you didn't expect this, check the devices in Tools > "
+                "Audio Config.")
+
+
+def wait_for_move_message(app, card, was, now, what, description=None):
+    """Waits for FreeDV to have said that the sound server moved one of its
+    streams (it does so a second after it's told, in a message covering all
+    the moves made in that second) and checks what it said."""
+    app.wait_until(lambda: app.message_boxes(), timeout=10,
+                   description="FreeDV to say that %s was moved" % what)
+    check_equal([box["message"] for box in app.message_boxes(clear=True)],
+                [MOVE_MESSAGE % ("%s: now %s (was %s)"
+                                 % (description or CARD_DESCRIPTIONS[card], now, was))],
+                "Messages displayed after moving " + what)
+
 
 # ---------------------------------------------------------------------------
 # Scenarios
@@ -339,25 +365,25 @@ def test_device_moved():
             check_equal(configured_devices(app), CARDS, "Devices to begin with")
 
             # Each of the four in turn, and back again.
-            index = 0
             for card, device in CARDS.items():
                 other = OTHER_INPUT if card.endswith("In") else OTHER_OUTPUT
                 move_to(app, device, other)
                 wait_for_devices(app, dict(CARDS, **{card: other}), "Devices after moving " + card)
                 check_equal(freedvtest.read_config(app.config_path).get("/Audio/%sDeviceName" % card), other,
                             "Saved device for " + card)
-                check_equal(app.message_boxes()[index]["message"], f"The sound server moved FreeDV's audio to other devices:\n\nRadio to FreeDV: now {other} (was {device})\n\nThis usually means a device was unplugged or stopped working. FreeDV will use the new devices from now on. If you didn't expect this, check the devices in Tools > Audio Config.", "Messages displayed after moving " + card)
+                wait_for_move_message(app, card, device, other, card)
                 check_equal(app.state()["running"], True, "Running after moving " + card)
-                index = index + 1
 
                 move_to(app, other, device)
                 wait_for_devices(app, CARDS, "Devices after moving %s back" % card)
+                wait_for_move_message(app, card, other, device, card + " back")
 
             # It's the new device that's then used: the speaker's stream,
             # with what's coming from the radio played through it.
             app.click("main.btnAnalog")
             move_to(app, SPEAKER, OTHER_OUTPUT)
             wait_for_devices(app, dict(CARDS, soundCard2Out=OTHER_OUTPUT), "Devices after moving the speaker")
+            wait_for_move_message(app, "soundCard2Out", SPEAKER, OTHER_OUTPUT, "the speaker")
             with Tone(RADIO_RX):
                 time.sleep(0.75)
                 heard = level(VirtualAudioDevices.input_name(OTHER_OUTPUT))
@@ -368,6 +394,7 @@ def test_device_moved():
             move_to(app, RADIO_TX, SPEAKER)
             wait_for_devices(app, dict(CARDS, soundCard1Out=SPEAKER, soundCard2Out=OTHER_OUTPUT),
                              "Devices after moving the radio's output")
+            wait_for_move_message(app, "soundCard1Out", RADIO_TX, SPEAKER, "the radio's output")
             app.click("main.btnPTT")
             wait_for_transmit(app)
             with Tone(MICROPHONE):
@@ -409,13 +436,15 @@ def test_receive_only_device_moved():
             wait_for_devices(app, dict(before, soundCard1In=OTHER_INPUT), "Devices after moving the radio's input")
             check_equal(freedvtest.read_config(app.config_path).get("/Audio/soundCard1InDeviceName"), OTHER_INPUT,
                         "Saved device for the radio's input")
+            wait_for_move_message(app, "soundCard1In", CARDS["soundCard1In"], OTHER_INPUT, "the radio's input")
 
             move_to(app, SPEAKER, OTHER_OUTPUT)
             wait_for_devices(app, dict(before, soundCard1In=OTHER_INPUT, soundCard1Out=OTHER_OUTPUT),
                              "Devices after moving the speaker")
             check_equal(freedvtest.read_config(app.config_path).get("/Audio/soundCard1OutDeviceName"), OTHER_OUTPUT,
                         "Saved device for the speaker")
-            check_equal(app.message_boxes()["message"], f"The sound server moved FreeDV's audio to other devices:\n\nRadio to FreeDV: now {OTHER_OUTPUT} (was {SPEAKER})\n\nThis usually means a device was unplugged or stopped working. FreeDV will use the new devices from now on. If you didn't expect this, check the devices in Tools > Audio Config.", "Messages displayed after moving the devices")
+            wait_for_move_message(app, "soundCard1Out", SPEAKER, OTHER_OUTPUT, "the speaker",
+                                  description="FreeDV to Speaker")
             check_equal(app.state()["running"], True, "Running after moving the devices")
 
             # It's the new devices that are then used: what comes in through
@@ -467,7 +496,8 @@ def test_device_removed():
                         except freedvtest.FreeDVError:
                             check_equal(configured_devices(app), expected, "Devices after the speaker was unplugged")
                         check_equal(app.state()["running"], True, "Running after the speaker was unplugged")
-                        check_equal(app.message_boxes(), [], "Messages displayed after the speaker was unplugged")
+                        wait_for_move_message(app, "soundCard2Out", SPEAKER, PrivateAudioServer.DEFAULT_OUTPUT,
+                                              "the speaker")
                         time.sleep(1)
                         heard = level(VirtualAudioDevices.input_name(PrivateAudioServer.DEFAULT_OUTPUT))
                         check(heard > AUDIBLE,
@@ -482,7 +512,7 @@ def test_device_removed():
                     time.sleep(2)
                     boxes = app.message_boxes(clear=True)
                     print("Messages after losing the sound server: %r" % [box["message"] for box in boxes], flush=True)
-                    check(any(box["message"].startswith("Error encountered while") for box in boxes),
+                    check(all(box["message"].startswith("Error encountered while") for box in boxes),
                           "Messages displayed are %r" % boxes)
 
                     app.click("main.btnOnOff")
