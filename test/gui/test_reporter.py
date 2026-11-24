@@ -3075,6 +3075,63 @@ def test_sideband_manual():
             radio.__exit__(None, None, None)
 
 
+def test_sideband_analog():
+    """Switching to analog, and back, on a band where that means changing
+    sideband, with a radio FreeDV can retune: FreeDV isn't listed while it's in
+    analog, and coming back tells the server the frequency the radio's actually
+    on once the 3 kHz shift is undone, rather than leaving it on where FreeDV
+    was before going in."""
+    with ReporterServer() as server:
+        viewer = server.viewer()
+
+        radio = start_radio()
+        try:
+            radio.set_frequency(7177000)
+            settings = radio_settings(server, radio)
+            settings["/Reporting/Frequency"] = 7177000
+            with audio_devices(), freedvtest.start(settings=settings) as app:
+                open_reporter(app)
+                start_modem(app)
+                app.wait_until(lambda: "USB" in radio.mode(), timeout=20,
+                               description="FreeDV to put the radio on its digital mode")
+                digital = radio.mode()
+                viewer.wait_for_event("freq_change", CALLSIGN_OF_FREEDV,
+                                      where=lambda data: data["freq"] == 7177000, timeout=20)
+
+                # 40m: analog is on the lower sideband, so the radio goes 3 kHz
+                # up to stay on the stretch of the band it was hearing. FreeDV
+                # isn't listed while in analog, so what it does there (including
+                # a QSY) isn't reported.
+                app.click("main.btnAnalog")
+                app.wait_until(lambda: radio.mode() == "LSB" and radio.frequency() == 7180000, timeout=20,
+                               description="the radio to go to LSB on 7.1800")
+                app.wait_until(lambda: CALLSIGN_OF_FREEDV not in viewer.callsigns(), timeout=20,
+                               description="FreeDV to be hidden from the server")
+
+                # QSY while there.
+                app.set_value("main.cboReportFrequency", "7.1600")
+                app.wait_until(lambda: radio.frequency() == 7160000, timeout=20,
+                               description="the radio to follow to 7.1600")
+
+                # Back to digital: the shift's undone, and coming back on view
+                # tells the server where the radio actually is rather than
+                # leaving it on where FreeDV was before going to analog.
+                app.click("main.btnAnalog")
+                app.wait_until(lambda: radio.mode() == digital and radio.frequency() == 7157000, timeout=20,
+                               description="the radio back on %s at 7.1570" % digital)
+                app.wait_until(lambda: CALLSIGN_OF_FREEDV in viewer.callsigns(), timeout=20,
+                               description="FreeDV to be listed again")
+                viewer.wait_for_event("freq_change", CALLSIGN_OF_FREEDV,
+                                      where=lambda data: data["freq"] == 7157000, timeout=20)
+                wait_for_cell(app, CALLSIGN_OF_FREEDV, FREQUENCY,
+                              lambda text: text.replace(",", "").split(" ")[0] == "7.1570")
+
+                stop_modem(app)
+                quit_and_check_log(app, with_hamlib=True)
+        finally:
+            radio.__exit__(None, None, None)
+
+
 SCENARIOS = {
     "live_view": test_live_view,
     "stations": test_stations,
@@ -3111,6 +3168,7 @@ SCENARIOS = {
     "sideband": test_sideband,
     "sideband_follow": test_sideband_follow,
     "sideband_manual": test_sideband_manual,
+    "sideband_analog": test_sideband_analog,
 }
 
 
