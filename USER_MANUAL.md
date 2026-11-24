@@ -145,6 +145,21 @@ Hitting **Refresh** in the lower left hand corner of the Tools/Audio Config will
 
 Another solution is to re-start FreeDV and check Tools/Audio Config again after changing any audio hardware.
 
+#### Devices Moved by the Sound Server (Linux)
+
+On Linux, the sound server (PipeWire or PulseAudio) can move FreeDV's audio to another device while FreeDV is running. It does this when a device is unplugged or stops working, including when a USB device can't start because there isn't enough USB bandwidth available. You can also move FreeDV's audio yourself with an audio mixer such as pavucontrol. FreeDV follows these moves and saves the new devices in its settings, so it'll use them the next time it starts. When this happens, FreeDV shows which of its audio streams were moved and to which devices.
+
+If you didn't request the move, select the correct devices again in Tools/Audio Config. If moves keep happening with USB audio devices, see [Several USB Audio Devices on One Hub](#several-usb-audio-devices-on-one-hub) below.
+
+#### Several USB Audio Devices on One Hub
+
+If your radio's built-in sound card and other USB audio devices (e.g. a USB headset, microphone or speakers) are plugged into the same USB hub, there may not be enough USB bandwidth for all of them at once. Many hubs share one 12 Mbit/s link among all of the older "full speed" devices plugged into them, and FreeDV can have up to four audio streams open at the same time. When there isn't enough bandwidth, a device fails to start or stops partway through:
+
+* On Windows, FreeDV reports an audio error, for example error -2004287484 (the device is no longer available).
+* On Linux, the sound server moves FreeDV's audio to another device (see above). Messages containing "Not enough bandwidth" in the output of `sudo dmesg` confirm the cause.
+
+Plugging your radio directly into the computer, with the other audio devices on a different port, normally fixes it. A hub with a transaction translator for each port (often described as "multi-TT") also helps.
+
 ### CAT/PTT Configuration
 
 The Tools->CAT and PTT Config dialog supports three different ways to control PTT on
@@ -973,9 +988,11 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Refuse what isn't a number instead of saving stack garbage. (PR #1643, #1648)
     * FreeDV Reporter (macOS): leave no station selected when the selected one's row is hidden by a filter or removed, rather than selecting the station below it. (PR #1647)
     * FreeDV Reporter: fix a crash when the server reports a station that's already connected. (PR #1645)
+    * Linux: warn when the sound server moves FreeDV's audio to another device. (PR #1652)
     * Keep windows where they were left on displays above or to the left of the main one, or further right than 2048 pixels, while still bringing back any that are no longer on a display. (PR #1650)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
+    * User manual: Explain why the sound server can move FreeDV's audio on Linux, and the audio problems caused by several USB audio devices sharing a hub. (PR #1652)
 3. Build system:
     * Build the macOS DMG as ULFO. (PR #1639)
 
