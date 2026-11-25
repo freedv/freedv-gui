@@ -164,6 +164,43 @@ users. Unexpected audio configuration changes may also occur following a
 Windows updates.</p>
 <p>Another solution is to re-start FreeDV and check Tools/Audio Config
 again after changing any audio hardware.</p>
+<h4 data-number="2.3.1.4"
+id="devices-moved-by-the-sound-server-linux"><span
+class="header-section-number">2.3.1.4</span> Devices Moved by the Sound
+Server (Linux)</h4>
+<p>On Linux, the sound server (PipeWire or PulseAudio) can move FreeDV’s
+audio to another device while FreeDV is running. It does this when a
+device is unplugged or stops working, including when a USB device can’t
+start because there isn’t enough USB bandwidth available. You can also
+move FreeDV’s audio yourself with an audio mixer such as pavucontrol.
+FreeDV follows these moves and saves the new devices in its settings, so
+it’ll use them the next time it starts. When this happens, FreeDV shows
+which of its audio streams were moved and to which devices.</p>
+<p>If you didn’t request the move, select the correct devices again in
+Tools/Audio Config. If moves keep happening with USB audio devices, see
+<a href="#several-usb-audio-devices-on-one-hub">Several USB Audio
+Devices on One Hub</a> below.</p>
+<h4 data-number="2.3.1.5"
+id="several-usb-audio-devices-on-one-hub"><span
+class="header-section-number">2.3.1.5</span> Several USB Audio Devices
+on One Hub</h4>
+<p>If your radio’s built-in sound card and other USB audio devices
+(e.g. a USB headset, microphone or speakers) are plugged into the same
+USB hub, there may not be enough USB bandwidth for all of them at once.
+Many hubs share one 12 Mbit/s link among all of the older “full speed”
+devices plugged into them, and FreeDV can have up to four audio streams
+open at the same time. When there isn’t enough bandwidth, a device fails
+to start or stops partway through:</p>
+<ul>
+<li>On Windows, FreeDV reports an audio error, for example error
+-2004287484 (the device is no longer available).</li>
+<li>On Linux, the sound server moves FreeDV’s audio to another device
+(see above). Messages containing “Not enough bandwidth” in the output of
+<code>sudo dmesg</code> confirm the cause.</li>
+</ul>
+<p>Plugging your radio directly into the computer, with the other audio
+devices on a different port, normally fixes it. A hub with a transaction
+translator for each port (often described as “multi-TT”) also helps.</p>
 <h3 data-number="2.3.2" id="catptt-configuration"><span
 class="header-section-number">2.3.2</span> CAT/PTT Configuration</h3>
 <p>The Tools-&gt;CAT and PTT Config dialog supports three different ways
@@ -1173,8 +1210,8 @@ class="header-section-number">19.1</span> V3.0.0 TBD 2026</h2>
 <ol type="1">
 <li>Enhancements:
 <ul>
-<li>RADEV2: Standardize mode as USB. (PR #1397, #1454) - thanks <span
-class="citation" data-cites="barjac">@barjac</span>!</li>
+<li>RADEV2: Standardize mode as USB. (PR #1397, #1454, #1654) - thanks
+<span class="citation" data-cites="barjac">@barjac</span>!</li>
 <li>Combine all configuration into Settings-&gt;Edit Settings. (PR
 #1418, #1511)</li>
 <li>Rework Easy Setup window into new Setup Wizard. (PR #1418, #1432,
@@ -1309,11 +1346,19 @@ one’s row is hidden by a filter or removed, rather than selecting the
 station below it. (PR #1647)</li>
 <li>FreeDV Reporter: fix a crash when the server reports a station
 that’s already connected. (PR #1645)</li>
+<li>Linux: warn when the sound server moves FreeDV’s audio to another
+device. (PR #1652)</li>
+<li>Keep windows where they were left on displays above or to the left
+of the main one, or further right than 2048 pixels, while still bringing
+back any that are no longer on a display. (PR #1650)</li>
 </ul></li>
 <li>Documentation:
 <ul>
 <li>User manual: Update reference to Experimental Features section. (PR
 #1613)</li>
+<li>User manual: Explain why the sound server can move FreeDV’s audio on
+Linux, and the audio problems caused by several USB audio devices
+sharing a hub. (PR #1652)</li>
 </ul></li>
 <li>Build system:
 <ul>

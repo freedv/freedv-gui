@@ -2510,6 +2510,37 @@ def test_selection():
             quit_and_check_log(app)
 
 
+def test_window_position():
+    """The window goes back where it was left, wherever that is on the
+    display, as the main window does (see test_main_window.py's
+    test_window_position()), and is brought back onto the display when too
+    little of its title bar would be on it. On a 3840x2160 display of its
+    own with no window manager, so that the window goes exactly where
+    FreeDV puts it."""
+    with freedvtest.private_display(3840, 2160) as env:
+        if env is None:
+            print("SKIPPED: needs Xvfb", flush=True)
+            sys.exit(SKIPPED)
+
+        with ReporterServer() as server:
+            def saved_geometry(left, top, width=1200, height=500):
+                extra = {"/Windows/FreeDVReporter/left": left, "/Windows/FreeDVReporter/top": top,
+                         "/Windows/FreeDVReporter/width": width, "/Windows/FreeDVReporter/height": height}
+                with freedvtest.start(settings=reporter_settings(server.hostname, **extra), env=env) as app:
+                    app.wait_for_window("main")
+                    app.menu("Tools/FreeDV Reporter")
+                    app.wait_for_window("reporter")
+                    quit_and_check_log(app)
+                    saved = freedvtest.read_config(app.config_path)
+                return tuple(int(saved["/Windows/FreeDVReporter/" + name])
+                             for name in ("left", "top", "width", "height"))
+
+            check_equal(saved_geometry(2500, 1500), (2500, 1500, 1200, 500), "Window left beyond 2048 pixels")
+            check_equal(saved_geometry(3791, 100), (20, 20, 1200, 500),
+                        "Window with 49 pixels of its title bar on the display")
+            check_equal(saved_geometry(100, -500), (20, 20, 1200, 500), "Window above the display")
+
+
 def test_window():
     """Opening and closing the window, and it remembering how it was left."""
     config_dir = tempfile.mkdtemp(prefix="freedvtest-config-")
@@ -3057,6 +3088,65 @@ def test_sideband_manual():
             radio.__exit__(None, None, None)
 
 
+def test_sideband_analog():
+    """Switching to analog, and back, on a band where that means changing
+    sideband, with a radio FreeDV can retune: FreeDV isn't listed while it's in
+    analog, and coming back tells the server the centre frequency it's actually
+    on once the 3 kHz shift is undone, rather than leaving it on where FreeDV
+    was before going in."""
+    with ReporterServer() as server:
+        viewer = server.viewer()
+
+        radio = start_radio()
+        try:
+            radio.set_frequency(7177000)
+            settings = radio_settings(server, radio)
+            settings["/Reporting/Frequency"] = 7178500
+            with audio_devices(), freedvtest.start(settings=settings) as app:
+                open_reporter(app)
+                start_modem(app)
+                app.wait_until(lambda: "USB" in radio.mode(), timeout=20,
+                               description="FreeDV to put the radio on its digital mode")
+                digital = radio.mode()
+                viewer.wait_for_event("freq_change", CALLSIGN_OF_FREEDV,
+                                      where=lambda data: data["freq"] == 7178500, timeout=20)
+
+                # (Centre 7.1785 is dial 7.1770 on USB.)
+                # 40m: analog is on the lower sideband, so the radio goes 3 kHz
+                # up to stay on the stretch of the band it was hearing. FreeDV
+                # isn't listed while in analog, so what it does there (including
+                # a QSY) isn't reported.
+                app.click("main.btnAnalog")
+                app.wait_until(lambda: radio.mode() == "LSB" and radio.frequency() == 7180000, timeout=20,
+                               description="the radio to go to LSB on 7.1800")
+                app.wait_until(lambda: CALLSIGN_OF_FREEDV not in viewer.callsigns(), timeout=20,
+                               description="FreeDV to be hidden from the server")
+
+                # QSY while there.
+                app.set_value("main.cboReportFrequency", "7.1600")
+                app.wait_until(lambda: radio.frequency() == 7160000, timeout=20,
+                               description="the radio to follow to 7.1600")
+
+                # Back to digital: the shift's undone, and coming back on view
+                # tells the server where the radio actually is rather than
+                # leaving it on where FreeDV was before going to analog
+                # (dial 7.1570 on USB, centre 7.1585).
+                app.click("main.btnAnalog")
+                app.wait_until(lambda: radio.mode() == digital and radio.frequency() == 7157000, timeout=20,
+                               description="the radio back on %s at 7.1570" % digital)
+                app.wait_until(lambda: CALLSIGN_OF_FREEDV in viewer.callsigns(), timeout=20,
+                               description="FreeDV to be listed again")
+                viewer.wait_for_event("freq_change", CALLSIGN_OF_FREEDV,
+                                      where=lambda data: data["freq"] == 7158500, timeout=20)
+                wait_for_cell(app, CALLSIGN_OF_FREEDV, FREQUENCY,
+                              lambda text: text.replace(",", "").split(" ")[0] == "7.1585")
+
+                stop_modem(app)
+                quit_and_check_log(app, with_hamlib=True)
+        finally:
+            radio.__exit__(None, None, None)
+
+
 SCENARIOS = {
     "live_view": test_live_view,
     "stations": test_stations,
@@ -3087,11 +3177,13 @@ SCENARIOS = {
     "saved_filters": test_saved_filters,
     "selection": test_selection,
     "window": test_window,
+    "window_position": test_window_position,
     "connection_burst": test_connection_burst,
     "frequency_in_khz": test_frequency_in_khz,
     "sideband": test_sideband,
     "sideband_follow": test_sideband_follow,
     "sideband_manual": test_sideband_manual,
+    "sideband_analog": test_sideband_analog,
 }
 
 

@@ -1966,7 +1966,20 @@ void MainFrame::OnTogBtnAnalogClick (wxCommandEvent& event)
         newDialFreq = DisplayToDialFreq(spot, newMode, false);
         dialFreqChanged = newDialFreq != dialFreq;
 
+        auto oldReportingFreq = reportingFreq.get();
         reportingFreq = DialToDisplayFreq(newDialFreq, newMode, g_analog.load(std::memory_order_relaxed) != 0);
+
+        // Report the new centre frequency (as #1654 does for the dial).
+        if (reportingFreq.get() != oldReportingFreq)
+        {
+            for (auto& obj : wxGetApp().m_reporters)
+            {
+                if (obj != wxGetApp().m_sharedReporterObject || !m_reporterHidden->GetValue())
+                {
+                    obj->freqChange(reportingFreq.get());
+                }
+            }
+        }
 
         // The displayed frequency moves when the centre offset does (it's 0
         // in analog): keep following the station's sideband there.
