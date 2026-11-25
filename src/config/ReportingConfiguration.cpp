@@ -73,6 +73,10 @@ ReportingConfiguration::ReportingConfiguration()
 
     , useUTCForReporting("/CallsignList/UseUTCTime", false)
 
+    // Legacy dial-frequency list. Kept untouched (key and defaults unchanged)
+    // for backward compatibility with older builds that still read this key
+    // directly; current builds only use it as a one-time migration source
+    // for reportingFrequencyListCentred below (see migrateFrequencyListToCentred_).
     , reportingFrequencyList("/Reporting/FrequencyList", {
         wxT("1.8700"),
         wxT("3.6250"),
@@ -93,6 +97,29 @@ ReportingConfiguration::ReportingConfiguration()
         wxT("28.7200"),
         wxT("10489.6400"),
     })
+    // Values are centre frequencies (dial frequency +/-1.5kHz depending on
+    // sideband), matching the convention used for reportingFrequency. This
+    // is the list actually shown/edited in the GUI.
+    , reportingFrequencyListCentred("/Reporting/FrequencyListCentred", {
+        wxT("1.8685"),
+        wxT("3.6235"),
+        wxT("3.6415"),
+        wxT("3.6915"),
+        wxT("3.6955"),
+        wxT("3.8015"),
+        wxT("5.4050"),
+        wxT("5.3700"),
+        wxT("7.1755"),
+        wxT("7.1955"),
+        wxT("14.2375"),
+        wxT("14.2415"),
+        wxT("18.1195"),
+        wxT("21.3145"),
+        wxT("24.9345"),
+        wxT("28.3315"),
+        wxT("28.7215"),
+        wxT("10489.6415"),
+    })
     , freedvReporterTxRowBackgroundColor("/Reporting/FreeDV/TxRowBackgroundColor", "#fc4500")
     , freedvReporterTxRowForegroundColor("/Reporting/FreeDV/TxRowForegroundColor", "#000000")
     , freedvReporterRxRowBackgroundColor("/Reporting/FreeDV/RxRowBackgroundColor", "#379baf")
@@ -108,82 +135,165 @@ ReportingConfiguration::ReportingConfiguration()
     udpReportingPort.setLimits(1, 65535);
     udpBroadcastPort.setLimits(1, 65535);
 
-    // Special handling for the frequency list to properly handle locales
-    reportingFrequencyList.setLoadProcessor([this](std::vector<wxString> const& list) {
-        std::vector<uint64_t> freqs;
-        for (auto& val : list)
+    // Special handling for the frequency lists to properly handle locales.
+    // Both the legacy and centred lists use the same on-disk convention, so
+    // share the same processors (see convertFrequencyListFromStorage_/ToStorage_).
+    auto loadProcessor = [this](std::vector<wxString> const& list) { return convertFrequencyListFromStorage_(list); };
+    auto saveProcessor = [this](std::vector<wxString> const& list) { return convertFrequencyListToStorage_(list); };
+
+    reportingFrequencyList.setLoadProcessor(loadProcessor);
+    reportingFrequencyList.setSaveProcessor(saveProcessor);
+
+    reportingFrequencyListCentred.setLoadProcessor(loadProcessor);
+    reportingFrequencyListCentred.setSaveProcessor(saveProcessor);
+}
+
+std::vector<wxString> ReportingConfiguration::convertFrequencyListFromStorage_(std::vector<wxString> const& list)
+{
+    std::vector<uint64_t> freqs;
+    for (auto& val : list)
+    {
+        // Frequencies are unfortunately saved in US format (legacy behavior). We need
+        // to manually parse and convert to Hz, then output MHz values in the user's current
+        // locale.
+        wxStringTokenizer tok(val, ".");
+        wxString wholeNumber = tok.GetNextToken();
+        wxString fraction = "0";
+        if (tok.HasMoreTokens())
         {
-            // Frequencies are unfortunately saved in US format (legacy behavior). We need 
-            // to manually parse and convert to Hz, then output MHz values in the user's current
-            // locale.
-            wxStringTokenizer tok(val, ".");
-            wxString wholeNumber = tok.GetNextToken();
-            wxString fraction = "0";
-            if (tok.HasMoreTokens())
-            {
-                fraction = tok.GetNextToken();
-            }
-
-            if (fraction.Length() < 6)
-            {
-                fraction += wxString('0', 6 - fraction.Length());
-            }
-
-            // Only what FreeDV writes is taken: digits on each side. Anything
-            // else written into the file (a sign, a word, a number too big
-            // to be a frequency) is dropped rather than turned into one, and
-            // digits past the sixth after the point (below 1 Hz) are ignored.
-            unsigned long long mhz = 0;
-            unsigned long long hz = 0;
-            fraction.Truncate(6);
-            if (!wholeNumber.IsNumber() || !fraction.IsNumber() ||
-                wholeNumber.StartsWith("-") || fraction.StartsWith("-") ||
-                !wholeNumber.ToULongLong(&mhz) || !fraction.ToULongLong(&hz) ||
-                mhz > MAX_FREQUENCY_HZ / 1000000)
-            {
-                continue;
-            }
-            freqs.push_back(mhz * 1000000 + hz);
+            fraction = tok.GetNextToken();
         }
 
-        // Shown in ascending order, whatever order an older config has them in.
-        std::sort(freqs.begin(), freqs.end());
-
-        std::vector<wxString> newList;
-        for (auto freq : freqs)
+        if (fraction.Length() < 6)
         {
-            if (reportingFrequencyAsKhz)
+            fraction += wxString('0', 6 - fraction.Length());
+        }
+
+        // Only what FreeDV writes is taken: digits on each side. Anything
+        // else written into the file (a sign, a word, a number too big
+        // to be a frequency) is dropped rather than turned into one, and
+        // digits past the sixth after the point (below 1 Hz) are ignored.
+        unsigned long long mhz = 0;
+        unsigned long long hz = 0;
+        fraction.Truncate(6);
+        if (!wholeNumber.IsNumber() || !fraction.IsNumber() ||
+            wholeNumber.StartsWith("-") || fraction.StartsWith("-") ||
+            !wholeNumber.ToULongLong(&mhz) || !fraction.ToULongLong(&hz) ||
+            mhz > MAX_FREQUENCY_HZ / 1000000)
+        {
+            continue;
+        }
+        freqs.push_back(mhz * 1000000 + hz);
+    }
+
+    // Shown in ascending order, whatever order an older config has them in.
+    std::sort(freqs.begin(), freqs.end());
+
+    std::vector<wxString> newList;
+    for (auto freq : freqs)
+    {
+        if (reportingFrequencyAsKhz)
+        {
+            double khzFloat = freq / 1000.0;
+            newList.push_back(wxNumberFormatter::ToString(khzFloat, 1));
+        }
+        else
+        {
+            double mhzFloat = freq / 1000000.0;
+            newList.push_back(wxNumberFormatter::ToString(mhzFloat, 4));
+        }
+    }
+
+    return newList;
+}
+
+std::vector<wxString> ReportingConfiguration::convertFrequencyListToStorage_(std::vector<wxString> const& list)
+{
+    std::vector<wxString> newList;
+    for (auto& val : list)
+    {
+        // Frequencies are unfortunately saved in US format (legacy behavior). We need
+        // to manually parse and convert to Hz, then output MHz values in US format.
+        // (An entry that isn't a frequency is saved as 0, rather than as
+        // one made up from it.)
+        uint64_t hz = DisplayedFrequencyToHz(val, reportingFrequencyAsKhz);
+        uint64_t mhzInt = hz / 1000000;
+        hz = hz % 1000000;
+
+        wxString newVal = wxString::Format("%" PRIu64 ".%06" PRIu64, mhzInt, hz);
+        newList.push_back(newVal);
+    }
+    return newList;
+}
+
+namespace
+{
+    // Mirrors the offset logic in src/gui/util/FrequencyOps.h's
+    // GetModeForFrequency()/GetCentreFreqOffsetHz() (by-band SSB sideband
+    // convention, analogActive=false case) - duplicated here rather than
+    // included directly since that header pulls in HamlibRigController and
+    // its hamlib dependency, which the config library doesn't otherwise need.
+    int32_t centreFreqOffsetHzForDialFreq(uint64_t dialFreqHz)
+    {
+        // Widest 60 meter allocation is 5.250-5.450 MHz per
+        // https://en.wikipedia.org/wiki/60-meter_band.
+        bool is60MeterBand = dialFreqHz >= 5250000 && dialFreqHz <= 5450000;
+        bool isLsb = dialFreqHz < 10000000 && !is60MeterBand;
+        return isLsb ? -1500 : 1500;
+    }
+}
+
+void ReportingConfiguration::migrateFrequencyListToCentred_(wxConfigBase* config)
+{
+    // First run after the centre-frequency convention was introduced: inherit the
+    // user's legacy dial-frequency entries (offset per centreFreqOffsetHzForDialFreq,
+    // same convention used to derive reportingFrequencyListCentred's own defaults)
+    // into the new centred list, merging with (not replacing) the new defaults.
+    // Comparisons and the merged result are kept in raw storage format (period-decimal
+    // MHz) to avoid any locale ambiguity - reportingFrequencyList has already been
+    // load_()'d by this point, so getWithoutProcessing() holds either its on-disk
+    // value or its (storage-format) default, both already in that form.
+    std::vector<wxString> migrated = reportingFrequencyListCentred.getDefaultVal();
+
+    for (auto& oldVal : reportingFrequencyList.getWithoutProcessing())
+    {
+        // As the load processor does, anything that isn't a frequency is
+        // dropped rather than turned into one.
+        double mhz = 0.0;
+        if (!oldVal.ToCDouble(&mhz) || !std::isfinite(mhz) ||
+            mhz * 1000000.0 < 1500.5 || mhz * 1000000.0 > MAX_FREQUENCY_HZ)
+        {
+            continue;
+        }
+        uint64_t dialHz = (uint64_t)llround(mhz * 1000000.0);
+        int64_t centredHz = (int64_t)dialHz + centreFreqOffsetHzForDialFreq(dialHz);
+
+        bool alreadyPresent = false;
+        for (auto& existing : migrated)
+        {
+            double existingMhz = 0.0;
+            existing.ToCDouble(&existingMhz);
+            int64_t existingHz = llround(existingMhz * 1000000.0);
+            if (existingHz == centredHz)
             {
-                double khzFloat = freq / 1000.0;
-                newList.push_back(wxNumberFormatter::ToString(khzFloat, 1));
-            }
-            else
-            {
-                double mhzFloat = freq / 1000000.0;
-                newList.push_back(wxNumberFormatter::ToString(mhzFloat, 4));
+                alreadyPresent = true;
+                break;
             }
         }
 
-        return newList;
-    });
-
-    reportingFrequencyList.setSaveProcessor([this](std::vector<wxString> const& list) {
-        std::vector<wxString> newList;
-        for (auto& val : list)
+        if (!alreadyPresent)
         {
-            // Frequencies are unfortunately saved in US format (legacy behavior). We need 
-            // to manually parse and convert to Hz, then output MHz values in US format.
-            // (An entry that isn't a frequency is saved as 0, rather than as
-            // one made up from it.)
-            uint64_t hz = DisplayedFrequencyToHz(val, reportingFrequencyAsKhz);
-            uint64_t mhzInt = hz / 1000000;
-            hz = hz % 1000000;
-
-            wxString newVal = wxString::Format("%" PRIu64 ".%06" PRIu64, mhzInt, hz);
-            newList.push_back(newVal);
+            uint64_t mhzInt = centredHz / 1000000;
+            uint64_t hzFrac = centredHz % 1000000;
+            migrated.push_back(wxString::Format("%" PRIu64 ".%06" PRIu64, mhzInt, hzFrac));
         }
-        return newList;
-    });
+    }
+
+    reportingFrequencyListCentred.setWithoutProcessing(migrated);
+
+    // Persist immediately so the presence of this key is itself the "already
+    // migrated" marker for future runs - no separate version/flag needed.
+    save_(config, reportingFrequencyListCentred);
 }
 
 void ReportingConfiguration::load(wxConfigBase* config)
@@ -235,12 +345,25 @@ void ReportingConfiguration::load(wxConfigBase* config)
 
     load_(config, useUTCForReporting);
     
-    // Note: this needs to be loaded before the frequency list so that
+    // Note: this needs to be loaded before the frequency lists so that
     // we get the values formatted as kHz (if so configured).
     load_(config, reportingFrequencyAsKhz);
-    
+
+    // Legacy list stays untouched (older builds still read it directly), but we
+    // always load it here so it's available as a migration source below.
     load_(config, reportingFrequencyList);
-    
+
+    if (!config->HasEntry(reportingFrequencyListCentred.getElementName()))
+    {
+        // First run after the centre-frequency convention was introduced. Older
+        // builds never write or read this key, so they remain unaffected.
+        migrateFrequencyListToCentred_(config);
+    }
+    else
+    {
+        load_(config, reportingFrequencyListCentred);
+    }
+
     load_(config, manualFrequencyReporting);
 
     load_(config, freedvReporterTxRowBackgroundColor);
@@ -330,7 +453,8 @@ void ReportingConfiguration::save(wxConfigBase* config)
     
     save_(config, reportingFrequencyAsKhz);
     save_(config, reportingFrequencyList);
-    
+    save_(config, reportingFrequencyListCentred);
+
     save_(config, manualFrequencyReporting);
 
     save_(config, freedvReporterTxRowBackgroundColor);

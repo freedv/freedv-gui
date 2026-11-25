@@ -76,6 +76,7 @@ public:
     ConfigurationDataElement<bool> useUTCForReporting;
     
     ConfigurationDataElement<std::vector<wxString> > reportingFrequencyList;
+    ConfigurationDataElement<std::vector<wxString> > reportingFrequencyListCentred;
 
     ConfigurationDataElement<wxString> freedvReporterTxRowBackgroundColor;
     ConfigurationDataElement<wxString> freedvReporterTxRowForegroundColor;
@@ -106,6 +107,11 @@ public:
     // user, or read back from a list of them, goes through this before it
     // becomes a frequency, rather than having a made-up one cast out of it.
     static uint64_t DisplayedFrequencyToHz(wxString const& text, bool asKhz);
+
+private:
+    std::vector<wxString> convertFrequencyListFromStorage_(std::vector<wxString> const& list);
+    std::vector<wxString> convertFrequencyListToStorage_(std::vector<wxString> const& list);
+    void migrateFrequencyListToCentred_(wxConfigBase* config);
 };
 
 #endif // REPORTING_CONFIGURATION_H

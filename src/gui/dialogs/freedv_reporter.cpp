@@ -1718,18 +1718,23 @@ void FreeDVReporterDialog::OnItemDoubleClick(wxDataViewEvent& event)
             // main window then picks the mode: see MainFrame::getCurrentMode_()).
             wxGetApp().followSideband(frequency, sideband);
 
-            rigController->setFrequency(frequency);
-
+            // The spot's frequency is the remote station's centre frequency;
+            // convert to dial frequency before commanding the rig, using the
+            // mode for their sideband. The offset depends only on g_analog
+            // (real analog voice mode), not on the hamlibUseAnalogModes label
+            // preference.
+            bool useAnalog = g_analog.load(std::memory_order_relaxed);
+            auto mode = GetModeForSideband(
+                frequency, 
+                sideband,
+                wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes, 
+                useAnalog);
+            // (Mode first: see MainFrame::OnChangeReportFrequency().)
             if (wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
             {
-                bool useAnalog = g_analog.load(std::memory_order_relaxed);
-                rigController->setMode(
-                    GetModeForSideband(
-                        frequency, 
-                        sideband,
-                        wxGetApp().appConfiguration.rigControlConfiguration.hamlibUseAnalogModes, 
-                        useAnalog));
+                rigController->setMode(mode);
             }
+            rigController->setFrequency(DisplayToDialFreq(frequency, wxGetApp().dialConversionMode(mode), useAnalog));
         }
         DeselectItem();
     }

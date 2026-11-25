@@ -1521,7 +1521,7 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         m_freedvReporterMsgForegroundColor->SetColour(msgForegroundColor);
 
         // Populate reporting frequency list.
-        for (auto& item : editedConfig_.reportingConfiguration.reportingFrequencyList.get())
+        for (auto& item : editedConfig_.reportingConfiguration.reportingFrequencyListCentred.get())
         {
             m_freqList->Append(item);
         }
@@ -1730,7 +1730,7 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         {
             tmpList.push_back(m_freqList->GetString(index));
         }
-        editedConfig_.reportingConfiguration.reportingFrequencyList = tmpList;
+        editedConfig_.reportingConfiguration.reportingFrequencyListCentred = tmpList;
         
         editedConfig_.enableSpaceBarForPTT = m_ckboxEnableSpacebarForPTT->GetValue();
         editedConfig_.pttKeyCode = m_selectedPTTKeyCode;

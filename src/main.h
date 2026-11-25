@@ -267,6 +267,25 @@ class MainApp : public wxApp
             return (m_followedSidebandFrequency != 0 && roundToFrequencyStep_(frequencyHz) == m_followedSidebandFrequency) ?
                 m_followedSideband : IReporter::Sideband::UNKNOWN;
         }
+
+        // The radio's mode as it last reported it (UNKNOWN while there's no
+        // radio, or it hasn't said yet).
+        HamlibRigController::Mode lastRadioMode = HamlibRigController::UNKNOWN;
+
+        // The mode to convert between FreeDV's (centre) frequency and the
+        // radio's dial frequency with, when FreeDV wants the radio in the
+        // given mode: that mode, unless FreeDV isn't allowed to change it,
+        // in which case the radio stays in its own (e.g. AM, with no
+        // offset), if known.
+        HamlibRigController::Mode dialConversionMode(HamlibRigController::Mode wanted)
+        {
+            if (appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges ||
+                lastRadioMode == HamlibRigController::UNKNOWN)
+            {
+                return wanted;
+            }
+            return lastRadioMode;
+        }
         
         bool                loadConfig();
         bool                saveConfig();
@@ -762,6 +781,8 @@ class MainFrame : public TopFrame
         static wxString reportFrequencyString_(uint64_t hz);
         wxString reportFrequencyListString_(wxString const& text);
         void addReportFrequencyToList_(wxString const& freq);
+        void updateFreqBoxLabel_();
+        void updateFreqBoxTooltip_();
         
         void initializeFreeDVReporter_();
         void updateVoiceKeyerButtonLabel_();

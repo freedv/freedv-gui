@@ -14,6 +14,7 @@ import contextlib
 import glob
 import os
 import shutil
+import tempfile
 import sys
 import tempfile
 import time
@@ -906,10 +907,10 @@ def test_frequency_list():
         for button, expected in zip(buttons, [add, remove]):
             check_equal(app.get(name(button))["enabled"], expected, button + " enabled")
 
-    settings = {"/Reporting/FrequencyList": "3.625000,7.177000,14.236000"}
+    settings = {"/Reporting/FrequencyListCentred": "3.623500,7.175500,14.237500"}
     with freedvtest.start(settings=settings) as app:
         open_settings(app, "Rig Control")
-        check_equal(frequencies(app), ["3.6250", "7.1770", "14.2360"], "Frequencies listed")
+        check_equal(frequencies(app), ["3.6235", "7.1755", "14.2375"], "Frequencies listed")
         check_equal(label(app, "labelEnterFreq"), "Enter frequency (MHz):", "Frequency entry label")
         check_values(app, {"txtCtrlNewFrequency": ""})
         check_buttons(app, False, False)
@@ -917,17 +918,17 @@ def test_frequency_list():
         # on offer but nothing else.
         set_value(app, "ckboxFrequencyEntryAsKHz", True)
         press_apply(app)
-        check_equal(frequencies(app), ["3625.0", "7177.0", "14236.0"], "Frequencies listed in kHz")
+        check_equal(frequencies(app), ["3623.5", "7175.5", "14237.5"], "Frequencies listed in kHz")
         set_value(app, "ckboxFrequencyEntryAsKHz", False)
         press_apply(app)
-        check_equal(frequencies(app), ["3.6250", "7.1770", "14.2360"], "Frequencies listed again in MHz")
+        check_equal(frequencies(app), ["3.6235", "7.1755", "14.2375"], "Frequencies listed again in MHz")
         check_values(app, {"txtCtrlNewFrequency": ""})
 
         # Applying while something is typed in but the units haven't
         # changed adds nothing.
         set_value(app, "txtCtrlNewFrequency", "10.136")
         press_apply(app)
-        check_equal(frequencies(app), ["3.6250", "7.1770", "14.2360"], "Frequencies listed")
+        check_equal(frequencies(app), ["3.6235", "7.1755", "14.2375"], "Frequencies listed")
         # Something that isn't a frequency can't be added.
         for text in ["abc", "0", "-5"]:
             set_value(app, "txtCtrlNewFrequency", text)
@@ -937,13 +938,13 @@ def test_frequency_list():
         set_value(app, "txtCtrlNewFrequency", "10.136")
         check_buttons(app, True, False)
         app.click(name("freqListAdd"))
-        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "14.2360"], "Frequencies listed")
+        check_equal(frequencies(app), ["3.6235", "7.1755", "10.1360", "14.2375"], "Frequencies listed")
         check_values(app, {"txtCtrlNewFrequency": ""})
 
         # ...including at the end.
         set_value(app, "txtCtrlNewFrequency", "28.33")
         app.click(name("freqListAdd"))
-        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "14.2360", "28.3300"],
+        check_equal(frequencies(app), ["3.6235", "7.1755", "10.1360", "14.2375", "28.3300"],
                     "Frequencies listed")
 
         # What's already listed is found by its value, not by the text shown:
@@ -954,54 +955,54 @@ def test_frequency_list():
             set_value(app, "txtCtrlNewFrequency", text)
             check_buttons(app, False, True)
         app.click(name("freqListRemove"))
-        check_equal(frequencies(app), ["3.6250", "7.1770", "14.2360", "28.3300"],
+        check_equal(frequencies(app), ["3.6235", "7.1755", "14.2375", "28.3300"],
                     "Frequencies listed with 10.1360 removed")
         check_values(app, {"txtCtrlNewFrequency": ""})
         # One that only comes close is a different frequency.
-        set_value(app, "txtCtrlNewFrequency", "14.2361")
+        set_value(app, "txtCtrlNewFrequency", "14.2376")
         check_buttons(app, True, False)
         set_value(app, "txtCtrlNewFrequency", "10.136")
         app.click(name("freqListAdd"))
-        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "14.2360", "28.3300"],
+        check_equal(frequencies(app), ["3.6235", "7.1755", "10.1360", "14.2375", "28.3300"],
                     "Frequencies listed")
 
         # One that's already listed can be removed, whether it's typed in...
-        set_value(app, "txtCtrlNewFrequency", "3.6250")
+        set_value(app, "txtCtrlNewFrequency", "3.6235")
         check_buttons(app, False, True)
 
         # ...or picked from the list.
-        set_value(app, "freqList", "7.1770")
-        check_values(app, {"txtCtrlNewFrequency": "7.1770"})
+        set_value(app, "freqList", "7.1755")
+        check_values(app, {"txtCtrlNewFrequency": "7.1755"})
         check_buttons(app, False, True)
 
 
-        set_value(app, "freqList", "14.2360")
+        set_value(app, "freqList", "14.2375")
         app.click(name("freqListRemove"))
-        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "28.3300"], "Frequencies listed")
+        check_equal(frequencies(app), ["3.6235", "7.1755", "10.1360", "28.3300"], "Frequencies listed")
         check_values(app, {"txtCtrlNewFrequency": ""})
         check_buttons(app, False, False)
 
         # They're what's offered in the main window once saved.
         press_ok(app)
         check_equal([item["label"] for item in app.get("main.lbReportFrequencies")["items"]],
-                    ["3.6250", "7.1770", "10.1360", "28.3300"], "Frequencies offered in the main window")
+                    ["3.6235", "7.1755", "10.1360", "28.3300"], "Frequencies offered in the main window")
 
         # Frequencies can be worked with in kHz instead.
         open_settings(app, "Rig Control")
-        check_equal(frequencies(app), ["3.6250", "7.1770", "10.1360", "28.3300"], "Frequencies listed")
-        set_value(app, "txtCtrlNewFrequency", "14.236")
+        check_equal(frequencies(app), ["3.6235", "7.1755", "10.1360", "28.3300"], "Frequencies listed")
+        set_value(app, "txtCtrlNewFrequency", "14.2375")
         set_value(app, "ckboxFrequencyEntryAsKHz", True)
         press_apply(app)
-        check_equal(frequencies(app), ["3625.0", "7177.0", "10136.0", "28330.0"], "Frequencies listed in kHz")
+        check_equal(frequencies(app), ["3623.5", "7175.5", "10136.0", "28330.0"], "Frequencies listed in kHz")
         check_equal(label(app, "labelEnterFreq"), "Enter frequency (kHz):", "Frequency entry label")
-        check_equal(ungrouped(value(app, "txtCtrlNewFrequency")), "14236.0", "txtCtrlNewFrequency")
+        check_equal(ungrouped(value(app, "txtCtrlNewFrequency")), "14237.5", "txtCtrlNewFrequency")
         check_buttons(app, True, False)
         app.click(name("freqListAdd"))
-        check_equal(frequencies(app), ["3625.0", "7177.0", "10136.0", "14236.0", "28330.0"],
+        check_equal(frequencies(app), ["3623.5", "7175.5", "10136.0", "14237.5", "28330.0"],
                     "Frequencies listed in kHz")
         press_ok(app)
         check_saved(app, {"/Reporting/FrequencyAsKHz": 1})
-        check_equal(offered(app), ["3625.0", "7177.0", "10136.0", "14236.0", "28330.0"],
+        check_equal(offered(app), ["3623.5", "7175.5", "10136.0", "14237.5", "28330.0"],
                     "Frequencies offered in the main window")
 
         # And back again, along with what's been typed in so far.
@@ -1015,24 +1016,78 @@ def test_frequency_list():
         set_value(app, "txtCtrlNewFrequency", "")
         press_ok(app)
         check_equal([item["label"] for item in app.get("main.lbReportFrequencies")["items"]],
-                    ["3.6250", "7.1770", "10.1360", "14.2360", "28.3300"],
+                    ["3.6235", "7.1755", "10.1360", "14.2375", "28.3300"],
                     "Frequencies offered in the main window")
 
         quit_and_check_log(app)
 
     # What's read as the window is first built: the units of the frequency
     # list, and which waterfall colours were chosen.
-    with freedvtest.start(settings={"/Reporting/FrequencyList": "3.625000,14.236000",
+    with freedvtest.start(settings={"/Reporting/FrequencyListCentred": "3.623500,14.237500",
                                     "/Reporting/FrequencyAsKHz": True,
                                     "/Waterfall/Color": 2}) as app:
         open_settings(app, "Rig Control")
         check_equal(label(app, "labelEnterFreq"), "Enter frequency (kHz):", "Frequency entry label")
-        check_equal(frequencies(app), ["3625.0", "14236.0"], "Frequencies listed")
+        check_equal(frequencies(app), ["3623.5", "14237.5"], "Frequencies listed")
         go_to_tab(app, "Display")
         check_values(app, {"waterfallColorScheme1": False, "waterfallColorScheme2": False,
                            "waterfallColorScheme3": True})
         press_cancel(app)
         quit_and_check_log(app)
+
+
+def test_frequency_list_migration():
+    """The first run of a build with centre frequencies makes the list it
+    shows from the old dial-frequency list, which stays as it was for older
+    builds to use."""
+    # The centred list FreeDV starts with (ReportingConfiguration.cpp).
+    centred_defaults = ["1.8685", "3.6235", "3.6415", "3.6915", "3.6955", "3.8015", "5.4050", "5.3700",
+                        "7.1755", "7.1955", "14.2375", "14.2415", "18.1195", "21.3145", "24.9345",
+                        "28.3315", "28.7215", "10489.6415"]
+    # Defaults (3.625 and 7.177 on LSB below 10MHz, 14.236 on USB) and two
+    # frequencies of the user's own: 7.180 below 10MHz, 14.250 above it.
+    old_list = "3.625000,7.177000,7.180000,14.236000,14.250000"
+
+    def frequencies(app):
+        return [item["label"].replace(",", "") for item in app.get(name("freqList"))["items"]]
+
+    def offered(app):
+        return [item["label"].replace(",", "") for item in app.get("main.lbReportFrequencies")["items"]]
+
+    def check_list(listed, expected, description):
+        check_equal(len(listed), len(set(listed)), description + ": no frequency listed twice")
+        check_equal(sorted(listed, key=float), sorted(expected, key=float), description)
+
+    with tempfile.TemporaryDirectory(prefix="freedvtest-migration-") as folder:
+        config = os.path.join(folder, "freedv.conf")
+        freedvtest.write_config(config, {"/Reporting/FrequencyList": old_list})
+
+        # The defaults are listed once each; the user's own come over as
+        # centre frequencies, 1.5kHz below the old LSB dial frequency and
+        # 1.5kHz above the USB one.
+        migrated = centred_defaults + ["7.1785", "14.2515"]
+        with freedvtest.start(config=config) as app:
+            check_list(offered(app), migrated, "Frequencies offered in the main window")
+            open_settings(app, "Rig Control")
+            check_list(frequencies(app), migrated, "Frequencies listed")
+
+            # A change made to the new list...
+            set_value(app, "freqList", "14.2515")
+            app.click(name("freqListRemove"))
+            press_ok(app)
+            quit_and_check_log(app)
+        settings = freedvtest.read_config(config)
+        check_equal(settings.get("/Reporting/FrequencyList"), old_list, "Old frequency list saved")
+
+        # ...is kept: the list isn't made again from the old one.
+        changed = centred_defaults + ["7.1785"]
+        with freedvtest.start(config=config) as app:
+            open_settings(app, "Rig Control")
+            check_list(frequencies(app), changed, "Frequencies listed next time")
+            press_cancel(app)
+            quit_and_check_log(app)
+        settings = freedvtest.read_config(config)
+        check_equal(settings.get("/Reporting/FrequencyList"), old_list, "Old frequency list saved next time")
 
 
 def test_frequency_list_from_main_window():
@@ -1055,17 +1110,17 @@ def test_frequency_list_from_main_window():
     def list_shown(app):
         return app.get("main.lbReportFrequencies")["shown"]
 
-    settings = {"/Reporting/FrequencyList": "3.625000,7.177000,14.236000",
-                "/Reporting/Frequency": "14236000"}
+    settings = {"/Reporting/FrequencyListCentred": "3.623500,7.175500,14.237500",
+                "/Reporting/Frequency": "14237500"}
     with freedvtest.start(settings=settings) as app:
-        check_equal(offered(app), ["3.6250", "7.1770", "14.2360"], "Frequencies offered")
+        check_equal(offered(app), ["3.6235", "7.1755", "14.2375"], "Frequencies offered")
 
         # The frequency in the box can be added, into its place in the list.
         app.set_value("main.cboReportFrequency", "10.136")
         items = app.context_menu("main.cboReportFrequency", choose="Add 10.1360MHz to list")
         check_equal([(item["label"], item["enabled"]) for item in items][0],
                     ("Add 10.1360MHz to list", True), "Frequency box's menu")
-        check_equal(offered(app), ["3.6250", "7.1770", "10.1360", "14.2360"], "Frequencies offered")
+        check_equal(offered(app), ["3.6235", "7.1755", "10.1360", "14.2375"], "Frequencies offered")
 
         # ...but only once.
         items = app.context_menu("main.cboReportFrequency")
@@ -1087,18 +1142,18 @@ def test_frequency_list_from_main_window():
         # opens again for the next.
         app.combo_popup("main.cboReportFrequency", True)
         app.wait_until(lambda: list_shown(app), description="the frequencies to be listed")
-        app.context_menu("main.lbReportFrequencies", item=0, choose="Delete 3.6250MHz from list")
-        check_equal(offered(app), ["7.1770", "10.1360", "14.2360"], "Frequencies offered")
+        app.context_menu("main.lbReportFrequencies", item=0, choose="Delete 3.6235MHz from list")
+        check_equal(offered(app), ["7.1755", "10.1360", "14.2375"], "Frequencies offered")
         app.wait_until(lambda: list_shown(app), description="the list to open again")
 
         # Or with Del on the highlighted one, which leaves the list open.
-        app.set_value("main.lbReportFrequencies", "14.2360")
+        app.set_value("main.lbReportFrequencies", "14.2375")
         app.key("main.lbReportFrequencies", "Delete")
-        check_equal(offered(app), ["7.1770", "10.1360"], "Frequencies offered")
+        check_equal(offered(app), ["7.1755", "10.1360"], "Frequencies offered")
         check(list_shown(app), "The list closed")
         # Keys in the open list move the highlight about, clamping at the
         # ends, and Enter takes the highlighted frequency.
-        app.set_value("main.lbReportFrequencies", "7.1770")
+        app.set_value("main.lbReportFrequencies", "7.1755")
         app.key("main.lbReportFrequencies", "Down")
         check_equal(app.get("main.lbReportFrequencies")["selection"], 1, "Highlight moved down")
         app.key("main.lbReportFrequencies", "Down")
@@ -1114,7 +1169,7 @@ def test_frequency_list_from_main_window():
         app.key("main.lbReportFrequencies", "Home")
         check_equal(app.get("main.lbReportFrequencies")["selection"], 0, "Highlight at the top")
         app.key("main.lbReportFrequencies", NUMPAD_ENTER)
-        check_equal(app.get("main.cboReportFrequency")["value"], "7.1770", "Frequency taken with Enter")
+        check_equal(app.get("main.cboReportFrequency")["value"], "7.1755", "Frequency taken with Enter")
         check(not list_shown(app), "The list closed on Enter")
 
         # Reopening the list: it highlights the frequency the box already
@@ -1139,12 +1194,12 @@ def test_frequency_list_from_main_window():
         # The changes are kept, as Tools > Options shows.
         open_settings(app, "Rig Control")
         check_equal([item["label"] for item in app.get(name("freqList"))["items"]],
-                    ["7.1770", "10.1360"], "Frequencies listed in Options")
+                    ["7.1755", "10.1360"], "Frequencies listed in Options")
         press_cancel(app)
         # Deleting down to nothing leaves an empty list that isn't reopened.
         app.combo_popup("main.cboReportFrequency", True)
         app.wait_until(lambda: list_shown(app), description="the frequencies to be listed")
-        app.context_menu("main.lbReportFrequencies", item=0, choose="Delete 7.1770MHz from list")
+        app.context_menu("main.lbReportFrequencies", item=0, choose="Delete 7.1755MHz from list")
         check_equal(offered(app), ["10.1360"], "The last frequency")
         app.wait_until(lambda: list_shown(app), description="the list to open again")
         app.context_menu("main.lbReportFrequencies", item=0, choose="Delete 10.1360MHz from list")
@@ -1177,7 +1232,7 @@ def test_frequency_list_from_main_window():
 
     # In kHz mode, the box and the list show the list's frequencies in kHz,
     # to one decimal place, and the box is read as kHz too.
-    settings = {"/Reporting/FrequencyList": "3.6,14.2", "/Reporting/FrequencyAsKHz": True,
+    settings = {"/Reporting/FrequencyListCentred": "3.6,14.2", "/Reporting/FrequencyAsKHz": True,
                 "/Reporting/Frequency": "14200000"}
     with freedvtest.start(settings=settings) as app:
         check_equal(offered(app), ["3600.0", "14200.0"], "Frequencies offered in kHz")
@@ -1845,6 +1900,7 @@ SCENARIOS = {
     "ptt_test": test_ptt_test,
     "rig_control": test_rig_control,
     "frequency_list": test_frequency_list,
+    "frequency_list_migration": test_frequency_list_migration,
     "frequency_list_from_main_window": test_frequency_list_from_main_window,
     "reporting": test_reporting,
     "voice_keyer": test_voice_keyer,

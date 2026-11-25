@@ -81,6 +81,7 @@ static void waitWhileTestAgentHoldsOnOff_()
 #include "gui/dialogs/dlg_setup_wizard.h"
 #include "gui/dialogs/dlg_filter.h"
 #include "gui/dialogs/freedv_reporter.h"
+#include "gui/util/FrequencyOps.h"
 #include "gui/util/WindowPlacement.h"
 #include "gui/util/WindowPositionRestore.h"
 #include "gui/util/TabLayoutSerializer.h"
@@ -1262,14 +1263,13 @@ void MainFrame::loadConfiguration_()
     // Adjust frequency entry labels
     wxListItem colInfo;
     m_lastReportedCallsignListView->GetColumn(1, colInfo);
+    updateFreqBoxLabel_();
     if (wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz)
     {
-        m_freqBox->SetLabel(_("Radio Freq. (kHz)"));
         colInfo.SetText(_("kHz"));
     }
     else
     {
-        m_freqBox->SetLabel(_("Radio Freq. (MHz)"));
         colInfo.SetText(_("MHz"));
     }
     m_lastReportedCallsignListView->SetColumn(1, colInfo);
@@ -4786,12 +4786,17 @@ void MainFrame::onQsyRequestUIThread_(QsyRequestArgs* args)
         m_cboReportFrequency->SetValue(freqString);
 
         // ...if the frequency changes. If FreeDV's already there, it may
-        // still need to change sideband.
+        // still need to change sideband -- which moves the dial, as the
+        // centre frequency stays where it is.
         auto rigController = snapshotRigFrequencyController();
         if (!frequencyChanges && rigController != nullptr && sideband != IReporter::Sideband::UNKNOWN &&
             wxGetApp().appConfiguration.rigControlConfiguration.hamlibEnableFreqModeChanges)
         {
-            rigController->setMode(getCurrentMode_());
+            // (Mode first: see OnChangeReportFrequency().)
+            auto mode = getCurrentMode_();
+            rigController->setMode(mode);
+            rigController->setFrequency(
+                DisplayToDialFreq(wxGetApp().appConfiguration.reportingConfiguration.reportingFrequency, mode, g_analog.load(std::memory_order_relaxed) != 0));
         }
     }
 }
