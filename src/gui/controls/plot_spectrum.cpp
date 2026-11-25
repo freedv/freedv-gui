@@ -61,6 +61,7 @@ PlotSpectrum::PlotSpectrum(wxWindow* parent, float *magdB, int n_magdB,
 {
     WXWIDGETS_SET_LAYOUT_DIRECTION;
     
+    m_mistuneState = PlotSpectrum::UNKNOWN;
     m_greyscale     = 0;
     m_Bufsz         = GetMaxClientSize();
     m_newdata       = false;
@@ -409,6 +410,36 @@ void PlotSpectrum::drawGraticuleFast(wxGraphicsContext* ctx, bool repaintDataOnl
             x = (m_rxFreq + averageOffset) * freq_hz_to_px;
             x += PLOT_BORDER + leftOffset_;
             ctx->StrokeLine(x, 0, x, verticalBarLength);
+
+            // Get mistune state. If too high/low, draw respective symbol next to the tuning line.
+            wxString tuneSymbol;
+            wxDouble width = 0;
+            wxDouble height = 0;
+            wxDouble descent = 0;
+            wxDouble externalLeading = 0;
+
+            ctx->SetFont(ctx->CreateFont(GetFont(), sync_ ? GREEN_COLOR : ORANGE_COLOR));
+            switch (m_mistuneState)
+            {
+                case TOO_HIGH:
+                    tuneSymbol = ">>>";
+                    
+                    // Make sure symbol doesn't overlap the tuning line
+                    ctx->GetTextExtent(tuneSymbol, &width, &height, &descent, &externalLeading);
+                    x -= 10 + width;
+                    break;
+                case TOO_LOW:
+                    tuneSymbol = "<<<";
+                    x += 10;
+                    break; 
+                default:
+                    break;
+            }
+
+            if (tuneSymbol != "")
+            {
+                ctx->DrawText(tuneSymbol, x, 0);
+            }
    
             // red rx tuning line
             ctx->SetPen(wxPen(RED_COLOR, 3));

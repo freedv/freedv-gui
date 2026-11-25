@@ -85,6 +85,7 @@ PlotWaterfall::PlotWaterfall(wxWindow* parent, float* magDb, bool graticule, int
     {
         m_heatmap_lut[i] = heatmap((float)i, 0.0, 255.0);
     }
+    m_mistuneState = PlotWaterfall::UNKNOWN;
     m_magDb         = magDb;
     m_graticule     = graticule;
     m_colour        = colour;
@@ -543,7 +544,6 @@ void PlotWaterfall::drawGraticule(wxGraphicsContext* ctx)
             case TOO_HIGH:
                 tuneSymbol = ">>>";
                 
-
                 // Make sure symbol doesn't overlap the tuning line
                 ctx->GetTextExtent(tuneSymbol, &width, &height, &descent, &externalLeading);
                 x -= 10 + width;

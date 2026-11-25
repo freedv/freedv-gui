@@ -32,11 +32,18 @@
 class PlotSpectrum : public PlotPanel
 {
     public:
-    PlotSpectrum(wxWindow* parent, float *magdB, int n_magdB, 
+        enum MistuneState {
+            TOO_LOW = -1,
+            UNKNOWN = 0,
+            TOO_HIGH = 1
+        };
+
+        PlotSpectrum(wxWindow* parent, float *magdB, int n_magdB, 
                  float min_mag_db=MIN_MAG_DB, float max_mag_db=MAX_MAG_DB, bool clickTune=true);
         ~PlotSpectrum();
         void setRxFreq(float rxFreq) { m_rxFreq = rxFreq; }
         void setFreqScale(int n_magdB) { m_n_magdB = n_magdB; }
+        void setMistuneState(MistuneState state) { m_mistuneState = state; }
 
         void setNumAveraging(int n) { m_numSampleAveraging = n; }
         virtual void refreshData() override;
@@ -55,6 +62,7 @@ class PlotSpectrum : public PlotPanel
         void        OnKeyDown(wxKeyEvent& event);
 
    private:
+        MistuneState m_mistuneState;
         float       m_rxFreq;
         float       m_max_mag_db;
         float       m_min_mag_db;

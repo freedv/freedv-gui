@@ -2180,6 +2180,7 @@ void MainFrame::OnTimer(wxTimerEvent &evt)
           m_panelSpectrum->setNumAveraging(wxGetApp().appConfiguration.currentSpectrumAveraging + 1);
           m_panelSpectrum->addOffset(freedvInterface.getCurrentRxModemOffset());
           m_panelSpectrum->setSync(syncState ? true : false);
+          m_panelSpectrum->setMistuneState((PlotSpectrum::MistuneState)freedvInterface.getMistuneState());
           m_panelSpectrum->m_newdata = true;
           m_panelSpectrum->Refresh();
       }
