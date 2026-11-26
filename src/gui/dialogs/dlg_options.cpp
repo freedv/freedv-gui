@@ -49,6 +49,7 @@
 #include "audio/AudioEngineFactory.h"
 #include "audio/IAudioDevice.h"
 #include "samplerate.h"
+#include "../util/GridSquare.h"
 
 using namespace std::chrono_literals;
 
@@ -1856,7 +1857,16 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         // General reporting config
         editedConfig_.reportingConfiguration.reportingEnabled = m_ckboxReportingEnable->GetValue();
         editedConfig_.reportingConfiguration.reportingCallsign = m_txt_callsign->GetValue();
-        editedConfig_.reportingConfiguration.reportingGridSquare = m_txt_grid_square->GetValue();
+        // (What's typed here is used as it stands for the distances and
+        // headings FreeDV Reporter shows, and nothing else checks it: the
+        // main window only asks whether there's one at all before reporting
+        // starts. So a typo like "DM1" isn't saved, and the grid square
+        // FreeDV already had is used, as with the ports below.)
+        wxString enteredGridSquare = m_txt_grid_square->GetValue();
+        if (enteredGridSquare.IsEmpty() || GridSquare::IsValid(enteredGridSquare))
+        {
+            editedConfig_.reportingConfiguration.reportingGridSquare = enteredGridSquare;
+        }
         editedConfig_.reportingConfiguration.manualFrequencyReporting = m_ckboxManualFrequencyReporting->GetValue();
         
         // PSK Reporter options

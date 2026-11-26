@@ -1589,6 +1589,64 @@ def test_invalid_numbers():
             quit_and_check_log(app)
 
 
+def test_invalid_grid_square():
+    """The grid square box filled with what isn't a grid square: FreeDV keeps
+    the one it had rather than saving the typo, which would otherwise be sent
+    to the reporting servers and leave every distance and heading in FreeDV
+    Reporter unknown, with nothing saying why. What is one, however it's
+    written, is saved, and so is clearing it."""
+    settings = audio_settings()
+    settings.update({"/Reporting/Enable": True, "/Reporting/Callsign": "AA1ZZZ",
+                     "/Reporting/GridSquare": "DM12", "/Reporting/FreeDV/Hostname": NOWHERE,
+                     "/Reporting/FreeDV/UseTls": False, "/Reporting/ManualFrequencyReporting": True,
+                     "/Reporting/Frequency": 14236000})
+    with audio_devices():
+        with freedvtest.start(settings=settings) as app:
+            # A grid square is two letters and then two digits, which these
+            # aren't. Nothing else checks them: the main window only asks
+            # whether the box is empty before reporting starts.
+            for junk in ["DM1", "D12", "1234", "ABCD"]:
+                open_settings(app, "Reporting")
+                check_values(app, {"txt_grid_square": "DM12"})
+                set_value(app, "txt_grid_square", junk)
+                press_apply(app)
+                check_saved(app, {"/Reporting/GridSquare": "DM12"})
+                # (Apply put the grid square it kept back in the box.)
+                check_values(app, {"txt_grid_square": "DM12"})
+                set_value(app, "txt_grid_square", junk)
+                press_ok(app)
+                check_saved(app, {"/Reporting/GridSquare": "DM12"})
+
+                open_settings(app, "Reporting")
+                check_values(app, {"txt_grid_square": "DM12"})
+                press_cancel(app)
+
+            # What is a grid square goes through as it was typed, including
+            # lower case and the six character form.
+            for gridSquare in ["dm13", "JO11", "DM13qd"]:
+                open_settings(app, "Reporting")
+                set_value(app, "txt_grid_square", gridSquare)
+                press_ok(app)
+                check_saved(app, {"/Reporting/GridSquare": gridSquare})
+
+            # Saying there's no grid square at all is left alone: reporting
+            # started without one is what the main window says something about.
+            open_settings(app, "Reporting")
+            set_value(app, "txt_grid_square", "")
+            press_ok(app)
+            check_saved(app, {"/Reporting/GridSquare": ""})
+
+            open_settings(app, "Reporting")
+            set_value(app, "txt_grid_square", "DM12")
+            press_ok(app)
+            check_saved(app, {"/Reporting/GridSquare": "DM12"})
+
+            # Reporting is on with the grid square all along, so it starts.
+            start_modem(app)
+            stop_modem(app)
+            quit_and_check_log(app)
+
+
 def test_out_of_range_config():
     """Numbers in the configuration file that can't be used as they stand,
     as anything can be written there: too big or small for what they're
@@ -1851,6 +1909,7 @@ SCENARIOS = {
     "display": test_display,
     "modem_and_debugging": test_modem_and_debugging,
     "invalid_numbers": test_invalid_numbers,
+    "invalid_grid_square": test_invalid_grid_square,
     "out_of_range_config": test_out_of_range_config,
     "ptt_key_names": test_ptt_key_names,
     "auto_start": test_auto_start,
