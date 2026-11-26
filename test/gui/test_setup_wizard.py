@@ -874,11 +874,12 @@ def test_invalid_grid_square():
         check_values(app, {"ckReportingEnable": False, "txtCallsign": "AA1ZZZ", "txtGridSquare": "DM12"})
         app.set_value("wizard.ckReportingEnable", True)
 
-        # A grid square is two letters, two digits and, for a more precise
-        # square, two more letters, which these aren't. The page says one is
+        # A Maidenhead locator is a field (two letters A-R), then optionally
+        # a square (two digits), a subsquare (two letters A-X) and an extended
+        # square (two digits), which these aren't. The page says one is
         # required, but Finish saved whatever had been put in the box - which
         # includes what another program's settings were imported into.
-        for junk in ["DM1", "1234", "ABCD", "DM123", "DM12k"]:
+        for junk in ["DM1", "1234", "ABCD", "DM123", "DM12k", "ZZ99", "DM12ky", "DM12kw47ab"]:
             app.set_value("wizard.txtGridSquare", junk)
             finish_wizard(app)
             check_config(app, "reporting", {"reportingCallsign": "AA1ZZZ", "reportingGridSquare": "DM12"})
@@ -887,8 +888,8 @@ def test_invalid_grid_square():
             check_values(app, {"txtGridSquare": "DM12"})
 
         # What is a grid square is saved as it was written, lower case and the
-        # six character form included.
-        for valid in ["JO11", "dm13", "DM13qd"]:
+        # field on its own and the six and eight character forms included.
+        for valid in ["JO11", "dm13", "DM", "DM13qd", "DM13qd47"]:
             app.set_value("wizard.txtGridSquare", valid)
             finish_wizard(app)
             check_config(app, "reporting", {"reportingGridSquare": valid})
@@ -1181,6 +1182,13 @@ def test_import_more():
                         "Import result")
             check_equal(import_wsjtx(MyGrid="AA00"),
                         "Imported: grid square. Review each page before clicking Finish.", "Import result")
+
+            # A grid square that isn't one is said not to be imported, and the
+            # box keeps what it had.
+            check_equal(import_wsjtx(MyGrid="ZZ99"),
+                        "No usable settings were found in WSJT-X. Not imported: grid square (ZZ99 is not a "
+                        "valid grid square/locator). Review each page before clicking Finish.", "Import result")
+            check_values(app, {"txtGridSquare": "AA00"})
 
             # A name quoted at one end only isn't taken as quoted.
             check_equal(import_wsjtx(SoundInName='"FreeDVGuiTest Radio'),

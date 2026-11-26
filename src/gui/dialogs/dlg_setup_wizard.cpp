@@ -35,6 +35,28 @@
 
 extern wxConfigBase* pConfig;
 
+// Shows whether the grid square box holds something that will be saved: in
+// red, with a tool tip saying why, when it isn't a grid square (an empty box
+// is allowed). Called whenever the box's contents change.
+static void ShowGridSquareValidity_(wxTextCtrl* gridSquareCtrl)
+{
+    wxString value = gridSquareCtrl->GetValue();
+    value.Trim(true).Trim(false);
+    bool valid = value.IsEmpty() || GridSquare::IsValid(value);
+    gridSquareCtrl->SetForegroundColour(valid ? wxNullColour : *wxRED);
+    if (valid)
+    {
+        gridSquareCtrl->UnsetToolTip();
+    }
+    else
+    {
+        gridSquareCtrl->SetToolTip(
+            _("Not a valid grid square/locator, so it will not be saved. A locator is two letters A-R, "
+              "optionally followed by two digits, two letters A-X and two more digits (e.g. FN31 or FN31pr)."));
+    }
+    gridSquareCtrl->Refresh();
+}
+
 // --------------------------------------------------------------------------
 // helpers
 // --------------------------------------------------------------------------
@@ -440,6 +462,10 @@ wxPanel* SetupWizard::makeReportingPage()
                                       wxDefaultPosition, wxSize(100, -1), 0,
                                       wxTextValidator(wxFILTER_ALPHANUMERIC));
     grid->Add(m_txtGridSquare, 0, static_cast<int>(wxALIGN_CENTER_VERTICAL));
+    m_txtGridSquare->Bind(wxEVT_TEXT, [this](wxCommandEvent& event) {
+        ShowGridSquareValidity_(m_txtGridSquare);
+        event.Skip();
+    });
 
     vs->Add(grid, 0, static_cast<int>(wxEXPAND) | wxBOTTOM, 10);
 
@@ -815,6 +841,7 @@ void SetupWizard::importSettings(const ImportSource& source)
     // Reporting
     wxString callsign = readQtIniString(ini, "MyCall");
     wxString grid     = readQtIniString(ini, "MyGrid");
+    grid.Trim(true).Trim(false);
     if (!callsign.IsEmpty())
     {
         m_txtCallsign->SetValue(callsign);
@@ -822,8 +849,17 @@ void SetupWizard::importSettings(const ImportSource& source)
     }
     if (!grid.IsEmpty())
     {
-        m_txtGridSquare->SetValue(grid);
-        imported.Add(_("grid square"));
+        // (One that isn't a grid square wouldn't be saved anyway, so it's
+        // said here rather than left for Finish to quietly drop.)
+        if (GridSquare::IsValid(grid))
+        {
+            m_txtGridSquare->SetValue(grid);
+            imported.Add(_("grid square"));
+        }
+        else
+        {
+            notImported.Add(wxString::Format(_("grid square (%s is not a valid grid square/locator)"), grid));
+        }
     }
     if (readQtIniString(ini, "PSKReporter").IsSameAs("true", false))
     {
@@ -1169,7 +1205,9 @@ void SetupWizard::saveConfig()
     // headings FreeDV Reporter shows, and nothing else checks it, so the one
     // FreeDV had before stays, as in the Settings window. Empty is left
     // alone: the main window says what reporting needs.)
+    // (The box shows in red when this is about to happen.)
     wxString enteredGridSquare = m_txtGridSquare->GetValue();
+    enteredGridSquare.Trim(true).Trim(false);
     if (enteredGridSquare.IsEmpty() || GridSquare::IsValid(enteredGridSquare))
         cfg.reportingConfiguration.reportingGridSquare = enteredGridSquare;
     cfg.reportingConfiguration.freedvReporterEnabled = reportingOn;

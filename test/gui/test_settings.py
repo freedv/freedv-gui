@@ -1602,11 +1602,13 @@ def test_invalid_grid_square():
                      "/Reporting/Frequency": 14236000})
     with audio_devices():
         with freedvtest.start(settings=settings) as app:
-            # A grid square is two letters, two digits and, for a more
-            # precise square, two more letters, which these aren't. Nothing
+            # A Maidenhead locator is a field (two letters A-R), then
+            # optionally a square (two digits), a subsquare (two letters A-X)
+            # and an extended square (two digits), which these aren't. Nothing
             # else checks them: the main window only asks whether the box is
             # empty before reporting starts.
-            for junk in ["DM1", "D12", "1234", "ABCD", "DM123", "DM12k", "DM12kwx"]:
+            for junk in ["D", "DM1", "D12", "1234", "ABCD", "DM123", "DM12k", "DM12kwx", "SA00", "DM12ky",
+                         "DM12kw4", "DM12kw47ab"]:
                 open_settings(app, "Reporting")
                 check_values(app, {"txt_grid_square": "DM12"})
                 set_value(app, "txt_grid_square", junk)
@@ -1623,8 +1625,9 @@ def test_invalid_grid_square():
                 press_cancel(app)
 
             # What is a grid square goes through as it was typed, including
-            # lower case and the six character form.
-            for gridSquare in ["dm13", "JO11", "DM13qd"]:
+            # lower case, the field on its own and the six and eight
+            # character forms.
+            for gridSquare in ["dm13", "JO11", "DM", "DM13qd", "DM13qd47", "RR99xx99"]:
                 open_settings(app, "Reporting")
                 set_value(app, "txt_grid_square", gridSquare)
                 press_ok(app)

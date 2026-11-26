@@ -53,6 +53,28 @@
 
 using namespace std::chrono_literals;
 
+// Shows whether the grid square box holds something that will be saved: in
+// red, with a tool tip saying why, when it isn't a grid square (an empty box
+// is allowed). Called whenever the box's contents change.
+static void ShowGridSquareValidity_(wxTextCtrl* gridSquareCtrl)
+{
+    wxString value = gridSquareCtrl->GetValue();
+    value.Trim(true).Trim(false);
+    bool valid = value.IsEmpty() || GridSquare::IsValid(value);
+    gridSquareCtrl->SetForegroundColour(valid ? wxNullColour : *wxRED);
+    if (valid)
+    {
+        gridSquareCtrl->UnsetToolTip();
+    }
+    else
+    {
+        gridSquareCtrl->SetToolTip(
+            _("Not a valid grid square/locator, so it will not be saved. A locator is two letters A-R, "
+              "optionally followed by two digits, two letters A-X and two more digits (e.g. FN31 or FN31pr)."));
+    }
+    gridSquareCtrl->Refresh();
+}
+
 #define OPTIONS_AUDIO_TEST_DURATION_SECS   2
 #define OPTIONS_AUDIO_RECORD_DURATION_SECS 5
 
@@ -412,6 +434,10 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     
     m_txt_grid_square = new wxTextCtrl(sbReporting, wxID_ANY,  wxEmptyString, wxDefaultPosition, wxSize(180,-1), 0, wxTextValidator(wxFILTER_ALPHANUMERIC));
     sbSizerReportingGeneral->Add(m_txt_grid_square, 0,  static_cast<int>(wxALL) | wxALIGN_CENTER_VERTICAL, 5);
+    m_txt_grid_square->Bind(wxEVT_TEXT, [this](wxCommandEvent& event) {
+        ShowGridSquareValidity_(m_txt_grid_square);
+        event.Skip();
+    });
     
     sbSizerReportingRows->Add(sbSizerReportingGeneral, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND), 5);
     
@@ -1862,7 +1888,9 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         // main window only asks whether there's one at all before reporting
         // starts. So a typo like "DM1" isn't saved, and the grid square
         // FreeDV already had is used, as with the ports below.)
+        // (The box shows in red when this is about to happen.)
         wxString enteredGridSquare = m_txt_grid_square->GetValue();
+        enteredGridSquare.Trim(true).Trim(false);
         if (enteredGridSquare.IsEmpty() || GridSquare::IsValid(enteredGridSquare))
         {
             editedConfig_.reportingConfiguration.reportingGridSquare = enteredGridSquare;
