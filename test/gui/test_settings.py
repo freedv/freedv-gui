@@ -1602,10 +1602,11 @@ def test_invalid_grid_square():
                      "/Reporting/Frequency": 14236000})
     with audio_devices():
         with freedvtest.start(settings=settings) as app:
-            # A grid square is two letters and then two digits, which these
-            # aren't. Nothing else checks them: the main window only asks
-            # whether the box is empty before reporting starts.
-            for junk in ["DM1", "D12", "1234", "ABCD"]:
+            # A grid square is two letters, two digits and, for a more
+            # precise square, two more letters, which these aren't. Nothing
+            # else checks them: the main window only asks whether the box is
+            # empty before reporting starts.
+            for junk in ["DM1", "D12", "1234", "ABCD", "DM123", "DM12k", "DM12kwx"]:
                 open_settings(app, "Reporting")
                 check_values(app, {"txt_grid_square": "DM12"})
                 set_value(app, "txt_grid_square", junk)

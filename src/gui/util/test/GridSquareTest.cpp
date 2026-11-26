@@ -47,13 +47,13 @@ bool directionIs(int degrees, const char* expected)
     return false;
 }
 
-bool acceptsGridSquaresStartingWithTwoLettersAndTwoDigits()
+bool acceptsTwoLettersThenTwoDigitsAndMaybeTwoMore()
 {
     bool result = true;
     result &= validityIs("FN31", true);
     result &= validityIs("fn31", true);
     result &= validityIs("FN31pr", true);
-    result &= validityIs("FN31pr25", true);
+    result &= validityIs("DM12KW", true);
     return result;
 }
 
@@ -67,6 +67,11 @@ bool rejectsIncompleteOrMalformedGridSquares()
     result &= validityIs("1234", false);
     result &= validityIs("F3N1", false);
     result &= validityIs(" FN31", false);
+    result &= validityIs("FN31p", false);
+    result &= validityIs("FN3123", false);
+    // Nothing past the two letter subsquare is part of one.
+    result &= validityIs("FN31pr2", false);
+    result &= validityIs("FN31pr25", false);
     return result;
 }
 
@@ -223,7 +228,7 @@ int main()
         return -1;
     }
 
-    executeTestCase("acceptsGridSquaresStartingWithTwoLettersAndTwoDigits", acceptsGridSquaresStartingWithTwoLettersAndTwoDigits);
+    executeTestCase("acceptsTwoLettersThenTwoDigitsAndMaybeTwoMore", acceptsTwoLettersThenTwoDigitsAndMaybeTwoMore);
     executeTestCase("rejectsIncompleteOrMalformedGridSquares", rejectsIncompleteOrMalformedGridSquares);
     executeTestCase("fourCharacterGridSquareIsLocatedAtItsMiddle", fourCharacterGridSquareIsLocatedAtItsMiddle);
     executeTestCase("sixCharacterGridSquareIsLocatedMorePrecisely", sixCharacterGridSquareIsLocatedMorePrecisely);

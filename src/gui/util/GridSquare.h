@@ -7,8 +7,9 @@
 // used to show how far away and in which direction other stations are.
 namespace GridSquare
 {
-    // Returns true if the grid square begins with two letters followed by
-    // two digits, which is the least the other functions here need.
+    // Returns true if the grid square is two letters followed by two digits,
+    // with two more letters for a more precise square ("DM12", "DM12kw").
+    // Anything else, including anything longer, isn't one.
     bool IsValid(wxString const& gridSquare);
 
     // Provides the latitude and longitude (in degrees) of the middle of the

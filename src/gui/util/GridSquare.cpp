@@ -23,7 +23,9 @@ static double RadiansToDegrees_(double radians)
 
 bool GridSquare::IsValid(wxString const& gridSquare)
 {
-    const wxRegEx gridSquareRegex("^[A-Za-z]{2}[0-9]{2}");
+    // Two letters, two digits and, for a more precise square, two more
+    // letters: nothing else is a grid square, so the end is anchored too.
+    const wxRegEx gridSquareRegex("^[A-Za-z]{2}[0-9]{2}([A-Za-z]{2})?$");
     return gridSquareRegex.Matches(gridSquare);
 }
 
