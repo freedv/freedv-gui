@@ -588,7 +588,20 @@ def test_analog():
             check_equal(label(app, "main.btnAnalog"), "Switch to Analog", "Analog button's label")
             check_equal(app.state()["analog"], False, "Analog mode")
             with Tone(RADIO_RX):
-                check_silent(SPEAKER_MONITOR, "The radio is still being played through the speaker")
+                # Give it a few seconds to go quiet: with both pairs shared (as
+                # on Windows CI), what was going round the loop while
+                # transmitting can take a moment to drain after going back to
+                # receive. Something still passing the radio through stays
+                # loud and fails.
+                levels = []
+                def quiet():
+                    levels.append(level(SPEAKER_MONITOR, 0.5))
+                    return levels[-1] < SILENT
+                try:
+                    app.wait_until(quiet, timeout=5)
+                except freedvtest.FreeDVError:
+                    check(False, "The radio is still being played through the speaker (levels %s)"
+                          % ", ".join("%d" % l for l in levels))
 
             stop_modem(app)
             quit_and_check_log(app)
