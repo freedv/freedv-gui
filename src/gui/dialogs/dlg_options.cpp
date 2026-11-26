@@ -24,7 +24,7 @@
 #include <climits>
 #include "dlg_options.h"
 #include "../util/NumberEntry.h"
-#include "../util/GridSquare.h"
+#include "../util/GridSquareEntry.h"
 
 extern FreeDVInterface freedvInterface;
 
@@ -92,28 +92,6 @@ extern std::atomic<int>    g_dump_timing;
 extern std::atomic<int>    g_dump_fifo_state;
 extern int                 g_freedv_verbose;
 extern wxConfigBase *pConfig;
-
-// Shows whether the grid square box holds something that will be saved: in
-// red, with a tool tip saying why, when it isn't a grid square (an empty box
-// is allowed). Called whenever the box's contents change.
-static void ShowGridSquareValidity_(wxTextCtrl* gridSquareCtrl)
-{
-    wxString value = gridSquareCtrl->GetValue();
-    value.Trim(true).Trim(false);
-    bool valid = value.IsEmpty() || GridSquare::IsValid(value);
-    gridSquareCtrl->SetForegroundColour(valid ? wxNullColour : *wxRED);
-    if (valid)
-    {
-        gridSquareCtrl->UnsetToolTip();
-    }
-    else
-    {
-        gridSquareCtrl->SetToolTip(
-            wxT("Not a valid grid square/locator, so it will not be saved. A locator is two letters A-R, "
-                "optionally followed by two digits, two letters A-X and two more digits (e.g. FN31 or FN31pr)."));
-    }
-    gridSquareCtrl->Refresh();
-}
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=
 // Class OptionsDlg
@@ -198,7 +176,7 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     m_txt_grid_square = new wxTextCtrl(sbReporting, wxID_ANY,  wxEmptyString, wxDefaultPosition, wxSize(180,-1), 0, wxTextValidator(wxFILTER_ALPHANUMERIC));
     sbSizerReportingGeneral->Add(m_txt_grid_square, 0,  static_cast<int>(wxALL) | wxALIGN_CENTER_VERTICAL, 5);
     m_txt_grid_square->Bind(wxEVT_TEXT, [this](wxCommandEvent& event) {
-        ShowGridSquareValidity_(m_txt_grid_square);
+        ShowGridSquareValidity(m_txt_grid_square);
         event.Skip();
     });
     
@@ -1372,12 +1350,9 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         // starts. So a typo like "DM1" isn't saved, and the grid square
         // FreeDV already had is used. The box shows in red when this is
         // about to happen.)
-        wxString enteredGridSquare = m_txt_grid_square->GetValue();
-        enteredGridSquare.Trim(true).Trim(false);
-        if (enteredGridSquare.IsEmpty() || GridSquare::IsValid(enteredGridSquare))
-        {
-            wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare = enteredGridSquare;
-        }
+        wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare =
+            GridSquare::AcceptedValue(m_txt_grid_square->GetValue(),
+                                      wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare);
         wxGetApp().appConfiguration.reportingConfiguration.manualFrequencyReporting = m_ckboxManualFrequencyReporting->GetValue();
         
         // PSK Reporter options

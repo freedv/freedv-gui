@@ -40,6 +40,15 @@ bool validityIs(const char* gridSquare, bool expected)
     return false;
 }
 
+bool acceptedIs(const char* entered, const char* previous, const char* expected)
+{
+    auto actual = GridSquare::AcceptedValue(entered, previous);
+    if (actual == expected) return true;
+    std::cout << "[\"" << entered << "\" over \"" << previous << "\" left \""
+              << actual.ToStdString() << "\", expected \"" << expected << "\"] ";
+    return false;
+}
+
 bool directionIs(int degrees, const char* expected)
 {
     auto actual = GridSquare::CardinalDirection(degrees);
@@ -91,6 +100,31 @@ bool rejectsIncompleteOrMalformedGridSquares()
     // Nothing past the extended square is formally defined.
     result &= validityIs("FN31pr25ab", false);
     result &= validityIs("FN31pr25ab12", false);
+    return result;
+}
+
+bool keepsThePreviousGridSquareWhenWhatWasTypedIsNotOne()
+{
+    bool result = true;
+
+    // What was typed, when it is a grid square, with the space around it
+    // removed.
+    result &= acceptedIs("FN31", "DM12", "FN31");
+    result &= acceptedIs(" fn31pr ", "DM12", "fn31pr");
+    result &= acceptedIs("FN31PR25", "DM12", "FN31PR25");
+
+    // An empty box is allowed: reporting started without a grid square is
+    // what the main window says something about.
+    result &= acceptedIs("", "DM12", "");
+    result &= acceptedIs("   ", "DM12", "");
+
+    // What isn't one leaves the grid square that was there before, so a typo
+    // can't replace a good one.
+    result &= acceptedIs("DM1", "FN31", "FN31");
+    result &= acceptedIs("1234", "FN31", "FN31");
+    result &= acceptedIs("FN31p", "FN31", "FN31");
+    result &= acceptedIs("ZZ99", "FN31", "FN31");
+    result &= acceptedIs("FN31pr25ab", "FN31", "FN31");
     return result;
 }
 
@@ -272,6 +306,7 @@ int main()
 
     executeTestCase("acceptsFieldsSquaresSubsquaresAndExtendedSquares", acceptsFieldsSquaresSubsquaresAndExtendedSquares);
     executeTestCase("rejectsIncompleteOrMalformedGridSquares", rejectsIncompleteOrMalformedGridSquares);
+    executeTestCase("keepsThePreviousGridSquareWhenWhatWasTypedIsNotOne", keepsThePreviousGridSquareWhenWhatWasTypedIsNotOne);
     executeTestCase("twoCharacterFieldIsLocatedAtItsMiddle", twoCharacterFieldIsLocatedAtItsMiddle);
     executeTestCase("fourCharacterGridSquareIsLocatedAtItsMiddle", fourCharacterGridSquareIsLocatedAtItsMiddle);
     executeTestCase("sixCharacterGridSquareIsLocatedMorePrecisely", sixCharacterGridSquareIsLocatedMorePrecisely);

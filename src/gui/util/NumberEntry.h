@@ -83,4 +83,19 @@ inline bool ReadCIVAddress(wxString text, unsigned int& address)
     return false;
 }
 
+// A sample rate in the audio options' rate box, which lists the device's
+// rates but can also be typed into. False if what's there isn't one, so that
+// the setting keeps the rate it had instead of becoming 0 (-1 is the
+// device's own default; the top of the range is the setting's limit).
+inline bool ReadSampleRate(wxString const& text, int& rate)
+{
+    long long number = 0;
+    if (ReadWholeNumber(text, number) && number <= 768000 && (number == -1 || number > 0))
+    {
+        rate = (int)number;
+        return true;
+    }
+    return false;
+}
+
 #endif // NUMBER_ENTRY_H

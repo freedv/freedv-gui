@@ -30,6 +30,7 @@
 #include "../../main.h"
 #include "../util/SerialPortList.h"
 #include "../util/NumberEntry.h"
+#include "../util/GridSquareEntry.h"
 #include "dlg_easy_setup.h"
 #include "dlg_audiooptions.h"
 #include "dlg_ptt.h"
@@ -281,6 +282,11 @@ EasySetupDialog::EasySetupDialog(wxWindow* parent, wxWindowID id, const wxString
     
     m_txt_grid_square = new wxTextCtrl(setupPskReporterBox, wxID_ANY,  wxEmptyString, wxDefaultPosition, wxSize(180,-1), 0, wxTextValidator(wxFILTER_ALPHANUMERIC));
     sbSizer_psk->Add(m_txt_grid_square, 0,  static_cast<int>(wxALL) | static_cast<int>(wxALIGN_CENTER_VERTICAL), 2);
+    
+    m_txt_grid_square->Bind(wxEVT_TEXT, [this](wxCommandEvent& event) {
+        ShowGridSquareValidity(m_txt_grid_square);
+        event.Skip();
+    });
     
     sectionSizer->Add(sbSizer_psk, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND), 2);
     
@@ -670,7 +676,13 @@ void EasySetupDialog::ExchangeReportingData(int inout)
         }
         
         wxGetApp().appConfiguration.reportingConfiguration.reportingCallsign = m_txt_callsign->GetValue();
-        wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare = m_txt_grid_square->GetValue();
+        // (A grid square that isn't one - a typo like "DM1", or what was in
+        // another program's settings - can't be used for the distances and
+        // headings FreeDV Reporter shows, so the one FreeDV had before stays.
+        // The box shows in red when this is about to happen.)
+        wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare =
+            GridSquare::AcceptedValue(m_txt_grid_square->GetValue(),
+                                      wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare);
 
         wxGetApp().appConfiguration.save(pConfig);
     }
