@@ -889,7 +889,7 @@ endif(APPLE)
 # sanitizer's report in FreeDV's output fails them (the scripts show that
 # output whenever there's one in it).
 if(LINUX OR APPLE)
-foreach(scenario first_run second_run receive_only odd_starting_points cancel auto_select radio_control hamlib_start reporting import import_more)
+foreach(scenario first_run second_run receive_only odd_starting_points cancel auto_select radio_control hamlib_start reporting invalid_grid_square import import_more)
     add_test(NAME gui_setup_wizard_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_setup_wizard.py ${scenario})
     set_tests_properties(gui_setup_wizard_${scenario} PROPERTIES LABELS gui SKIP_RETURN_CODE 77)

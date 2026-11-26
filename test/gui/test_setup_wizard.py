@@ -860,6 +860,51 @@ def test_reporting():
         quit_and_check_log(app)
 
 
+def test_invalid_grid_square():
+    """The grid square box filled with what isn't a grid square: FreeDV keeps
+    the one it had rather than saving what was typed, as it does in the
+    Settings window. Otherwise the typo is what gets sent to the reporting
+    servers, and every distance and heading in FreeDV Reporter is unknown
+    with nothing saying why. What is one, however it's written, is saved, and
+    so is clearing it."""
+    with freedvtest.start(settings={"/Reporting/Callsign": "AA1ZZZ", "/Reporting/GridSquare": "DM12"}) as app:
+        app.wait_for_window("main")
+        reopen_wizard(app)
+        go_to_page(app, 3)
+        check_values(app, {"ckReportingEnable": False, "txtCallsign": "AA1ZZZ", "txtGridSquare": "DM12"})
+        app.set_value("wizard.ckReportingEnable", True)
+
+        # A grid square is two letters, two digits and, for a more precise
+        # square, two more letters, which these aren't. The page says one is
+        # required, but Finish saved whatever had been put in the box - which
+        # includes what another program's settings were imported into.
+        for junk in ["DM1", "1234", "ABCD", "DM123", "DM12k"]:
+            app.set_value("wizard.txtGridSquare", junk)
+            finish_wizard(app)
+            check_config(app, "reporting", {"reportingCallsign": "AA1ZZZ", "reportingGridSquare": "DM12"})
+            reopen_wizard(app)
+            go_to_page(app, 3)
+            check_values(app, {"txtGridSquare": "DM12"})
+
+        # What is a grid square is saved as it was written, lower case and the
+        # six character form included.
+        for valid in ["JO11", "dm13", "DM13qd"]:
+            app.set_value("wizard.txtGridSquare", valid)
+            finish_wizard(app)
+            check_config(app, "reporting", {"reportingGridSquare": valid})
+            reopen_wizard(app)
+            go_to_page(app, 3)
+            check_values(app, {"txtGridSquare": valid})
+
+        # Saying there's no grid square at all is left alone: reporting started
+        # without one is what the main window says something about.
+        app.set_value("wizard.txtGridSquare", "")
+        finish_wizard(app)
+        check_config(app, "reporting", {"reportingGridSquare": ""})
+
+        quit_and_check_log(app)
+
+
 def wsjtx_settings(**settings):
     """Returns the contents of a WSJT-X (or similar) settings file."""
     lines = ["[Configuration]"] + ["%s=%s" % item for item in settings.items()]
@@ -1195,6 +1240,7 @@ SCENARIOS = {
     "radio_control": test_radio_control,
     "hamlib_start": test_hamlib_start,
     "reporting": test_reporting,
+    "invalid_grid_square": test_invalid_grid_square,
     "import": test_import,
     "import_more": test_import_more,
 }

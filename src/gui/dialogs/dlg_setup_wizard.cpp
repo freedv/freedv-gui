@@ -31,6 +31,7 @@
 #include "audio/AudioEngineFactory.h"
 #include "audio/IAudioDevice.h"
 #include "rig_control/HamlibRigController.h"
+#include "../util/GridSquare.h"
 
 extern wxConfigBase* pConfig;
 
@@ -429,13 +430,15 @@ wxPanel* SetupWizard::makeReportingPage()
     m_stCallsign = new wxStaticText(page, wxID_ANY, _("Callsign:"));
     grid->Add(m_stCallsign, 0, static_cast<int>(wxALIGN_CENTER_VERTICAL));
     m_txtCallsign = new wxTextCtrl(page, wxID_ANY, wxEmptyString,
-                                    wxDefaultPosition, wxSize(160, -1));
+                                    wxDefaultPosition, wxSize(160, -1), 0,
+                                    wxTextValidator(wxFILTER_ALPHANUMERIC));
     grid->Add(m_txtCallsign, 1, static_cast<int>(wxEXPAND) | static_cast<int>(wxALIGN_CENTER_VERTICAL));
 
     m_stGridSquare = new wxStaticText(page, wxID_ANY, _("Grid Square:"));
     grid->Add(m_stGridSquare, 0, static_cast<int>(wxALIGN_CENTER_VERTICAL));
     m_txtGridSquare = new wxTextCtrl(page, wxID_ANY, wxEmptyString,
-                                      wxDefaultPosition, wxSize(100, -1));
+                                      wxDefaultPosition, wxSize(100, -1), 0,
+                                      wxTextValidator(wxFILTER_ALPHANUMERIC));
     grid->Add(m_txtGridSquare, 0, static_cast<int>(wxALIGN_CENTER_VERTICAL));
 
     vs->Add(grid, 0, static_cast<int>(wxEXPAND) | wxBOTTOM, 10);
@@ -1161,7 +1164,14 @@ void SetupWizard::saveConfig()
     bool reportingOn = m_ckReportingEnable->GetValue();
     cfg.reportingConfiguration.reportingEnabled      = reportingOn;
     cfg.reportingConfiguration.reportingCallsign     = m_txtCallsign->GetValue();
-    cfg.reportingConfiguration.reportingGridSquare   = m_txtGridSquare->GetValue();
+    // (A grid square that isn't one - a typo like "DM1", or what an imported
+    // program's settings had in it - can't be used for the distances and
+    // headings FreeDV Reporter shows, and nothing else checks it, so the one
+    // FreeDV had before stays, as in the Settings window. Empty is left
+    // alone: the main window says what reporting needs.)
+    wxString enteredGridSquare = m_txtGridSquare->GetValue();
+    if (enteredGridSquare.IsEmpty() || GridSquare::IsValid(enteredGridSquare))
+        cfg.reportingConfiguration.reportingGridSquare = enteredGridSquare;
     cfg.reportingConfiguration.freedvReporterEnabled = reportingOn;
     cfg.reportingConfiguration.pskReporterEnabled    = reportingOn;
 
