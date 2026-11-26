@@ -21,52 +21,76 @@ static double RadiansToDegrees_(double radians)
     return (result == 360) ? 0 : result;
 }
 
+namespace
+{
+    // The pairs of a Maidenhead locator, from least to most precise: field,
+    // square, subsquare and extended square. In each pair the first
+    // character is longitude and the second latitude.
+    struct LocatorPair
+    {
+        char first;       // character for index 0 ('A' or '0')
+        int count;        // number of values each character can take
+        double lonSize;   // degrees of longitude each value covers
+        double latSize;   // degrees of latitude each value covers
+    };
+
+    const LocatorPair LocatorPairs_[] = {
+        { 'A', 18, 20.0,       10.0 },        // field: A-R
+        { '0', 10, 2.0,        1.0 },         // square: 0-9
+        { 'A', 24, 5.0 / 60,   2.5 / 60 },    // subsquare: A-X
+        { '0', 10, 0.5 / 60,   0.25 / 60 },   // extended square: 0-9
+    };
+}
+
 bool GridSquare::IsValid(wxString const& gridSquare)
 {
-    // Two letters, two digits and, for a more precise square, two more
-    // letters: nothing else is a grid square, so the end is anchored too.
-    const wxRegEx gridSquareRegex("^[A-Za-z]{2}[0-9]{2}([A-Za-z]{2})?$");
+    // A field (A-R), then optionally a square (0-9), a subsquare (A-X) and
+    // an extended square (0-9), each only after the one before it. Pairs past
+    // the extended square aren't formally defined, so they aren't accepted.
+    // Letters should be uppercase, but lowercase is widely used and is
+    // accepted too.
+    const wxRegEx gridSquareRegex("^[A-Ra-r]{2}([0-9]{2}([A-Xa-x]{2}([0-9]{2})?)?)?$");
     return gridSquareRegex.Matches(gridSquare);
 }
 
 void GridSquare::ToLatLon(wxString gridSquare, double& lat, double& lon)
 {
-    char charA = 'A';
-    char char0 = '0';
-    
     // Uppercase grid square for easier processing
     gridSquare.MakeUpper();
     
     // Start from antimeridian South Pole (e.g. over the Pacific, not over the UK)
     lon = -180.0;
     lat = -90.0;
-    
-    // Process first two characters
-    lon += ((char)gridSquare.GetChar(0) - charA) * 20;
-    lat += ((char)gridSquare.GetChar(1) - charA) * 10;
-    
-    // Then next two
-    lon += ((char)gridSquare.GetChar(2) - char0) * 2;
-    lat += ((char)gridSquare.GetChar(3) - char0) * 1;
-    
-    // If grid square is 6 or more letters, THEN use the next two.
-    // Otherwise, optional.
-    wxString optionalSegment = gridSquare.Mid(4, 2);
-    const wxRegEx allLetters("^[A-Z]{2}$");
-    if (gridSquare.Length() >= 6 && allLetters.Matches(optionalSegment))
+    double lonSize = 360.0;
+    double latSize = 180.0;
+
+    // Use each pair in turn, stopping at the first one that's missing or
+    // isn't what belongs there.
+    for (size_t index = 0; index < sizeof(LocatorPairs_) / sizeof(LocatorPairs_[0]); index++)
     {
-        lon += ((char)gridSquare.GetChar(4) - charA) * 5.0 / 60;
-        lat += ((char)gridSquare.GetChar(5) - charA) * 2.5 / 60;
-    
-        // Center in middle of grid square
-        lon += 5.0 / 60 / 2;
-        lat += 2.5 / 60 / 2;
+        const LocatorPair& pair = LocatorPairs_[index];
+        size_t position = index * 2;
+        if (gridSquare.Length() < position + 2)
+        {
+            break;
+        }
+
+        int lonIndex = (char)gridSquare.GetChar(position) - pair.first;
+        int latIndex = (char)gridSquare.GetChar(position + 1) - pair.first;
+        if (lonIndex < 0 || lonIndex >= pair.count || latIndex < 0 || latIndex >= pair.count)
+        {
+            break;
+        }
+
+        lon += lonIndex * pair.lonSize;
+        lat += latIndex * pair.latSize;
+        lonSize = pair.lonSize;
+        latSize = pair.latSize;
     }
-    else
-    {
-        lon += 2 / 2;
-        lat += 1.0 / 2;
-    }
+
+    // Center in the middle of the most precise part used.
+    lon += lonSize / 2;
+    lat += latSize / 2;
 }
 
 double GridSquare::DistanceInKm(wxString const& gridSquare1, wxString const& gridSquare2)

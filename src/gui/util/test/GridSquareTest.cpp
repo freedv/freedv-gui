@@ -7,8 +7,9 @@
 #include "../../../test/UnitTestCommon.h"
 
 // Maidenhead grid squares divide the world into 20 by 10 degree fields
-// (two letters), each into 2 by 1 degree squares (two digits), each of
-// those into 5 by 2.5 minute subsquares (two more letters). Expected
+// (two letters A-R), each into 2 by 1 degree squares (two digits), each of
+// those into 5 by 2.5 minute subsquares (two letters A-X), and each of those
+// into 30 by 15 second extended squares (two more digits). Expected
 // values here were worked out by hand or with an independent calculation.
 
 namespace {
@@ -47,13 +48,21 @@ bool directionIs(int degrees, const char* expected)
     return false;
 }
 
-bool acceptsTwoLettersThenTwoDigitsAndMaybeTwoMore()
+bool acceptsFieldsSquaresSubsquaresAndExtendedSquares()
 {
     bool result = true;
+    result &= validityIs("FN", true);
+    result &= validityIs("fn", true);
     result &= validityIs("FN31", true);
     result &= validityIs("fn31", true);
     result &= validityIs("FN31pr", true);
     result &= validityIs("DM12KW", true);
+    result &= validityIs("FN31pr25", true);
+    result &= validityIs("FN31PR25", true);
+
+    // The first and last value of each pair.
+    result &= validityIs("AA00aa00", true);
+    result &= validityIs("RR99xx99", true);
     return result;
 }
 
@@ -62,16 +71,35 @@ bool rejectsIncompleteOrMalformedGridSquares()
     bool result = true;
     result &= validityIs("", false);
     result &= validityIs("F", false);
-    result &= validityIs("FN", false);
     result &= validityIs("FN3", false);
     result &= validityIs("1234", false);
     result &= validityIs("F3N1", false);
     result &= validityIs(" FN31", false);
     result &= validityIs("FN31p", false);
     result &= validityIs("FN3123", false);
-    // Nothing past the two letter subsquare is part of one.
     result &= validityIs("FN31pr2", false);
-    result &= validityIs("FN31pr25", false);
+    result &= validityIs("FN31pr2a", false);
+    result &= validityIs("FN31pr25 ", false);
+
+    // Fields only go up to R, and subsquares only up to X.
+    result &= validityIs("SA00", false);
+    result &= validityIs("AS00", false);
+    result &= validityIs("ZZ99", false);
+    result &= validityIs("FN31ya", false);
+    result &= validityIs("FN31ay", false);
+
+    // Nothing past the extended square is formally defined.
+    result &= validityIs("FN31pr25ab", false);
+    result &= validityIs("FN31pr25ab12", false);
+    return result;
+}
+
+bool twoCharacterFieldIsLocatedAtItsMiddle()
+{
+    bool result = true;
+    result &= locationIs("FN", 45.0, -70.0);
+    result &= locationIs("AA", -85.0, -170.0);
+    result &= locationIs("RR", 85.0, 170.0);
     return result;
 }
 
@@ -99,6 +127,18 @@ bool sixCharacterGridSquareIsLocatedMorePrecisely()
     return result;
 }
 
+bool eightCharacterGridSquareIsLocatedMorePreciselyStill()
+{
+    bool result = true;
+
+    // Each extended square is 30 seconds of longitude by 15 of latitude.
+    result &= locationIs("FN31pr25", 41.731250, -72.729167);
+    result &= locationIs("FN31pr00", 41.710417, -72.745833);
+    result &= locationIs("FN31pr99", 41.747917, -72.670833);
+    result &= locationIs("fn31PR25", 41.731250, -72.729167);
+    return result;
+}
+
 bool gridSquaresAreNotCaseSensitive()
 {
     bool result = true;
@@ -108,15 +148,17 @@ bool gridSquaresAreNotCaseSensitive()
     return result;
 }
 
-bool anythingAfterFourCharactersThatIsNotASubsquareIsIgnored()
+bool anythingAfterTheLastValidPairIsIgnored()
 {
     bool result = true;
+    result &= locationIs("FN3", 45.0, -70.0);
     result &= locationIs("FN31p", 41.5, -73.0);
     result &= locationIs("FN3112", 41.5, -73.0);
     result &= locationIs("FN31p1", 41.5, -73.0);
-
-    // Extended (eight character) grid squares are only used to six.
-    result &= locationIs("FN31pr25", 41.729167, -72.708333);
+    result &= locationIs("FN31ya", 41.5, -73.0);
+    result &= locationIs("FN31pr2", 41.729167, -72.708333);
+    result &= locationIs("FN31prab", 41.729167, -72.708333);
+    result &= locationIs("FN31pr25ab", 41.731250, -72.729167);
     return result;
 }
 
@@ -228,12 +270,14 @@ int main()
         return -1;
     }
 
-    executeTestCase("acceptsTwoLettersThenTwoDigitsAndMaybeTwoMore", acceptsTwoLettersThenTwoDigitsAndMaybeTwoMore);
+    executeTestCase("acceptsFieldsSquaresSubsquaresAndExtendedSquares", acceptsFieldsSquaresSubsquaresAndExtendedSquares);
     executeTestCase("rejectsIncompleteOrMalformedGridSquares", rejectsIncompleteOrMalformedGridSquares);
+    executeTestCase("twoCharacterFieldIsLocatedAtItsMiddle", twoCharacterFieldIsLocatedAtItsMiddle);
     executeTestCase("fourCharacterGridSquareIsLocatedAtItsMiddle", fourCharacterGridSquareIsLocatedAtItsMiddle);
     executeTestCase("sixCharacterGridSquareIsLocatedMorePrecisely", sixCharacterGridSquareIsLocatedMorePrecisely);
+    executeTestCase("eightCharacterGridSquareIsLocatedMorePreciselyStill", eightCharacterGridSquareIsLocatedMorePreciselyStill);
     executeTestCase("gridSquaresAreNotCaseSensitive", gridSquaresAreNotCaseSensitive);
-    executeTestCase("anythingAfterFourCharactersThatIsNotASubsquareIsIgnored", anythingAfterFourCharactersThatIsNotASubsquareIsIgnored);
+    executeTestCase("anythingAfterTheLastValidPairIsIgnored", anythingAfterTheLastValidPairIsIgnored);
     executeTestCase("distanceIsZeroToSameGridSquare", distanceIsZeroToSameGridSquare);
     executeTestCase("distanceFollowsGreatCircle", distanceFollowsGreatCircle);
     executeTestCase("distanceIsSameInBothDirections", distanceIsSameInBothDirections);
