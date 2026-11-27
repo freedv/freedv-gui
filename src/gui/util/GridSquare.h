@@ -7,13 +7,17 @@
 // used to show how far away and in which direction other stations are.
 namespace GridSquare
 {
-    // Returns true if the grid square begins with two letters followed by
-    // two digits, which is the least the other functions here need.
+    // Returns true if the grid square is a Maidenhead locator: a field of
+    // two letters A-R ("DM"), optionally followed by a square of two digits
+    // ("DM12"), then a subsquare of two letters A-X ("DM12kw"), then an
+    // extended square of two digits ("DM12kw47"). Either case is accepted.
+    // Anything else, including anything longer, isn't one.
     bool IsValid(wxString const& gridSquare);
 
     // Provides the latitude and longitude (in degrees) of the middle of the
-    // grid square. Six character grid squares are located more precisely.
-    // The grid square must be valid.
+    // grid square, as precisely as its length allows. The grid square must
+    // be valid; given one that isn't, only the valid pairs it starts with
+    // are used.
     void ToLatLon(wxString gridSquare, double& lat, double& lon);
 
     // Returns the distance between the two grid squares in kilometers.
