@@ -33,6 +33,7 @@
 #include "../../main.h"
 #include "../../pipeline/ResampleStep.h"
 #include "../util/WindowPlacement.h"
+#include "../util/NumberEntry.h"
 
 using namespace std::chrono_literals;
 
@@ -586,6 +587,14 @@ int AudioOptsDialog::ExchangeData(int inout)
             return -1;
         }
 
+        // (The rate boxes list the device's rates but can be typed into:
+        // what isn't a rate leaves the one the setting had, rather than
+        // becoming 0.)
+        auto setRate = [](auto& rate, wxString const& text) {
+            int value = 0;
+            if (ReadSampleRate(text, value)) rate = value;
+        };
+
         // ---------------------------------------------------------------
         // Map Rx/TX device numbers to sound card device names used
         // in callbacks.
@@ -594,8 +603,8 @@ int AudioOptsDialog::ExchangeData(int inout)
 
         if (valid_one_card_config) {
             g_nSoundCards.store(1, std::memory_order_release);
-            wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate = wxAtoi(sampleRate1);
-            wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate = wxAtoi(sampleRate2);
+            setRate(wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate, sampleRate1);
+            setRate(wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate, sampleRate2);
             
             log_debug("  m_soundCard1InSampleRate: %d", wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate.get());
             log_debug("  m_soundCard1OutSampleRate: %d", wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate.get());
@@ -603,10 +612,10 @@ int AudioOptsDialog::ExchangeData(int inout)
 
         if (valid_two_card_config) {
             g_nSoundCards.store(2, std::memory_order_release);
-            wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate = wxAtoi(sampleRate1);
-            wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate = wxAtoi(sampleRate2);
-            wxGetApp().appConfiguration.audioConfiguration.soundCard2In.sampleRate = wxAtoi(sampleRate3);
-            wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate = wxAtoi(sampleRate4);
+            setRate(wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate, sampleRate1);
+            setRate(wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate, sampleRate2);
+            setRate(wxGetApp().appConfiguration.audioConfiguration.soundCard2In.sampleRate, sampleRate3);
+            setRate(wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate, sampleRate4);
             
             log_debug("  m_soundCard1InSampleRate: %d", wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate.get());
             log_debug("  m_soundCard2OutSampleRate: %d", wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate.get());
