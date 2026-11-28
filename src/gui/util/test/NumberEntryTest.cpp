@@ -16,7 +16,7 @@ bool rateIs(wxString const& text, bool accepted, int expected = 0)
     bool actual = ReadSampleRate(text, rate);
     if (actual == accepted && (!accepted || rate == expected)) return true;
 
-    std::cout << "[" << (const char*)text << " gave "
+    std::cout << "[" << text.ToStdString() << " gave "
               << (actual ? "accepted " + std::to_string(rate) : std::string("rejected"))
               << ", expected " << (accepted ? "accepted " + std::to_string(expected) : std::string("rejected")) << "] ";
     return false;
@@ -29,6 +29,9 @@ bool acceptsRatesAndTheirDefault()
     result &= rateIs(" 44100 ", true, 44100);
     result &= rateIs("768000", true, 768000);
     result &= rateIs("-1", true, -1);
+    // What the box shows for a device that lists no rates of its own.
+    result &= rateIs("None", true, -1);
+    result &= rateIs(" None ", true, -1);
     return result;
 }
 
@@ -43,6 +46,9 @@ bool rejectsWhatIsNotARate()
     result &= rateIs("8000 Hz", false);
     result &= rateIs("0", false);
     result &= rateIs("-2", false);
+    // Too low to be a rate: "44" typed for 44.1 kHz isn't saved as 44 Hz.
+    result &= rateIs("44", false);
+    result &= rateIs("7999", false);
     // Not wrapped around into another number on the way to the setting.
     result &= rateIs("768001", false);
     result &= rateIs("99999999999", false);

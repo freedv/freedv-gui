@@ -61,8 +61,8 @@ class AudioOptsDialog : public wxDialog
 
         void buildTestControls(PlotScalar **plotScalar, wxButton **btnTest, 
                                wxStaticBox *parentPanel, wxBoxSizer *bSizer, wxString const& buttonLabel);
-        void plotDeviceInputForAFewSecs(wxString const& devName, PlotScalar *plotScalar);
-        void plotDeviceOutputForAFewSecs(wxString const& devName, PlotScalar *plotScalar);
+        void plotDeviceInputForAFewSecs(wxString const& devName, wxString const& sampleRateText, PlotScalar *plotScalar);
+        void plotDeviceOutputForAFewSecs(wxString const& devName, wxString const& sampleRateText, PlotScalar *plotScalar);
 
         int buildListOfSupportedSampleRates(wxComboBox *cbSampleRate, wxString const& devName, int in_out);
         void populateParams(AudioInfoDisplay);

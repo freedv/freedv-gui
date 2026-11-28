@@ -84,13 +84,21 @@ inline bool ReadCIVAddress(wxString text, unsigned int& address)
 }
 
 // A sample rate in the audio options' rate box, which lists the device's
-// rates but can also be typed into. False if what's there isn't one, so that
-// the setting keeps the rate it had instead of becoming 0 (-1 is the
-// device's own default; the top of the range is the setting's limit).
-inline bool ReadSampleRate(wxString const& text, int& rate)
+// rates but can also be typed into. "None" (shown for a device that lists no
+// rates) and -1 are the device's own default. False if what's there isn't a
+// rate, so that the setting keeps the rate it had instead of becoming 0.
+// Nothing below 8 kHz is a rate FreeDV can use (FreeDV's modems run at 8 kHz
+// and up), and the top of the range is the setting's limit.
+inline bool ReadSampleRate(wxString text, int& rate)
 {
     long long number = 0;
-    if (ReadWholeNumber(text, number) && number <= 768000 && (number == -1 || number > 0))
+    text.Trim(true).Trim(false);
+    if (text == "None")
+    {
+        rate = -1;
+        return true;
+    }
+    if (ReadWholeNumber(text, number) && number <= 768000 && (number == -1 || number >= 8000))
     {
         rate = (int)number;
         return true;
