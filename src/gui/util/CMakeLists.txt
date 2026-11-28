@@ -30,8 +30,8 @@ DefineFreeDVUnitTest(gui_util FilterFrequencyTest fdv_util)
 DefineFreeDVUnitTest(gui_util GridSquareTest fdv_gui_util ${FREEDV_LINK_LIBS})
 FreeDVUnitTestUsesWxWidgets(GridSquareTest)
 
-# Header-only.
-DefineFreeDVUnitTest(gui_util NumberEntryTest fdv_util)
+# Header-only, but wxString still needs wxWidgets on the link line.
+DefineFreeDVUnitTest(gui_util NumberEntryTest fdv_util ${FREEDV_LINK_LIBS})
 FreeDVUnitTestUsesWxWidgets(NumberEntryTest)
 
 DefineFreeDVUnitTest(gui_util SerialPortListTest fdv_gui_util ${FREEDV_LINK_LIBS})
