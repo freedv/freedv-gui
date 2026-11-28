@@ -118,6 +118,7 @@ private:
     void updateTxState();
     void updateRadioState();
     void updateReportingState();
+    bool checkReportingSettings();
 
     // Event handlers
     void OnNext(wxCommandEvent&);

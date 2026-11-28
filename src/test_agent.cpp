@@ -750,6 +750,13 @@ yyjson_mut_val* TestAgent::describeWindow_(yyjson_mut_doc* doc, wxWindow* window
     {
         AddString_(doc, obj, "tooltip", window->GetToolTipText());
     }
+    // (A text colour FreeDV gave the control, e.g. the red of a grid square
+    // box holding what won't be saved, as "#RRGGBB". Left out when it's the
+    // usual one.)
+    if (window->UseForegroundColour())
+    {
+        AddString_(doc, obj, "foreground", window->GetForegroundColour().GetAsString(wxC2S_HTML_SYNTAX));
+    }
     wxSize clientSize = window->GetClientSize();
     yyjson_mut_val* sizeArray = yyjson_mut_arr(doc);
     yyjson_mut_arr_add_int(doc, sizeArray, clientSize.GetWidth());

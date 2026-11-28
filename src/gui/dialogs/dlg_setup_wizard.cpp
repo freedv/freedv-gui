@@ -1178,12 +1178,11 @@ void SetupWizard::saveConfig()
     bool reportingOn = m_ckReportingEnable->GetValue();
     cfg.reportingConfiguration.reportingEnabled      = reportingOn;
     cfg.reportingConfiguration.reportingCallsign     = m_txtCallsign->GetValue();
-    // (A grid square that isn't one - a typo like "DM1", or what an imported
-    // program's settings had in it - can't be used for the distances and
-    // headings FreeDV Reporter shows, and nothing else checks it, so the one
-    // FreeDV had before stays, as in the Settings window. Empty is left
-    // alone: the main window says what reporting needs.)
-    // (The box shows in red when this is about to happen.)
+    // (With reporting on, Finish only gets here with a grid square that is
+    // one - see checkReportingSettings(). With it off, one that isn't - a
+    // non-locator an older version saved, say - is left out, and the one
+    // FreeDV had before stays, as in the Settings window. The box shows in
+    // red when this is about to happen.)
     cfg.reportingConfiguration.reportingGridSquare =
         GridSquare::AcceptedValue(m_txtGridSquare->GetValue(), cfg.reportingConfiguration.reportingGridSquare);
     cfg.reportingConfiguration.freedvReporterEnabled = reportingOn;
@@ -1294,8 +1293,40 @@ void SetupWizard::OnPrev(wxCommandEvent&)
     }
 }
 
+// Reporting needs a callsign and a grid square that is one, so with it on,
+// Finish saves nothing without both: the box that needs filling in is
+// focused, and a message says why. With reporting off neither is used - and
+// the boxes can't be edited - so whatever they hold, perhaps a non-locator
+// saved by an older version, doesn't stop Finish (saveConfig() keeps the grid
+// square FreeDV had in that case).
+bool SetupWizard::checkReportingSettings()
+{
+    if (!m_ckReportingEnable->GetValue()) return true;
+
+    wxString callsign = m_txtCallsign->GetValue();
+    callsign.Trim(true).Trim(false);
+    wxString gridSquare = m_txtGridSquare->GetValue();
+    gridSquare.Trim(true).Trim(false);
+
+    wxTextCtrl* needsFillingIn = nullptr;
+    if (callsign.IsEmpty()) {
+        needsFillingIn = m_txtCallsign;
+    } else if (!GridSquare::IsValid(gridSquare)) {
+        needsFillingIn = m_txtGridSquare;
+    }
+    if (needsFillingIn == nullptr) return true;
+
+    needsFillingIn->SetFocus();
+    wxMessageBox(
+        _("Reporting needs a callsign and a valid grid square/locator (e.g. FN31 or FN31pr). "
+          "Enter them, or turn off reporting, and try again."),
+        _("Setup Wizard"), wxOK | wxICON_WARNING, this);
+    return false;
+}
+
 void SetupWizard::OnFinish(wxCommandEvent&)
 {
+    if (!checkReportingSettings()) return;
     saveConfig();
     EndModal(wxID_OK);
 }

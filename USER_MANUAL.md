@@ -927,6 +927,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Fix silence being mixed into the first half second of each transmission, and holes in the signal at its start. (PR #1562)
     * Hamlib/OmniRig: fix the radio sometimes being put back on FreeDV's frequency after being tuned elsewhere just after Start. (PR #1632)
     * Settings: recognise a frequency that's already in the Predefined Frequencies list however it's typed (e.g. 10.136 for 10.1360), so that it isn't added a second time and can be removed. (PR #1646)
+    * Settings and Setup Wizard: with reporting on, require a callsign and a valid grid square/locator before saving, and show a grid square that isn't one in red. The Setup Wizard says when a grid square imported from another program isn't one, instead of importing it. (PR #1655)
 3. Build system:
     * Update wxWidgets to 3.3.4. (PR #1560, #1556)
     * CI: only build with PGO, run the tests and report coverage on merges; other pushes get unsigned packages to try out. (PR #1563, #1585)

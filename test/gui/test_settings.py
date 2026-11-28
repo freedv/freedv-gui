@@ -1198,6 +1198,31 @@ def test_frequency_list_from_main_window():
         quit_and_check_log(app)
 
 
+# What OK and Apply say when reporting is on without a callsign or a grid
+# square that is one.
+REPORTING_NEEDS = ("Reporting needs a callsign and a valid grid square/locator (e.g. FN31 or FN31pr). "
+                   "Enter them, or turn off reporting, and try again.")
+
+
+def check_refused(app, button):
+    """Presses OK or Apply (from another tab) with reporting on and its
+    callsign or grid square missing, or not one, and checks nothing was
+    saved: the window stays open at the Reporting tab, saying why. (The
+    caller checks what the configuration still has.)"""
+    go_to_tab(app, "Modem")
+    app.click(name(button))
+    check(app.window_exists("settings"), "%s closed the Settings window" % button)
+    check_equal(value(app, "notebook"), TABS.index("Reporting"), "Tab displayed after " + button)
+    check_equal([box["message"] for box in app.message_boxes(clear=True)], [REPORTING_NEEDS],
+                "Messages displayed by " + button)
+
+
+def check_reporting_config(app, expected):
+    config = app.state()["config"]["reporting"]
+    for key, expected_value in expected.items():
+        check_equal(config[key], expected_value, "reporting setting " + key)
+
+
 def test_reporting():
     """The Reporting tab."""
     needs_reporting = ["txt_callsign", "txt_grid_square", "ckboxManualFrequencyReporting", "ckboxPskReporterEnable",
@@ -1234,6 +1259,25 @@ def test_reporting():
         set_value(app, "ckboxUDPReportingEnable", False)
         check_enabled(app, ["udpHostname", "udpPort"], False)
         set_value(app, "ckboxUDPReportingEnable", True)
+
+        # Reporting needs a callsign and a grid square that is one, so OK and
+        # Apply save nothing without both.
+        unchanged = {"reportingEnabled": False, "reportingCallsign": "", "reportingGridSquare": ""}
+        for button in ["sdbSizer5OK", "sdbSizer5Apply"]:
+            check_refused(app, button)
+        set_value(app, "txt_callsign", "AA1ZZZ")
+        check_refused(app, "sdbSizer5OK")
+        set_value(app, "txt_callsign", "")
+        set_value(app, "txt_grid_square", "DM12")
+        check_refused(app, "sdbSizer5Apply")
+        set_value(app, "txt_callsign", "AA1ZZZ")
+        set_value(app, "txt_grid_square", "DM1")
+        check_refused(app, "sdbSizer5OK")
+        # (Space isn't a callsign.)
+        set_value(app, "txt_callsign", "  ")
+        set_value(app, "txt_grid_square", "DM12")
+        check_refused(app, "sdbSizer5OK")
+        check_reporting_config(app, unchanged)
 
         set_value(app, "txt_callsign", "AA1ZZZ")
         set_value(app, "txt_grid_square", "DM12")
@@ -1312,6 +1356,15 @@ def test_reporting():
         check_saved(app, {"/Reporting/Enable": 0, "/Reporting/Callsign": "AA1ZZZ", "/Reporting/GridSquare": "DM12"})
         check_equal(app.get("main.textCallSign")["shown"], True, "Callsign box shown")
         check_equal(app.get("main.cboLastReportedCallsigns")["shown"], False, "Callsign list shown")
+
+        # With reporting off, neither is needed.
+        open_settings(app, "Reporting")
+        set_value(app, "ckboxReportingEnable", True)
+        set_value(app, "txt_callsign", "")
+        set_value(app, "txt_grid_square", "")
+        set_value(app, "ckboxReportingEnable", False)
+        press_ok(app)
+        check_saved(app, {"/Reporting/Enable": 0, "/Reporting/Callsign": "", "/Reporting/GridSquare": ""})
 
         quit_and_check_log(app)
 
@@ -1592,15 +1645,20 @@ def test_invalid_numbers():
 def check_grid_square_flagged(app, flagged):
     """Checks whether the grid square box shows that what it holds won't be
     saved (in red, with a tool tip saying why)."""
-    tooltip = app.get(name("txt_grid_square")).get("tooltip", "")
+    box = app.get(name("txt_grid_square"))
+    tooltip = box.get("tooltip", "")
     check_equal("will not be saved" in tooltip, flagged, "Grid square box flagged (tool tip %r)" % tooltip)
+    check_equal(box.get("foreground") == "#FF0000", flagged,
+                "Grid square box in red (text colour %r)" % box.get("foreground"))
 
 
 def test_saved_invalid_grid_square():
     """A grid square that isn't one already in the configuration - older
-    versions saved whatever was typed - is shown as one that won't be saved,
-    and doesn't stop the rest of the Settings window being saved: it stays as
-    it was until something that is a grid square replaces it."""
+    versions saved whatever was typed - is shown as one that won't be saved.
+    With reporting on, which needs one, OK saves nothing until it's replaced;
+    with reporting off it doesn't stop the rest of the Settings window being
+    saved, and stays as it was until something that is a grid square
+    replaces it."""
     with freedvtest.start(settings={"/Reporting/Enable": True, "/Reporting/Callsign": "AA1ZZZ",
                                     "/Reporting/GridSquare": "ZZ12ZZ",
                                     "/Reporting/FreeDV/Hostname": NOWHERE,
@@ -1609,26 +1667,37 @@ def test_saved_invalid_grid_square():
         check_values(app, {"txt_grid_square": "ZZ12ZZ"})
         check_grid_square_flagged(app, True)
 
-        # Something else changed is saved, and the grid square is left alone.
+        # Reporting needs a grid square, so nothing is saved.
         set_value(app, "txt_callsign", "AA2ZZZ")
+        check_refused(app, "sdbSizer5OK")
+        check_reporting_config(app, {"reportingCallsign": "AA1ZZZ", "reportingGridSquare": "ZZ12ZZ"})
+
+        # Without reporting, something else changed is saved, and the grid
+        # square is left alone.
+        set_value(app, "ckboxReportingEnable", False)
+        check_grid_square_flagged(app, True)
         press_ok(app)
-        check_saved(app, {"/Reporting/Callsign": "AA2ZZZ", "/Reporting/GridSquare": "ZZ12ZZ"})
+        check_saved(app, {"/Reporting/Enable": 0, "/Reporting/Callsign": "AA2ZZZ",
+                          "/Reporting/GridSquare": "ZZ12ZZ"})
 
         # A grid square that is one replaces it.
         open_settings(app, "Reporting")
+        check_grid_square_flagged(app, True)
+        set_value(app, "ckboxReportingEnable", True)
         set_value(app, "txt_grid_square", "DM12")
         check_grid_square_flagged(app, False)
         press_ok(app)
-        check_saved(app, {"/Reporting/GridSquare": "DM12"})
+        check_saved(app, {"/Reporting/Enable": 1, "/Reporting/GridSquare": "DM12"})
         quit_and_check_log(app)
 
 
 def test_invalid_grid_square():
-    """The grid square box filled with what isn't a grid square: FreeDV keeps
-    the one it had rather than saving the typo, which would otherwise be sent
-    to the reporting servers and leave every distance and heading in FreeDV
-    Reporter unknown, with nothing saying why. What is one, however it's
-    written, is saved, and so is clearing it."""
+    """The grid square box filled with what isn't a grid square, with
+    reporting on: OK and Apply save nothing, as the typo would otherwise be
+    sent to the reporting servers and leave every distance and heading in
+    FreeDV Reporter unknown, with nothing saying why. What is one, however
+    it's written, is saved; no grid square at all isn't, since reporting
+    needs one."""
     settings = audio_settings()
     settings.update({"/Reporting/Enable": True, "/Reporting/Callsign": "AA1ZZZ",
                      "/Reporting/GridSquare": "DM12", "/Reporting/FreeDV/Hostname": NOWHERE,
@@ -1650,16 +1719,11 @@ def test_invalid_grid_square():
                 # (The box says, before anything is pressed, that this won't
                 # be saved.)
                 check_grid_square_flagged(app, True)
-                press_apply(app)
-                check_saved(app, {"/Reporting/GridSquare": "DM12"})
-                # (Apply put the grid square it kept back in the box.)
-                check_values(app, {"txt_grid_square": "DM12"})
-                set_value(app, "txt_grid_square", junk)
-                press_ok(app)
-                check_saved(app, {"/Reporting/GridSquare": "DM12"})
-
-                open_settings(app, "Reporting")
-                check_values(app, {"txt_grid_square": "DM12"})
+                for button in ["sdbSizer5Apply", "sdbSizer5OK"]:
+                    check_refused(app, button)
+                    check_saved(app, {"/Reporting/GridSquare": "DM12"})
+                    # (What was typed is left there to be corrected.)
+                    check_values(app, {"txt_grid_square": junk})
                 press_cancel(app)
 
             # What is a grid square goes through as it was typed, including
@@ -1679,15 +1743,14 @@ def test_invalid_grid_square():
             press_ok(app)
             check_saved(app, {"/Reporting/GridSquare": "DM13qd"})
 
-            # Saying there's no grid square at all is left alone: reporting
-            # started without one is what the main window says something about.
+            # No grid square at all isn't one either. (The box isn't flagged:
+            # an empty one is fine without reporting.)
             open_settings(app, "Reporting")
             set_value(app, "txt_grid_square", "")
             check_grid_square_flagged(app, False)
-            press_ok(app)
-            check_saved(app, {"/Reporting/GridSquare": ""})
+            check_refused(app, "sdbSizer5OK")
+            check_saved(app, {"/Reporting/GridSquare": "DM13qd"})
 
-            open_settings(app, "Reporting")
             set_value(app, "txt_grid_square", "DM12")
             press_ok(app)
             check_saved(app, {"/Reporting/GridSquare": "DM12"})
