@@ -33,6 +33,7 @@
 #include "../../main.h"
 #include "../../pipeline/ResampleStep.h"
 #include "../util/WindowPlacement.h"
+#include "../util/NumberEntry.h"
 
 using namespace std::chrono_literals;
 
@@ -586,6 +587,15 @@ int AudioOptsDialog::ExchangeData(int inout)
             return -1;
         }
 
+        // (The rate boxes list the device's rates but can be typed into:
+        // what isn't a rate leaves the one the setting had, rather than
+        // becoming 0. "None", shown for a device that lists no rates, is
+        // the device's own default, not the previous device's rate.)
+        auto setRate = [](auto& rate, wxString const& text) {
+            int value = 0;
+            if (ReadSampleRate(text, value)) rate = value;
+        };
+
         // ---------------------------------------------------------------
         // Map Rx/TX device numbers to sound card device names used
         // in callbacks.
@@ -594,8 +604,8 @@ int AudioOptsDialog::ExchangeData(int inout)
 
         if (valid_one_card_config) {
             g_nSoundCards.store(1, std::memory_order_release);
-            wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate = wxAtoi(sampleRate1);
-            wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate = wxAtoi(sampleRate2);
+            setRate(wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate, sampleRate1);
+            setRate(wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate, sampleRate2);
             
             log_debug("  m_soundCard1InSampleRate: %d", wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate.get());
             log_debug("  m_soundCard1OutSampleRate: %d", wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate.get());
@@ -603,10 +613,10 @@ int AudioOptsDialog::ExchangeData(int inout)
 
         if (valid_two_card_config) {
             g_nSoundCards.store(2, std::memory_order_release);
-            wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate = wxAtoi(sampleRate1);
-            wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate = wxAtoi(sampleRate2);
-            wxGetApp().appConfiguration.audioConfiguration.soundCard2In.sampleRate = wxAtoi(sampleRate3);
-            wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate = wxAtoi(sampleRate4);
+            setRate(wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate, sampleRate1);
+            setRate(wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate, sampleRate2);
+            setRate(wxGetApp().appConfiguration.audioConfiguration.soundCard2In.sampleRate, sampleRate3);
+            setRate(wxGetApp().appConfiguration.audioConfiguration.soundCard1Out.sampleRate, sampleRate4);
             
             log_debug("  m_soundCard1InSampleRate: %d", wxGetApp().appConfiguration.audioConfiguration.soundCard1In.sampleRate.get());
             log_debug("  m_soundCard2OutSampleRate: %d", wxGetApp().appConfiguration.audioConfiguration.soundCard2Out.sampleRate.get());
@@ -848,13 +858,20 @@ void AudioOptsDialog::UpdatePlot(PlotScalar *plotScalar)
 // synchronous portaudio functions, so the GUI will not respond until after test sample has been
 // taken
 //-------------------------------------------------------------------------
-void AudioOptsDialog::plotDeviceInputForAFewSecs(wxString const& devName, PlotScalar *ps) {
+void AudioOptsDialog::plotDeviceInputForAFewSecs(wxString const& devName, wxString const& sampleRateText, PlotScalar *ps) {
+    // (Read here, on the GUI thread. What isn't a rate is tested at the
+    // device's own default, and the device says what rate it really opened
+    // at, which is what the resampler and FIFO below have to be built for.)
+    // (ReadSampleRate leaves this alone when the box doesn't hold a rate.)
+    int requestedSampleRate = -1;
+    ReadSampleRate(sampleRateText, requestedSampleRate);
+
     m_btnRxInTest->Enable(false);
     m_btnRxOutTest->Enable(false);
     m_btnTxInTest->Enable(false);
     m_btnTxOutTest->Enable(false);
     
-    m_audioPlotThread = new std::thread([&](wxString const& devName, PlotScalar* ps) {
+    m_audioPlotThread = new std::thread([&](wxString const& devName, int requestedSampleRate, PlotScalar* ps) {
         std::mutex callbackFifoMutex;
         std::condition_variable callbackFifoCV;
         GenericFIFO<short>               *fifo, *callbackFifo;
@@ -874,16 +891,16 @@ void AudioOptsDialog::plotDeviceInputForAFewSecs(wxString const& devName, PlotSc
             if (devInfo.name.IsSameAs(devName))
             {
                 int sampleCount = 0;
-                int sampleRate = wxAtoi(m_cbSampleRateRxIn->GetValue());
-                ResampleStep resampler(sampleRate, 8000);
                 auto device = engine->getAudioDevice(
                     devInfo.name, 
                     IAudioEngine::AUDIO_ENGINE_IN, 
-                    sampleRate,
+                    requestedSampleRate,
                     1);
                 
                 if (device)
                 {
+                    int sampleRate = device->getSampleRate();
+                    ResampleStep resampler(sampleRate, 8000);
                     bool running = true;
                     callbackFifo = new GenericFIFO<short>(sampleRate);
                     assert(callbackFifo != nullptr);
@@ -970,7 +987,7 @@ void AudioOptsDialog::plotDeviceInputForAFewSecs(wxString const& devName, PlotSc
             m_btnTxInTest->Enable(true);
             m_btnTxOutTest->Enable(true);
         });
-    }, devName, ps);
+    }, devName, requestedSampleRate, ps);
     
 }
 
@@ -981,13 +998,18 @@ void AudioOptsDialog::plotDeviceInputForAFewSecs(wxString const& devName, PlotSc
 // synchronous portaudio functions, so the GUI will not respond until after test sample has been
 // taken.  Also plots a pretty picture like the record versions
 //-------------------------------------------------------------------------
-void AudioOptsDialog::plotDeviceOutputForAFewSecs(wxString const& devName, PlotScalar *ps) {
+void AudioOptsDialog::plotDeviceOutputForAFewSecs(wxString const& devName, wxString const& sampleRateText, PlotScalar *ps) {
+    // (As for plotDeviceInputForAFewSecs.)
+    // (ReadSampleRate leaves this alone when the box doesn't hold a rate.)
+    int requestedSampleRate = -1;
+    ReadSampleRate(sampleRateText, requestedSampleRate);
+
     m_btnRxInTest->Enable(false);
     m_btnRxOutTest->Enable(false);
     m_btnTxInTest->Enable(false);
     m_btnTxOutTest->Enable(false);
     
-    m_audioPlotThread = new std::thread([&](wxString const& devName, PlotScalar* ps) {
+    m_audioPlotThread = new std::thread([&](wxString const& devName, int requestedSampleRate, PlotScalar* ps) {
         GenericFIFO<short>               *fifo, *callbackFifo;
         int n = 0;
 
@@ -1006,16 +1028,16 @@ void AudioOptsDialog::plotDeviceOutputForAFewSecs(wxString const& devName, PlotS
             if (devInfo.name.IsSameAs(devName))
             {
                 int sampleCount = 0;
-                int sampleRate = wxAtoi(m_cbSampleRateRxIn->GetValue());
-                ResampleStep resampler(sampleRate, 8000);
                 auto device = engine->getAudioDevice(
                     devInfo.name, 
                     IAudioEngine::AUDIO_ENGINE_OUT, 
-                    sampleRate,
+                    requestedSampleRate,
                     1);
                 
                 if (device)
                 {
+                    int sampleRate = device->getSampleRate();
+                    ResampleStep resampler(sampleRate, 8000);
                     std::mutex callbackFifoMutex;
                     std::condition_variable callbackFifoCV;
                     bool running = true;
@@ -1110,7 +1132,7 @@ void AudioOptsDialog::plotDeviceOutputForAFewSecs(wxString const& devName, PlotS
             m_btnTxInTest->Enable(true);
             m_btnTxOutTest->Enable(true);
         });
-    }, devName, ps);
+    }, devName, requestedSampleRate, ps);
 }
 
 //-------------------------------------------------------------------------
@@ -1118,7 +1140,7 @@ void AudioOptsDialog::plotDeviceOutputForAFewSecs(wxString const& devName, PlotS
 //-------------------------------------------------------------------------
 void AudioOptsDialog::OnRxInTest(wxCommandEvent&)
 {
-    plotDeviceInputForAFewSecs(m_textCtrlRxIn->GetValue(), m_plotScalarRxIn);
+    plotDeviceInputForAFewSecs(m_textCtrlRxIn->GetValue(), m_cbSampleRateRxIn->GetValue(), m_plotScalarRxIn);
 }
 
 //-------------------------------------------------------------------------
@@ -1126,7 +1148,7 @@ void AudioOptsDialog::OnRxInTest(wxCommandEvent&)
 //-------------------------------------------------------------------------
 void AudioOptsDialog::OnRxOutTest(wxCommandEvent&)
 {
-    plotDeviceOutputForAFewSecs(m_textCtrlRxOut->GetValue(), m_plotScalarRxOut);
+    plotDeviceOutputForAFewSecs(m_textCtrlRxOut->GetValue(), m_cbSampleRateRxOut->GetValue(), m_plotScalarRxOut);
 }
 
 //-------------------------------------------------------------------------
@@ -1134,7 +1156,7 @@ void AudioOptsDialog::OnRxOutTest(wxCommandEvent&)
 //-------------------------------------------------------------------------
 void AudioOptsDialog::OnTxInTest(wxCommandEvent&)
 {
-    plotDeviceInputForAFewSecs(m_textCtrlTxIn->GetValue(), m_plotScalarTxIn);
+    plotDeviceInputForAFewSecs(m_textCtrlTxIn->GetValue(), m_cbSampleRateTxIn->GetValue(), m_plotScalarTxIn);
 }
 
 //-------------------------------------------------------------------------
@@ -1142,7 +1164,7 @@ void AudioOptsDialog::OnTxInTest(wxCommandEvent&)
 //-------------------------------------------------------------------------
 void AudioOptsDialog::OnTxOutTest(wxCommandEvent&)
 {
-    plotDeviceOutputForAFewSecs(m_textCtrlTxOut->GetValue(), m_plotScalarTxOut);
+    plotDeviceOutputForAFewSecs(m_textCtrlTxOut->GetValue(), m_cbSampleRateTxOut->GetValue(), m_plotScalarTxOut);
 }
 
 //-------------------------------------------------------------------------

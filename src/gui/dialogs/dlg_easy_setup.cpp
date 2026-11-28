@@ -30,6 +30,7 @@
 #include "../../main.h"
 #include "../util/SerialPortList.h"
 #include "../util/NumberEntry.h"
+#include "../util/GridSquareEntry.h"
 #include "dlg_easy_setup.h"
 #include "dlg_audiooptions.h"
 #include "dlg_ptt.h"
@@ -281,6 +282,11 @@ EasySetupDialog::EasySetupDialog(wxWindow* parent, wxWindowID id, const wxString
     
     m_txt_grid_square = new wxTextCtrl(setupPskReporterBox, wxID_ANY,  wxEmptyString, wxDefaultPosition, wxSize(180,-1), 0, wxTextValidator(wxFILTER_ALPHANUMERIC));
     sbSizer_psk->Add(m_txt_grid_square, 0,  static_cast<int>(wxALL) | static_cast<int>(wxALIGN_CENTER_VERTICAL), 2);
+    
+    m_txt_grid_square->Bind(wxEVT_TEXT, [this](wxCommandEvent& event) {
+        ShowGridSquareValidity(m_txt_grid_square);
+        event.Skip();
+    });
     
     sectionSizer->Add(sbSizer_psk, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND), 2);
     
@@ -670,7 +676,13 @@ void EasySetupDialog::ExchangeReportingData(int inout)
         }
         
         wxGetApp().appConfiguration.reportingConfiguration.reportingCallsign = m_txt_callsign->GetValue();
-        wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare = m_txt_grid_square->GetValue();
+        // (A grid square that isn't one - a typo like "DM1", or what was in
+        // another program's settings - can't be used for the distances and
+        // headings FreeDV Reporter shows, so the one FreeDV had before stays.
+        // The box shows in red when this is about to happen.)
+        wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare =
+            GridSquare::AcceptedValue(m_txt_grid_square->GetValue(),
+                                      wxGetApp().appConfiguration.reportingConfiguration.reportingGridSquare);
 
         wxGetApp().appConfiguration.save(pConfig);
     }
@@ -774,7 +786,8 @@ void EasySetupDialog::OnApply(wxCommandEvent&)
     else
     {
         wxMessageBox(
-            "Some settings have not been configured. Please check your radio and audio device settings and try again.", 
+            "Some settings have not been configured. Please check your radio and audio device settings, and that "
+            "the grid square/locator is valid (e.g. FN31 or FN31pr), and try again.", 
             wxT("Error"), wxOK, this);
     }
 }
@@ -1441,7 +1454,14 @@ bool EasySetupDialog::canSaveSettings_()
 
     bool isPSKReporterEnabled = m_ckbox_psk_enable->GetValue();
     bool callsignValid = m_txt_callsign->GetValue().Length() > 0;
-    bool gridSquareValid = m_txt_grid_square->GetValue().Length() > 0;
+    // (Reporting needs a grid square, and one that isn't would be dropped on
+    // saving, so it stops the save instead. Without reporting the box can't
+    // be edited - OnPSKReporterChecked() disables it - so whatever it holds,
+    // perhaps a non-locator from an older version's configuration, mustn't
+    // stop the save: AcceptedValue() keeps the previous value, as the
+    // Settings window does.)
+    wxString gridSquare = m_txt_grid_square->GetValue();
+    bool gridSquareValid = !gridSquare.Trim(true).Trim(false).IsEmpty() && GridSquare::IsAcceptable(gridSquare);
     
     return radioSettingsValid && (!isPSKReporterEnabled || (callsignValid && gridSquareValid));
 }

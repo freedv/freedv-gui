@@ -14,6 +14,17 @@ namespace GridSquare
     // Anything else, including anything longer, isn't one.
     bool IsValid(wxString const& gridSquare);
 
+    // Returns true if what's in a dialog's grid square box may be saved: a
+    // grid square or nothing, ignoring whitespace around it. The one rule
+    // behind both a box's red "won't be saved" look and what's saved.
+    bool IsAcceptable(wxString entered);
+
+    // What a dialog's grid square box leaves in the configuration: what was
+    // typed, with whitespace around it removed, when it's a grid square or
+    // the box is empty; otherwise the value that was there before, so that a
+    // typo like "DM1" can't replace a good one.
+    wxString AcceptedValue(wxString entered, wxString const& previous);
+
     // Provides the latitude and longitude (in degrees) of the middle of the
     // grid square, as precisely as its length allows. The grid square must
     // be valid; given one that isn't, only the valid pairs it starts with
