@@ -31,6 +31,7 @@
 #include "audio/AudioEngineFactory.h"
 #include "audio/IAudioDevice.h"
 #include "rig_control/HamlibRigController.h"
+#include "../util/GridSquareEntry.h"
 
 extern wxConfigBase* pConfig;
 
@@ -429,14 +430,20 @@ wxPanel* SetupWizard::makeReportingPage()
     m_stCallsign = new wxStaticText(page, wxID_ANY, _("Callsign:"));
     grid->Add(m_stCallsign, 0, static_cast<int>(wxALIGN_CENTER_VERTICAL));
     m_txtCallsign = new wxTextCtrl(page, wxID_ANY, wxEmptyString,
-                                    wxDefaultPosition, wxSize(160, -1));
+                                    wxDefaultPosition, wxSize(160, -1), 0,
+                                    wxTextValidator(wxFILTER_ALPHANUMERIC));
     grid->Add(m_txtCallsign, 1, static_cast<int>(wxEXPAND) | static_cast<int>(wxALIGN_CENTER_VERTICAL));
 
     m_stGridSquare = new wxStaticText(page, wxID_ANY, _("Grid Square:"));
     grid->Add(m_stGridSquare, 0, static_cast<int>(wxALIGN_CENTER_VERTICAL));
     m_txtGridSquare = new wxTextCtrl(page, wxID_ANY, wxEmptyString,
-                                      wxDefaultPosition, wxSize(100, -1));
+                                      wxDefaultPosition, wxSize(100, -1), 0,
+                                      wxTextValidator(wxFILTER_ALPHANUMERIC));
     grid->Add(m_txtGridSquare, 0, static_cast<int>(wxALIGN_CENTER_VERTICAL));
+    m_txtGridSquare->Bind(wxEVT_TEXT, [this](wxCommandEvent& event) {
+        ShowGridSquareValidity(m_txtGridSquare);
+        event.Skip();
+    });
 
     vs->Add(grid, 0, static_cast<int>(wxEXPAND) | wxBOTTOM, 10);
 
@@ -812,6 +819,7 @@ void SetupWizard::importSettings(const ImportSource& source)
     // Reporting
     wxString callsign = readQtIniString(ini, "MyCall");
     wxString grid     = readQtIniString(ini, "MyGrid");
+    grid.Trim(true).Trim(false);
     if (!callsign.IsEmpty())
     {
         m_txtCallsign->SetValue(callsign);
@@ -819,8 +827,17 @@ void SetupWizard::importSettings(const ImportSource& source)
     }
     if (!grid.IsEmpty())
     {
-        m_txtGridSquare->SetValue(grid);
-        imported.Add(_("grid square"));
+        // (One that isn't a grid square wouldn't be saved anyway, so it's
+        // said here rather than left for Finish to quietly drop.)
+        if (GridSquare::IsValid(grid))
+        {
+            m_txtGridSquare->SetValue(grid);
+            imported.Add(_("grid square"));
+        }
+        else
+        {
+            notImported.Add(wxString::Format(_("grid square (%s is not a valid grid square/locator)"), grid));
+        }
     }
     if (readQtIniString(ini, "PSKReporter").IsSameAs("true", false))
     {
@@ -1161,7 +1178,13 @@ void SetupWizard::saveConfig()
     bool reportingOn = m_ckReportingEnable->GetValue();
     cfg.reportingConfiguration.reportingEnabled      = reportingOn;
     cfg.reportingConfiguration.reportingCallsign     = m_txtCallsign->GetValue();
-    cfg.reportingConfiguration.reportingGridSquare   = m_txtGridSquare->GetValue();
+    // (With reporting on, Finish only gets here with a grid square that is
+    // one - see checkReportingSettings(). With it off, one that isn't - a
+    // non-locator an older version saved, say - is left out, and the one
+    // FreeDV had before stays, as in the Settings window. The box shows in
+    // red when this is about to happen.)
+    cfg.reportingConfiguration.reportingGridSquare =
+        GridSquare::AcceptedValue(m_txtGridSquare->GetValue(), cfg.reportingConfiguration.reportingGridSquare);
     cfg.reportingConfiguration.freedvReporterEnabled = reportingOn;
     cfg.reportingConfiguration.pskReporterEnabled    = reportingOn;
 
@@ -1270,8 +1293,40 @@ void SetupWizard::OnPrev(wxCommandEvent&)
     }
 }
 
+// Reporting needs a callsign and a grid square that is one, so with it on,
+// Finish saves nothing without both: the box that needs filling in is
+// focused, and a message says why. With reporting off neither is used - and
+// the boxes can't be edited - so whatever they hold, perhaps a non-locator
+// saved by an older version, doesn't stop Finish (saveConfig() keeps the grid
+// square FreeDV had in that case).
+bool SetupWizard::checkReportingSettings()
+{
+    if (!m_ckReportingEnable->GetValue()) return true;
+
+    wxString callsign = m_txtCallsign->GetValue();
+    callsign.Trim(true).Trim(false);
+    wxString gridSquare = m_txtGridSquare->GetValue();
+    gridSquare.Trim(true).Trim(false);
+
+    wxTextCtrl* needsFillingIn = nullptr;
+    if (callsign.IsEmpty()) {
+        needsFillingIn = m_txtCallsign;
+    } else if (!GridSquare::IsValid(gridSquare)) {
+        needsFillingIn = m_txtGridSquare;
+    }
+    if (needsFillingIn == nullptr) return true;
+
+    needsFillingIn->SetFocus();
+    wxMessageBox(
+        _("Reporting needs a callsign and a valid grid square/locator (e.g. FN31 or FN31pr). "
+          "Enter them, or turn off reporting, and try again."),
+        _("Setup Wizard"), wxOK | wxICON_WARNING, this);
+    return false;
+}
+
 void SetupWizard::OnFinish(wxCommandEvent&)
 {
+    if (!checkReportingSettings()) return;
     saveConfig();
     EndModal(wxID_OK);
 }

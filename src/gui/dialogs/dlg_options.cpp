@@ -49,6 +49,7 @@
 #include "audio/AudioEngineFactory.h"
 #include "audio/IAudioDevice.h"
 #include "samplerate.h"
+#include "../util/GridSquareEntry.h"
 
 using namespace std::chrono_literals;
 
@@ -411,6 +412,10 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     
     m_txt_grid_square = new wxTextCtrl(sbReporting, wxID_ANY,  wxEmptyString, wxDefaultPosition, wxSize(180,-1), 0, wxTextValidator(wxFILTER_ALPHANUMERIC));
     sbSizerReportingGeneral->Add(m_txt_grid_square, 0,  static_cast<int>(wxALL) | wxALIGN_CENTER_VERTICAL, 5);
+    m_txt_grid_square->Bind(wxEVT_TEXT, [this](wxCommandEvent& event) {
+        ShowGridSquareValidity(m_txt_grid_square);
+        event.Skip();
+    });
     
     sbSizerReportingRows->Add(sbSizerReportingGeneral, 0, static_cast<int>(wxALL) | static_cast<int>(wxEXPAND), 5);
     
@@ -1856,7 +1861,14 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         // General reporting config
         editedConfig_.reportingConfiguration.reportingEnabled = m_ckboxReportingEnable->GetValue();
         editedConfig_.reportingConfiguration.reportingCallsign = m_txt_callsign->GetValue();
-        editedConfig_.reportingConfiguration.reportingGridSquare = m_txt_grid_square->GetValue();
+        // (With reporting on, OK and Apply only get here with a grid square
+        // that is one - see checkReportingSettings_(). With it off, a typo
+        // like "DM1", or a non-locator an older version saved, isn't saved:
+        // the grid square FreeDV already had is kept, as with the ports
+        // below. The box shows in red when this is about to happen.)
+        editedConfig_.reportingConfiguration.reportingGridSquare =
+            GridSquare::AcceptedValue(m_txt_grid_square->GetValue(),
+                                      editedConfig_.reportingConfiguration.reportingGridSquare);
         editedConfig_.reportingConfiguration.manualFrequencyReporting = m_ckboxManualFrequencyReporting->GetValue();
         
         // PSK Reporter options
@@ -2003,10 +2015,60 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
 }
 
 //-------------------------------------------------------------------------
+// checkReportingSettings_()
+//
+// Reporting needs a callsign and a grid square that is one, so with it on,
+// OK and Apply save nothing without both: the Reporting tab is shown with
+// the box that needs filling in, and a message says why. With reporting off
+// neither is used - and the boxes can't be edited - so whatever they hold,
+// perhaps a non-locator saved by an older version, doesn't stop the save
+// (ExchangeData() keeps the grid square FreeDV had in that case).
+//-------------------------------------------------------------------------
+bool OptionsDlg::checkReportingSettings_()
+{
+    if (!m_ckboxReportingEnable->GetValue())
+    {
+        return true;
+    }
+
+    wxString callsign = m_txt_callsign->GetValue();
+    callsign.Trim(true).Trim(false);
+    wxString gridSquare = m_txt_grid_square->GetValue();
+    gridSquare.Trim(true).Trim(false);
+
+    wxTextCtrl* needsFillingIn = nullptr;
+    if (callsign.IsEmpty())
+    {
+        needsFillingIn = m_txt_callsign;
+    }
+    else if (!GridSquare::IsValid(gridSquare))
+    {
+        needsFillingIn = m_txt_grid_square;
+    }
+    if (needsFillingIn == nullptr)
+    {
+        return true;
+    }
+
+    m_notebook->SetSelection(m_notebook->FindPage(m_reportingTab));
+    needsFillingIn->SetFocus();
+    wxMessageBox(
+        _("Reporting needs a callsign and a valid grid square/locator (e.g. FN31 or FN31pr). "
+          "Enter them, or turn off reporting, and try again."),
+        _("Settings"), wxOK | wxICON_WARNING, this);
+    return false;
+}
+
+//-------------------------------------------------------------------------
 // OnOK()
 //-------------------------------------------------------------------------
 void OptionsDlg::OnOK(wxCommandEvent&)
 {
+    if (!checkReportingSettings_())
+    {
+        return;
+    }
+
     ExchangeData(EXCHANGE_DATA_OUT, true);
     //this->EndModal(wxID_OK);
     EndModal(wxOK);
@@ -2034,6 +2096,11 @@ void OptionsDlg::OnCancel(wxCommandEvent&)
 //-------------------------------------------------------------------------
 void OptionsDlg::OnApply(wxCommandEvent&)
 {
+    if (!checkReportingSettings_())
+    {
+        return;
+    }
+
     bool oldFreqAsKHz = wxGetApp().appConfiguration.reportingConfiguration.reportingFrequencyAsKhz;
     
     ExchangeData(EXCHANGE_DATA_OUT, true);

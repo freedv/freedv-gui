@@ -889,7 +889,7 @@ endif(APPLE)
 # sanitizer's report in FreeDV's output fails them (the scripts show that
 # output whenever there's one in it).
 if(LINUX OR APPLE)
-foreach(scenario first_run second_run receive_only odd_starting_points cancel auto_select radio_control hamlib_start reporting import import_more)
+foreach(scenario first_run second_run receive_only odd_starting_points cancel auto_select radio_control hamlib_start reporting invalid_grid_square saved_invalid_grid_square import import_more)
     add_test(NAME gui_setup_wizard_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_setup_wizard.py ${scenario})
     set_tests_properties(gui_setup_wizard_${scenario} PROPERTIES LABELS gui SKIP_RETURN_CODE 77)
@@ -915,7 +915,7 @@ if(LINUX)
     freedv_set_test_pass_criteria(gui_reporter_dark_appearance)
 endif(LINUX)
 
-foreach(scenario buttons audio audio_tests radio ptt_test rig_control frequency_list frequency_list_from_main_window reporting voice_keyer display modem_and_debugging invalid_numbers out_of_range_config ptt_key_names auto_start while_running opened_while_running)
+foreach(scenario buttons audio audio_tests radio ptt_test rig_control frequency_list frequency_list_from_main_window reporting voice_keyer display modem_and_debugging invalid_numbers invalid_grid_square saved_invalid_grid_square out_of_range_config ptt_key_names auto_start while_running opened_while_running)
     add_test(NAME gui_settings_${scenario}
              COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/test/gui/test_settings.py ${scenario})
     set_tests_properties(gui_settings_${scenario} PROPERTIES LABELS gui SKIP_RETURN_CODE 77)

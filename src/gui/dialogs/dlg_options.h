@@ -306,6 +306,7 @@ class OptionsDlg : public wxDialog
          int findFrequency_(wxString const& text) const;
 
          void updateReportingState();
+         bool checkReportingSettings_();
          void updateChannelNoiseState();
          void updateToneState();
          void updateRigControlState();

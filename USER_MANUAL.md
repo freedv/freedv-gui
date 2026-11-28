@@ -927,6 +927,7 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * Fix silence being mixed into the first half second of each transmission, and holes in the signal at its start. (PR #1562)
     * Hamlib/OmniRig: fix the radio sometimes being put back on FreeDV's frequency after being tuned elsewhere just after Start. (PR #1632)
     * Settings: recognise a frequency that's already in the Predefined Frequencies list however it's typed (e.g. 10.136 for 10.1360), so that it isn't added a second time and can be removed. (PR #1646)
+    * Settings and Setup Wizard: with reporting on, require a callsign and a valid grid square/locator before saving, and show a grid square that isn't one in red. The Setup Wizard says when a grid square imported from another program isn't one, instead of importing it. (PR #1655)
 3. Build system:
     * Update wxWidgets to 3.3.4. (PR #1560, #1556)
     * CI: only build with PGO, run the tests and report coverage on merges; other pushes get unsigned packages to try out. (PR #1563, #1585)
@@ -971,6 +972,8 @@ LDPC | Low Density Parity Check Codes - a family of powerful FEC codes
     * FreeDV Reporter: fix a crash when the server reports a station that's already connected. (PR #1645)
     * Linux: warn when the sound server moves FreeDV's audio to another device. (PR #1652)
     * Keep windows where they were left on displays above or to the left of the main one, or further right than 2048 pixels, while still bringing back any that are no longer on a display. (PR #1650)
+    * Settings: refuse a grid square that isn't one. (PR #1656)
+    * Easy Setup and Audio Options: refuse a grid square or sample rate that isn't one, keeping the value the box was given; a device listing no sample rates uses its own default, and the audio Test buttons use the rate of the device being tested. (PR #1657)
 2. Documentation:
     * User manual: Update reference to Experimental Features section. (PR #1613)
     * User manual: Explain why the sound server can move FreeDV's audio on Linux, and the audio problems caused by several USB audio devices sharing a hub. (PR #1652)
