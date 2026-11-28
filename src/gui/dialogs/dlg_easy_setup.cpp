@@ -1454,12 +1454,14 @@ bool EasySetupDialog::canSaveSettings_()
 
     bool isPSKReporterEnabled = m_ckbox_psk_enable->GetValue();
     bool callsignValid = m_txt_callsign->GetValue().Length() > 0;
-    // (A grid square that isn't one would be dropped on saving, so it stops
-    // the save instead, reporting or not. Reporting needs one as well.)
+    // (Reporting needs a grid square, and one that isn't would be dropped on
+    // saving, so it stops the save instead. Without reporting the box can't
+    // be edited - OnPSKReporterChecked() disables it - so whatever it holds,
+    // perhaps a non-locator from an older version's configuration, mustn't
+    // stop the save: AcceptedValue() keeps the previous value, as the
+    // Settings window does.)
     wxString gridSquare = m_txt_grid_square->GetValue();
-    gridSquare.Trim(true).Trim(false);
-    bool gridSquareUsable = gridSquare.IsEmpty() || GridSquare::IsValid(gridSquare);
-    bool gridSquareValid = !gridSquare.IsEmpty() && gridSquareUsable;
+    bool gridSquareValid = !gridSquare.Trim(true).Trim(false).IsEmpty() && GridSquare::IsAcceptable(gridSquare);
     
-    return radioSettingsValid && gridSquareUsable && (!isPSKReporterEnabled || (callsignValid && gridSquareValid));
+    return radioSettingsValid && (!isPSKReporterEnabled || (callsignValid && gridSquareValid));
 }

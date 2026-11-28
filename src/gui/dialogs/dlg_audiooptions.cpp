@@ -862,8 +862,9 @@ void AudioOptsDialog::plotDeviceInputForAFewSecs(wxString const& devName, wxStri
     // (Read here, on the GUI thread. What isn't a rate is tested at the
     // device's own default, and the device says what rate it really opened
     // at, which is what the resampler and FIFO below have to be built for.)
+    // (ReadSampleRate leaves this alone when the box doesn't hold a rate.)
     int requestedSampleRate = -1;
-    if (!ReadSampleRate(sampleRateText, requestedSampleRate)) requestedSampleRate = -1;
+    ReadSampleRate(sampleRateText, requestedSampleRate);
 
     m_btnRxInTest->Enable(false);
     m_btnRxOutTest->Enable(false);
@@ -999,8 +1000,9 @@ void AudioOptsDialog::plotDeviceInputForAFewSecs(wxString const& devName, wxStri
 //-------------------------------------------------------------------------
 void AudioOptsDialog::plotDeviceOutputForAFewSecs(wxString const& devName, wxString const& sampleRateText, PlotScalar *ps) {
     // (As for plotDeviceInputForAFewSecs.)
+    // (ReadSampleRate leaves this alone when the box doesn't hold a rate.)
     int requestedSampleRate = -1;
-    if (!ReadSampleRate(sampleRateText, requestedSampleRate)) requestedSampleRate = -1;
+    ReadSampleRate(sampleRateText, requestedSampleRate);
 
     m_btnRxInTest->Enable(false);
     m_btnRxOutTest->Enable(false);

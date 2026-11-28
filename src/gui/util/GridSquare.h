@@ -14,6 +14,11 @@ namespace GridSquare
     // Anything else, including anything longer, isn't one.
     bool IsValid(wxString const& gridSquare);
 
+    // Returns true if what's in a dialog's grid square box may be saved: a
+    // grid square or nothing, ignoring whitespace around it. The one rule
+    // behind both a box's red "won't be saved" look and what's saved.
+    bool IsAcceptable(wxString entered);
+
     // What a dialog's grid square box leaves in the configuration: what was
     // typed, with whitespace around it removed, when it's a grid square or
     // the box is empty; otherwise the value that was there before, so that a

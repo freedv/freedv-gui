@@ -98,7 +98,8 @@ inline bool ReadSampleRate(wxString text, int& rate)
         rate = -1;
         return true;
     }
-    if (ReadWholeNumber(text, number) && number <= 768000 && (number == -1 || number >= 8000))
+    // (Already trimmed for the comparison above, so read directly.)
+    if (text.ToLongLong(&number) && number <= 768000 && (number == -1 || number >= 8000))
     {
         rate = (int)number;
         return true;

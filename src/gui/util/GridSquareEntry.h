@@ -30,13 +30,11 @@
 // Shows a dialog's grid square box as what it holds: in red, with a tool tip
 // saying why, when what it holds isn't a grid square (an empty box is
 // allowed). Called whenever the box's contents change, and matched by
-// GridSquare::AcceptedValue, which is what keeps such a value out of the
+// GridSquare::IsAcceptable, which is also what keeps such a value out of the
 // configuration.
 inline void ShowGridSquareValidity(wxTextCtrl* gridSquareCtrl)
 {
-    wxString value = gridSquareCtrl->GetValue();
-    value.Trim(true).Trim(false);
-    bool valid = value.IsEmpty() || GridSquare::IsValid(value);
+    bool valid = GridSquare::IsAcceptable(gridSquareCtrl->GetValue());
     gridSquareCtrl->SetForegroundColour(valid ? wxNullColour : *wxRED);
     if (valid)
     {

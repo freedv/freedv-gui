@@ -49,6 +49,13 @@ bool acceptedIs(const char* entered, const char* previous, const char* expected)
     return false;
 }
 
+bool acceptableIs(const char* entered, bool expected)
+{
+    if (GridSquare::IsAcceptable(entered) == expected) return true;
+    std::cout << "[\"" << entered << "\" was " << (expected ? "not acceptable" : "acceptable") << "] ";
+    return false;
+}
+
 bool directionIs(int degrees, const char* expected)
 {
     auto actual = GridSquare::CardinalDirection(degrees);
@@ -100,6 +107,20 @@ bool rejectsIncompleteOrMalformedGridSquares()
     // Nothing past the extended square is formally defined.
     result &= validityIs("FN31pr25ab", false);
     result &= validityIs("FN31pr25ab12", false);
+    return result;
+}
+
+bool acceptsGridSquaresAndNothingElseIgnoringSurroundingSpace()
+{
+    bool result = true;
+    result &= acceptableIs("FN31", true);
+    result &= acceptableIs(" fn31pr ", true);
+    result &= acceptableIs("FN31PR25", true);
+    result &= acceptableIs("", true);
+    result &= acceptableIs("   ", true);
+    result &= acceptableIs("DM1", false);
+    result &= acceptableIs(" ZZ12ZZ ", false);
+    result &= acceptableIs("FN 31", false);
     return result;
 }
 
@@ -306,6 +327,7 @@ int main()
 
     executeTestCase("acceptsFieldsSquaresSubsquaresAndExtendedSquares", acceptsFieldsSquaresSubsquaresAndExtendedSquares);
     executeTestCase("rejectsIncompleteOrMalformedGridSquares", rejectsIncompleteOrMalformedGridSquares);
+    executeTestCase("acceptsGridSquaresAndNothingElseIgnoringSurroundingSpace", acceptsGridSquaresAndNothingElseIgnoringSurroundingSpace);
     executeTestCase("keepsThePreviousGridSquareWhenWhatWasTypedIsNotOne", keepsThePreviousGridSquareWhenWhatWasTypedIsNotOne);
     executeTestCase("twoCharacterFieldIsLocatedAtItsMiddle", twoCharacterFieldIsLocatedAtItsMiddle);
     executeTestCase("fourCharacterGridSquareIsLocatedAtItsMiddle", fourCharacterGridSquareIsLocatedAtItsMiddle);
