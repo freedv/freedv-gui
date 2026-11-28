@@ -860,6 +860,55 @@ def test_reporting():
         quit_and_check_log(app)
 
 
+def check_grid_square_flagged(app, flagged):
+    """Checks whether the grid square box shows that what it holds won't be
+    saved (in red, with a tool tip saying why)."""
+    tooltip = app.get("wizard.txtGridSquare").get("tooltip", "")
+    check_equal("will not be saved" in tooltip, flagged, "Grid square box flagged (tool tip %r)" % tooltip)
+
+
+def test_saved_invalid_grid_square():
+    """A grid square that isn't one already in the configuration - older
+    versions saved whatever was typed - is shown as one that won't be saved,
+    and doesn't stop Finish saving the rest, reporting on or off (with it off
+    the box can't be edited at all): it stays as it was until something that
+    is a grid square replaces it."""
+    # (Reporting is turned on below; keep FreeDV away from the public FreeDV
+    # Reporter server.)
+    with freedvtest.start(settings={"/Reporting/Callsign": "AA1ZZZ", "/Reporting/GridSquare": "ZZ12ZZ",
+                                    "/Reporting/FreeDV/Hostname": "127.0.0.1:9",
+                                    "/Reporting/FreeDV/UseTls": False}) as app:
+        app.wait_for_window("main")
+        reopen_wizard(app)
+        go_to_page(app, 3)
+        check_values(app, {"ckReportingEnable": False, "txtGridSquare": "ZZ12ZZ"})
+        check_enabled(app, ["txtGridSquare"], False)
+        check_grid_square_flagged(app, True)
+        finish_wizard(app)
+        check_config(app, "reporting", {"reportingEnabled": False, "reportingCallsign": "AA1ZZZ",
+                                        "reportingGridSquare": "ZZ12ZZ"})
+
+        # With reporting on, the rest is still saved.
+        reopen_wizard(app)
+        go_to_page(app, 3)
+        app.set_value("wizard.ckReportingEnable", True)
+        app.set_value("wizard.txtCallsign", "AA2ZZZ")
+        check_grid_square_flagged(app, True)
+        finish_wizard(app)
+        check_config(app, "reporting", {"reportingEnabled": True, "reportingCallsign": "AA2ZZZ",
+                                        "reportingGridSquare": "ZZ12ZZ"})
+
+        # A grid square that is one replaces it.
+        reopen_wizard(app)
+        go_to_page(app, 3)
+        app.set_value("wizard.txtGridSquare", "DM12")
+        check_grid_square_flagged(app, False)
+        finish_wizard(app)
+        check_config(app, "reporting", {"reportingGridSquare": "DM12"})
+
+        quit_and_check_log(app)
+
+
 def test_invalid_grid_square():
     """The grid square box filled with what isn't a grid square: FreeDV keeps
     the one it had rather than saving what was typed, as it does in the
@@ -879,8 +928,11 @@ def test_invalid_grid_square():
         # square (two digits), which these aren't. The page says one is
         # required, but Finish saved whatever had been put in the box - which
         # includes what another program's settings were imported into.
+        check_grid_square_flagged(app, False)
         for junk in ["DM1", "1234", "ABCD", "DM123", "DM12k", "ZZ99", "DM12ky", "DM12kw47ab"]:
             app.set_value("wizard.txtGridSquare", junk)
+            # (The box says, before Finish, that this won't be saved.)
+            check_grid_square_flagged(app, True)
             finish_wizard(app)
             check_config(app, "reporting", {"reportingCallsign": "AA1ZZZ", "reportingGridSquare": "DM12"})
             reopen_wizard(app)
@@ -891,15 +943,25 @@ def test_invalid_grid_square():
         # field on its own and the six and eight character forms included.
         for valid in ["JO11", "dm13", "DM", "DM13qd", "DM13qd47"]:
             app.set_value("wizard.txtGridSquare", valid)
+            check_grid_square_flagged(app, False)
             finish_wizard(app)
             check_config(app, "reporting", {"reportingGridSquare": valid})
             reopen_wizard(app)
             go_to_page(app, 3)
             check_values(app, {"txtGridSquare": valid})
 
+        # Space around a grid square (pasted, say) isn't part of it.
+        app.set_value("wizard.txtGridSquare", " JO11 ")
+        check_grid_square_flagged(app, False)
+        finish_wizard(app)
+        check_config(app, "reporting", {"reportingGridSquare": "JO11"})
+        reopen_wizard(app)
+        go_to_page(app, 3)
+
         # Saying there's no grid square at all is left alone: reporting started
         # without one is what the main window says something about.
         app.set_value("wizard.txtGridSquare", "")
+        check_grid_square_flagged(app, False)
         finish_wizard(app)
         check_config(app, "reporting", {"reportingGridSquare": ""})
 
@@ -1249,6 +1311,7 @@ SCENARIOS = {
     "hamlib_start": test_hamlib_start,
     "reporting": test_reporting,
     "invalid_grid_square": test_invalid_grid_square,
+    "saved_invalid_grid_square": test_saved_invalid_grid_square,
     "import": test_import,
     "import_more": test_import_more,
 }

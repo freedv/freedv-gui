@@ -1589,6 +1589,40 @@ def test_invalid_numbers():
             quit_and_check_log(app)
 
 
+def check_grid_square_flagged(app, flagged):
+    """Checks whether the grid square box shows that what it holds won't be
+    saved (in red, with a tool tip saying why)."""
+    tooltip = app.get(name("txt_grid_square")).get("tooltip", "")
+    check_equal("will not be saved" in tooltip, flagged, "Grid square box flagged (tool tip %r)" % tooltip)
+
+
+def test_saved_invalid_grid_square():
+    """A grid square that isn't one already in the configuration - older
+    versions saved whatever was typed - is shown as one that won't be saved,
+    and doesn't stop the rest of the Settings window being saved: it stays as
+    it was until something that is a grid square replaces it."""
+    with freedvtest.start(settings={"/Reporting/Enable": True, "/Reporting/Callsign": "AA1ZZZ",
+                                    "/Reporting/GridSquare": "ZZ12ZZ",
+                                    "/Reporting/FreeDV/Hostname": NOWHERE,
+                                    "/Reporting/FreeDV/UseTls": False}) as app:
+        open_settings(app, "Reporting")
+        check_values(app, {"txt_grid_square": "ZZ12ZZ"})
+        check_grid_square_flagged(app, True)
+
+        # Something else changed is saved, and the grid square is left alone.
+        set_value(app, "txt_callsign", "AA2ZZZ")
+        press_ok(app)
+        check_saved(app, {"/Reporting/Callsign": "AA2ZZZ", "/Reporting/GridSquare": "ZZ12ZZ"})
+
+        # A grid square that is one replaces it.
+        open_settings(app, "Reporting")
+        set_value(app, "txt_grid_square", "DM12")
+        check_grid_square_flagged(app, False)
+        press_ok(app)
+        check_saved(app, {"/Reporting/GridSquare": "DM12"})
+        quit_and_check_log(app)
+
+
 def test_invalid_grid_square():
     """The grid square box filled with what isn't a grid square: FreeDV keeps
     the one it had rather than saving the typo, which would otherwise be sent
@@ -1611,7 +1645,11 @@ def test_invalid_grid_square():
                          "DM12kw4", "DM12kw47ab"]:
                 open_settings(app, "Reporting")
                 check_values(app, {"txt_grid_square": "DM12"})
+                check_grid_square_flagged(app, False)
                 set_value(app, "txt_grid_square", junk)
+                # (The box says, before anything is pressed, that this won't
+                # be saved.)
+                check_grid_square_flagged(app, True)
                 press_apply(app)
                 check_saved(app, {"/Reporting/GridSquare": "DM12"})
                 # (Apply put the grid square it kept back in the box.)
@@ -1630,13 +1668,22 @@ def test_invalid_grid_square():
             for gridSquare in ["dm13", "JO11", "DM", "DM13qd", "DM13qd47", "RR99xx99"]:
                 open_settings(app, "Reporting")
                 set_value(app, "txt_grid_square", gridSquare)
+                check_grid_square_flagged(app, False)
                 press_ok(app)
                 check_saved(app, {"/Reporting/GridSquare": gridSquare})
+
+            # Space around a grid square (pasted, say) isn't part of it.
+            open_settings(app, "Reporting")
+            set_value(app, "txt_grid_square", " DM13qd ")
+            check_grid_square_flagged(app, False)
+            press_ok(app)
+            check_saved(app, {"/Reporting/GridSquare": "DM13qd"})
 
             # Saying there's no grid square at all is left alone: reporting
             # started without one is what the main window says something about.
             open_settings(app, "Reporting")
             set_value(app, "txt_grid_square", "")
+            check_grid_square_flagged(app, False)
             press_ok(app)
             check_saved(app, {"/Reporting/GridSquare": ""})
 
@@ -1914,6 +1961,7 @@ SCENARIOS = {
     "modem_and_debugging": test_modem_and_debugging,
     "invalid_numbers": test_invalid_numbers,
     "invalid_grid_square": test_invalid_grid_square,
+    "saved_invalid_grid_square": test_saved_invalid_grid_square,
     "out_of_range_config": test_out_of_range_config,
     "ptt_key_names": test_ptt_key_names,
     "auto_start": test_auto_start,

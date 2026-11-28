@@ -744,6 +744,12 @@ yyjson_mut_val* TestAgent::describeWindow_(yyjson_mut_doc* doc, wxWindow* window
     AddString_(doc, obj, "class", window->GetClassInfo()->GetClassName());
     yyjson_mut_obj_add_bool(doc, obj, "enabled", window->IsEnabled());
     yyjson_mut_obj_add_bool(doc, obj, "shown", window->IsShownOnScreen());
+    // (What a control says about itself on hovering, e.g. why a grid square
+    // box is showing what it holds won't be saved. Left out when there's none.)
+    if (window->GetToolTip() != nullptr)
+    {
+        AddString_(doc, obj, "tooltip", window->GetToolTipText());
+    }
     wxSize clientSize = window->GetClientSize();
     yyjson_mut_val* sizeArray = yyjson_mut_arr(doc);
     yyjson_mut_arr_add_int(doc, sizeArray, clientSize.GetWidth());
