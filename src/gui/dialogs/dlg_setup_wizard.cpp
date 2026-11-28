@@ -31,31 +31,9 @@
 #include "audio/AudioEngineFactory.h"
 #include "audio/IAudioDevice.h"
 #include "rig_control/HamlibRigController.h"
-#include "../util/GridSquare.h"
+#include "../util/GridSquareEntry.h"
 
 extern wxConfigBase* pConfig;
-
-// Shows whether the grid square box holds something that will be saved: in
-// red, with a tool tip saying why, when it isn't a grid square (an empty box
-// is allowed). Called whenever the box's contents change.
-static void ShowGridSquareValidity_(wxTextCtrl* gridSquareCtrl)
-{
-    wxString value = gridSquareCtrl->GetValue();
-    value.Trim(true).Trim(false);
-    bool valid = value.IsEmpty() || GridSquare::IsValid(value);
-    gridSquareCtrl->SetForegroundColour(valid ? wxNullColour : *wxRED);
-    if (valid)
-    {
-        gridSquareCtrl->UnsetToolTip();
-    }
-    else
-    {
-        gridSquareCtrl->SetToolTip(
-            _("Not a valid grid square/locator, so it will not be saved. A locator is two letters A-R, "
-              "optionally followed by two digits, two letters A-X and two more digits (e.g. FN31 or FN31pr)."));
-    }
-    gridSquareCtrl->Refresh();
-}
 
 // --------------------------------------------------------------------------
 // helpers
@@ -463,7 +441,7 @@ wxPanel* SetupWizard::makeReportingPage()
                                       wxTextValidator(wxFILTER_ALPHANUMERIC));
     grid->Add(m_txtGridSquare, 0, static_cast<int>(wxALIGN_CENTER_VERTICAL));
     m_txtGridSquare->Bind(wxEVT_TEXT, [this](wxCommandEvent& event) {
-        ShowGridSquareValidity_(m_txtGridSquare);
+        ShowGridSquareValidity(m_txtGridSquare);
         event.Skip();
     });
 
@@ -1206,10 +1184,8 @@ void SetupWizard::saveConfig()
     // FreeDV had before stays, as in the Settings window. Empty is left
     // alone: the main window says what reporting needs.)
     // (The box shows in red when this is about to happen.)
-    wxString enteredGridSquare = m_txtGridSquare->GetValue();
-    enteredGridSquare.Trim(true).Trim(false);
-    if (enteredGridSquare.IsEmpty() || GridSquare::IsValid(enteredGridSquare))
-        cfg.reportingConfiguration.reportingGridSquare = enteredGridSquare;
+    cfg.reportingConfiguration.reportingGridSquare =
+        GridSquare::AcceptedValue(m_txtGridSquare->GetValue(), cfg.reportingConfiguration.reportingGridSquare);
     cfg.reportingConfiguration.freedvReporterEnabled = reportingOn;
     cfg.reportingConfiguration.pskReporterEnabled    = reportingOn;
 

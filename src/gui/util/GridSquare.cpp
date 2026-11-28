@@ -53,6 +53,18 @@ bool GridSquare::IsValid(wxString const& gridSquare)
     return gridSquareRegex.Matches(gridSquare);
 }
 
+bool GridSquare::IsAcceptable(wxString entered)
+{
+    entered.Trim(true).Trim(false);
+    return entered.IsEmpty() || IsValid(entered);
+}
+
+wxString GridSquare::AcceptedValue(wxString entered, wxString const& previous)
+{
+    entered.Trim(true).Trim(false);
+    return IsAcceptable(entered) ? entered : previous;
+}
+
 void GridSquare::ToLatLon(wxString gridSquare, double& lat, double& lon)
 {
     // Uppercase grid square for easier processing
