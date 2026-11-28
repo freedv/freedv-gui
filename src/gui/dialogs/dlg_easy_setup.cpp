@@ -786,7 +786,8 @@ void EasySetupDialog::OnApply(wxCommandEvent&)
     else
     {
         wxMessageBox(
-            "Some settings have not been configured. Please check your radio and audio device settings and try again.", 
+            "Some settings have not been configured. Please check your radio and audio device settings, and that "
+            "the grid square/locator is valid (e.g. FN31 or FN31pr), and try again.", 
             wxT("Error"), wxOK, this);
     }
 }
@@ -1453,7 +1454,12 @@ bool EasySetupDialog::canSaveSettings_()
 
     bool isPSKReporterEnabled = m_ckbox_psk_enable->GetValue();
     bool callsignValid = m_txt_callsign->GetValue().Length() > 0;
-    bool gridSquareValid = m_txt_grid_square->GetValue().Length() > 0;
+    // (A grid square that isn't one would be dropped on saving, so it stops
+    // the save instead, reporting or not. Reporting needs one as well.)
+    wxString gridSquare = m_txt_grid_square->GetValue();
+    gridSquare.Trim(true).Trim(false);
+    bool gridSquareUsable = gridSquare.IsEmpty() || GridSquare::IsValid(gridSquare);
+    bool gridSquareValid = !gridSquare.IsEmpty() && gridSquareUsable;
     
-    return radioSettingsValid && (!isPSKReporterEnabled || (callsignValid && gridSquareValid));
+    return radioSettingsValid && gridSquareUsable && (!isPSKReporterEnabled || (callsignValid && gridSquareValid));
 }
